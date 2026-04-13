@@ -12,6 +12,14 @@ An integrated file utility for text, e-book, and media file management.
 | Text Fixer | 줄바꿈 교정 — 단락 병합·빈 줄 정리 / Fix line breaks — merge paragraphs, compress blanks |
 | Bulk Fixer | Text Fixer를 여러 파일에 일괄 적용 / Apply Text Fixer to multiple TXT files at once |
 
+## 스크린샷 / Screenshots
+<img width="1160" height="880" alt="SS_Text Merger" src="https://github.com/user-attachments/assets/f4792f57-6162-470a-8a1a-6137225ede5c" />
+
+<img width="1160" height="880" alt="SS_Text Fixer" src="https://github.com/user-attachments/assets/16c2b9c2-e7b3-4343-86dc-691a8007d0c9" />
+
+<img width="1160" height="880" alt="SS_Bulk Fixer" src="https://github.com/user-attachments/assets/00e042fd-9703-4fa7-b6ea-53fc7efc38d1" />
+
+
 ## 주요 특징 / Highlights
 - 🌏 5개 언어 / 5 languages (한국어 · English · 日本語 · 中文简体 · 中文繁體)
 - 🎨 9개 테마 / 9 themes (Light · Dark · Sakura · Ocean · Mint · Sand · Honey · Lavender · Choco)
@@ -23,6 +31,7 @@ An integrated file utility for text, e-book, and media file management.
 - Windows 10/11 (64-bit)
 - 별도 설치 불필요 — exe 실행만 하면 됩니다
 - No installation required — just run the exe
+
 
 ## 사용법 / Usage
 1. zip 압축 해제 / Extract zip
