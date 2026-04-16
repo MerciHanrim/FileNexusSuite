@@ -1,139 +1,194 @@
 <div align="center">
 
-# 📁 File Nexus Suite
+# File Nexus Suite
 
-**텍스트·전자책·미디어 파일 작업에 특화된 통합 파일 도구**
-*An integrated file utility for text, e-book, and media file management*
+**통합 파일 관리 도구 · Integrated File Utility**
 
-[![Version](https://img.shields.io/github/v/release/MerciHanrim/FileNexusSuite?color=CC785C&label=version)](https://github.com/MerciHanrim/FileNexusSuite/releases)
-[![Downloads](https://img.shields.io/github/downloads/MerciHanrim/FileNexusSuite/total?color=CC785C)](https://github.com/MerciHanrim/FileNexusSuite/releases)
-[![Python](https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white)](https://www.python.org)
-[![PySide6](https://img.shields.io/badge/PySide6-Qt%206-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
-[![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?logo=windows&logoColor=white)]()
-[![License](https://img.shields.io/badge/License-Freeware-green)]()
+텍스트 병합 · EPUB 변환 · 파일명 태그 편집 · 일괄 이름 변경 · 줄바꿈 교정
 
-[**📥 Download**](https://github.com/MerciHanrim/FileNexusSuite/releases/latest) ·
-[**📖 Features**](#-주요-기능--features) ·
-[**🎨 Screenshots**](#-스크린샷--screenshots) ·
-[**⚙️ Tech Stack**](#️-기술-스택--tech-stack)
+<br>
 
-</div>
+![version](https://img.shields.io/badge/version-1.0.1-CC785C?style=flat-square)
+![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
+![PySide6](https://img.shields.io/badge/PySide6-Qt_6-41CD52?style=flat-square&logo=qt&logoColor=white)
+![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
+![license](https://img.shields.io/badge/license-Freeware_(source_available)-7B6FA3?style=flat-square)
+![AI](https://img.shields.io/badge/AI_pair_programming-Claude-CC785C?style=flat-square)
 
----
-
-## 💡 프로젝트 소개 / About
-
-File Nexus Suite는 일상적인 파일 정리 작업—텍스트 병합, 포맷 변환, 이름 변경, 줄바꿈 교정—을 하나의 데스크톱 애플리케이션에 통합한 도구입니다. 개별적으로 개발했던 5개의 독립 프로그램을 하나의 탭 기반 인터페이스로 통합하고, PyQt5에서 PySide6(Qt 6)로 마이그레이션하며 완성한 프로젝트입니다.
-
-> File Nexus Suite combines five originally standalone programs—text merger, EPUB/TXT converter, tag editor, batch renamer, and line-break fixer—into one tab-based desktop application. Migrated from PyQt5 to PySide6 (Qt 6) for consistent modern UI across all features.
-
----
-
-## 📥 Download / 다운로드
-
-가장 최신 버전을 다운로드하세요. 별도 설치가 필요 없습니다.
-*Download the latest version. No installation required.*
-
-| Platform | Download |
-|----------|----------|
-| 🪟 Windows 10/11 (64-bit) | [**FileNexusSuite v1.0.1**](https://github.com/MerciHanrim/FileNexusSuite/releases/latest) |
-
-**사용법 / How to use**
-1. zip 압축 해제 / Extract the zip file
-2. `FileNexusSuite.exe` 실행 / Run `FileNexusSuite.exe`
-3. 앱 내 우측 상단 [?] 도움말 참고 / See in-app `[?]` Help (top-right)
-
----
-
-## 🛠 주요 기능 / Features
-
-| Tab | 기능 / Feature |
-| :-- | :-- |
-| **Text Merger** | 여러 파일을 하나의 텍스트로 병합 *(TXT, MD, CSV, DOCX, PDF, XLSX 등)* <br>*Merge multiple files into one text file* |
-| **Text Converter** | TXT ↔ EPUB 형식 일괄 변환 <br>*Batch convert between TXT and EPUB* |
-| **Tag Editor** | 파일명 태그 일괄 추가·제거, 0패딩 제거 <br>*Batch add/remove filename tags, strip zero-padding* |
-| **Batch Renamer** | 폴더·파일 일괄 이름 변경 (접두사·번호·치환·정규식) <br>*Batch rename folders/files with prefix, numbering, find & replace, regex* |
-| **Text Fixer** | 단일 파일 줄바꿈 교정 — 단락 병합·빈 줄 정리 <br>*Fix line breaks in a single file* |
-| **Bulk Fixer** | 여러 파일에 Text Fixer 일괄 적용 <br>*Apply Text Fixer to multiple TXT files at once* |
-
----
-
-## 🎨 스크린샷 / Screenshots
-
-<div align="center">
-
-| Text Merger | Text Fixer | Bulk Fixer |
-|:---:|:---:|:---:|
-| ![Text Merger](https://github.com/user-attachments/assets/f4792f57-6162-470a-8a1a-6137225ede5c) | ![Text Fixer](https://github.com/user-attachments/assets/16c2b9c2-e7b3-4343-86dc-691a8007d0c9) | ![Bulk Fixer](https://github.com/user-attachments/assets/00e042fd-9703-4fa7-b6ea-53fc7efc38d1) |
+[**Download**](https://github.com/MerciHanrim/FileNexusSuite/releases) · [**Report Bug**](https://github.com/MerciHanrim/FileNexusSuite/issues) · [**Request Feature**](https://github.com/MerciHanrim/FileNexusSuite/issues)
 
 </div>
 
 ---
 
-## ✨ 주요 특징 / Highlights
+## 프로젝트 소개 · About
 
-- 🌏 **5개 언어 지원** — 한국어 · English · 日本語 · 中文简体 · 中文繁體
-- 🎨 **9개 테마 + OS 자동 감지** — Light · Dark · Sakura · Ocean · Mint · Sand · Honey · Lavender · Choco
-- ⌨️ **단축키 커스터마이징** — 모든 탭 단축키 사용자 지정 가능
-- 📁 **전역 출력 폴더** — 저장 후 자동 열기 옵션
-- 🔍 **Ctrl+F 검색** — Text Fixer 내장 검색
-- ↩️ **실행 취소(Undo)** — 모든 파일 변경 작업 되돌리기 가능
-- 🖱️ **드래그 앤 드롭** — 모든 탭에서 파일·폴더 드래그 입력 지원
-- 💾 **설정 영속화** — JSON 기반 환경설정 자동 저장
+File Nexus Suite는 일상적인 파일 작업을 하나의 데스크톱 애플리케이션에 통합한 Windows용 도구입니다. 텍스트 파일 병합, EPUB/TXT 상호 변환, 파일명 태그 편집, 폴더·파일 일괄 이름 변경, 텍스트 줄바꿈 교정까지 — **6개의 핵심 기능을 일관된 UI로 제공**합니다.
 
----
+> File Nexus Suite integrates everyday file tasks into a single Windows desktop application — text merging, EPUB conversion, filename tag editing, batch renaming, and line-break correction — all with a consistent UI.
 
-## ⚙️ 기술 스택 / Tech Stack
+### 개발 방식 · Development Approach
 
-| 구분 | 기술 |
-|:--|:--|
-| **언어 / Language** | Python 3.x |
-| **GUI 프레임워크** | PySide6 (Qt 6) — LGPL-3.0 |
-| **인코딩 감지** | chardet *(optional)* |
-| **문서 처리** | python-docx · pdfplumber · openpyxl *(optional)* |
-| **전자책 처리** | ebooklib + BeautifulSoup *(optional)* |
-| **아이콘 시스템** | 자체 SVG 벡터 아이콘 (line/filled 듀얼 스타일) |
-| **빌드 / Build** | PyInstaller (단일 실행 파일 / single-file executable) |
+본 프로젝트는 **AI 페어 프로그래밍(Claude)으로 개발**되었습니다. [Hanrim](https://github.com/MerciHanrim)이 기획·UX 설계·기능 명세·품질 관리를 담당하고, 코드 작성은 AI와 협업하여 진행했습니다. 전체 소스 코드는 본 저장소에 공개되어 있어 자유롭게 검토·학습할 수 있습니다.
 
-> 모든 외부 라이브러리는 `try/except`로 임포트되어 미설치 환경에서도 핵심 기능이 동작합니다.
-> *All external libraries are loaded with `try/except` — core features work even without optional dependencies.*
+> This project was developed with **AI pair programming (Claude)**. Planning, UX design, feature specification, and quality management were done by Hanrim, with code written in collaboration with AI. The full source code is published in this repository for open review and study.
 
 ---
 
-## 💻 시스템 요구사항 / Requirements
+## 주요 특징 · Highlights
 
-- **OS:** Windows 10 / 11 (64-bit)
-- **설치 / Installation:** 별도 설치 불필요 — exe 실행만 하면 됩니다 / *No installation required*
+- 🗂️ **6 Integrated Tabs** — Text Merger, Text Converter, Tag Editor, Batch Renamer, Text Fixer, Bulk Fixer
+- 🎨 **9 Themes + Auto Mode** — Light, Dark, Sakura, Choco, Mint, Ocean, Sand, Honey, Lavender (+ OS dark mode detection)
+- 🌐 **5 Languages** — 한국어 · English · 日本語 · 简体中文 · 繁體中文 (auto-detected from OS)
+- ↩️ **Undo Support** — Every destructive action (renames, merges, tag edits) can be reverted
+- 👁️ **Preview Before Apply** — All batch operations show a preview before execution
+- 🔋 **Sleep Prevention** — Windows sleep mode is blocked during long operations
+- 🎯 **Drag & Drop Everywhere** — Every tab accepts file/folder drag & drop
+- 💾 **Smart Encoding** — Auto-detect with chardet, supports UTF-8 / UTF-8-BOM / EUC-KR / CP949 / UTF-16
 
 ---
 
-## 📜 라이선스 / License
+## 탭별 기능 · Features
 
-이 소프트웨어는 **프리웨어**입니다.
-*This software is **freeware**.*
+### 📋 Text Merger
+여러 파일(TXT, MD, CSV, JSON, DOCX, PDF, XLSX 등)을 하나의 텍스트 파일로 병합합니다. 파일 구분선 삽입 옵션과 인코딩 자동 감지를 지원합니다.
 
-- ✅ 개인 및 상업적 사용 자유 / Free for personal & commercial use
-- ❌ 무단 재배포·재가공·판매 금지 / No redistribution, repackaging, or resale
+> Merge multiple files (TXT, MD, CSV, JSON, DOCX, PDF, XLSX, etc.) into a single text file with customizable separators and auto encoding detection.
+
+### 🔄 Text Converter
+TXT와 EPUB 형식을 상호 변환합니다. 텍스트 원고로 전자책을 만들거나, EPUB에서 텍스트를 추출해 편집 가능한 형태로 꺼낼 수 있습니다.
+
+> Convert between TXT and EPUB formats. Create e-books from text files or extract text from EPUBs.
+
+### 🏷️ Tag Editor
+파일명의 `[태그]` 패턴을 일괄 추가·제거합니다. 파일명 앞자리 0 제거 모드도 지원합니다.
+
+> Batch add/remove `[tag]` patterns from filenames. Includes a leading-zero removal mode.
+
+### 📁 Batch Renamer
+폴더와 파일 이름을 일괄 변경합니다. 숫자 자동 추출(스마트 추출)과 순차 번호 부여 두 방식을 지원합니다.
+
+> Rename folders and files in bulk using smart number extraction or sequential numbering.
+
+### ✦ Text Fixer
+OCR이나 전자책에서 추출한 텍스트의 잘못된 줄바꿈을 교정합니다. 한국어·영어 모드를 지원하며, 변경 위치를 시각적으로 확인할 수 있습니다.
+
+> Fix broken line breaks in OCR'd or extracted text. Intelligent paragraph reconstruction with Korean/English mode and visual diff highlighting.
+
+### ✦ Bulk Fixer
+Text Fixer의 로직을 여러 파일에 한 번에 적용합니다. 폴더 구조 유지 옵션을 지원합니다.
+
+> Apply Text Fixer's logic to multiple files at once. Preserves folder structure option.
+
+---
+
+## 설치 및 실행 · Installation
+
+### 실행 파일 다운로드 (일반 사용자) · Download Executable
+
+[**Releases 페이지**](https://github.com/MerciHanrim/FileNexusSuite/releases)에서 최신 Windows 실행 파일을 다운로드하세요.
+
+> Download the latest Windows executable from the [Releases](https://github.com/MerciHanrim/FileNexusSuite/releases) page.
+
+### 소스에서 실행 (개발자) · Run from Source
+
+```bash
+# 저장소 클론
+git clone https://github.com/MerciHanrim/FileNexusSuite.git
+cd FileNexusSuite
+
+# 의존성 설치
+pip install PySide6 chardet python-docx pdfplumber openpyxl
+
+# 실행
+python FileNexusSuite.py
+```
+
+---
+
+## 기술 스택 · Tech Stack
+
+| Category | Technology |
+|---|---|
+| Language | Python 3.10+ |
+| GUI Framework | PySide6 (Qt 6) |
+| File Format Support | chardet, python-docx, pdfplumber, openpyxl |
+| Build | PyInstaller (Windows executable) |
+| AI Collaboration | Anthropic Claude |
+
+---
+
+## 테마 & 언어 · Themes & Languages
+
+<details>
+<summary><strong>🎨 9 Themes + Auto Mode</strong></summary>
+
+<br>
+
+| Theme | Mood |
+|---|---|
+| **Light** | 깔끔한 밝은 모드 · Clean, bright |
+| **Dark** | 차분한 어두운 모드 · Deep, focused |
+| **Sakura** | 벚꽃 느낌 · Cherry blossom |
+| **Choco** | 앤티크 브론즈 · Warm cacao |
+| **Mint** | 상쾌한 자연 톤 · Fresh, natural |
+| **Ocean** | 시원한 바다 톤 · Cool blue |
+| **Sand** | 사막 톤 · Desert warm |
+| **Honey** | 따뜻한 꿀 톤 · Golden amber |
+| **Lavender** | 부드러운 라벤더 톤 · Soft purple |
+| **Auto** | OS 다크모드 자동 감지 · Follows OS dark mode |
+
+</details>
+
+<details>
+<summary><strong>🌐 5 Supported Languages</strong></summary>
+
+<br>
+
+- 🇰🇷 한국어 (Korean)
+- 🇺🇸 English
+- 🇯🇵 日本語 (Japanese)
+- 🇨🇳 简体中文 (Simplified Chinese)
+- 🇹🇼 繁體中文 (Traditional Chinese)
+
+앱 최초 실행 시 OS 언어를 자동 감지하며, 설정에서 언제든 변경할 수 있습니다.
+
+> Language is auto-detected from OS settings on first launch and can be changed anytime in Settings.
+
+</details>
+
+---
+
+## 라이선스 · License
+
+본 소프트웨어는 **프리웨어(소스 공개)** 입니다. 개인 및 상업적 사용이 자유롭게 허용되며, 무단 재배포·재가공·판매는 금지됩니다.
+
+> This software is **freeware (source available)**. Free for personal and commercial use. Unauthorized redistribution, repackaging, or resale is prohibited.
+
+사용된 오픈소스 라이브러리:
+- Python (PSF License 2.0)
+- PySide6 (LGPL-3.0)
+- chardet (LGPL-2.1)
+- python-docx, pdfplumber, openpyxl (MIT)
+
+전체 라이선스 정보는 앱 내 **[설정 → 라이선스]** 에서 확인할 수 있습니다.
 
 Copyright © 2026 Hanrim. All rights reserved.
 
-자세한 오픈소스 라이선스 고지는 앱 내 **설정 → 라이선스** 메뉴에서 확인하실 수 있습니다.
-*See in-app **Settings → License** for full open-source attribution.*
+---
+
+## 제작자 · Author
+
+**신용우 (Hanrim)** — [@MerciHanrim](https://github.com/MerciHanrim)
+
+제품 기획 · UX 설계 · 품질 관리 · AI 디렉팅 · 릴리즈 관리
+
+> Product planning · UX design · Quality management · AI direction · Release management
 
 ---
 
-## 👤 Author
+## Acknowledgments
 
-**Hanrim** — [@MerciHanrim](https://github.com/MerciHanrim)
+Built with the assistance of [Claude](https://claude.ai) by Anthropic, acting as a pair programming partner throughout the development process.
 
-문제 보고 및 제안은 [Issues](https://github.com/MerciHanrim/FileNexusSuite/issues)에 남겨주세요.
-*Bug reports and suggestions welcome via [Issues](https://github.com/MerciHanrim/FileNexusSuite/issues).*
-
----
-
-<div align="center">
-
-⭐ 이 프로젝트가 마음에 드신다면 Star를 눌러주세요!
-*If you find this project useful, please consider giving it a star!*
-
-</div>
+프로젝트의 모든 코드는 Anthropic의 [Claude](https://claude.ai)와 페어 프로그래밍으로 작성되었습니다.

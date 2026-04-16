@@ -1,0 +1,60 @@
+# ═══════════════════════════════════════════════
+# File Nexus Suite — .gitignore
+# ═══════════════════════════════════════════════
+
+# ── Python 캐시 및 컴파일 결과 ────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ── 가상 환경 ─────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── PyInstaller 빌드 결과 ─────────────────────
+build/
+dist/
+*.spec.bak
+*.manifest
+*.zip
+
+# ── 앱 실행 시 생성되는 파일 ──────────────────
+FileNexusSuite.json
+logs/
+Output/
+_internal/
+
+# ── IDE / 에디터 설정 ─────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS 생성 파일 ──────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# ── 배포 / 패키징 ────────────────────────────
+*.egg-info/
+*.egg
+MANIFEST
+
+# ── 개인 작업 파일 (공개 제외) ────────────────
+참고 자료/
+HANDOVER.md
+README.txt
+test_file_nexus.py
+preview_ui.py
+*.md.bak
+
+# ── 임시 파일 ────────────────────────────────
+*.tmp
+*.temp
+*.log
+*~
