@@ -82,6 +82,18 @@ Text Fixer의 로직을 여러 파일에 한 번에 적용합니다. 폴더 구�
 
 ---
 
+## 🎨 스크린샷 · Screenshots
+
+<div align="center">
+
+| Text Merger | Text Fixer | Bulk Fixer |
+|:---:|:---:|:---:|
+| ![Text Merger](https://github.com/user-attachments/assets/f4792f57-6162-470a-8a1a-6137225ede5c) | ![Text Fixer](https://github.com/user-attachments/assets/16c2b9c2-e7b3-4343-86dc-691a8007d0c9) | ![Bulk Fixer](https://github.com/user-attachments/assets/00e042fd-9703-4fa7-b6ea-53fc7efc38d1) |
+
+</div>
+
+---
+
 ## 설치 및 실행 · Installation
 
 ### 실행 파일 다운로드 (일반 사용자) · Download Executable
