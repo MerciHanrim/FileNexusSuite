@@ -15,7 +15,11 @@
 ![license](https://img.shields.io/badge/license-Freeware_(source_available)-7B6FA3?style=flat-square)
 ![AI](https://img.shields.io/badge/AI_pair_programming-Claude-CC785C?style=flat-square)
 
-[**Download**](https://github.com/MerciHanrim/FileNexusSuite/releases) · [**Report Bug**](https://github.com/MerciHanrim/FileNexusSuite/issues) · [**Request Feature**](https://github.com/MerciHanrim/FileNexusSuite/issues)
+<br>
+
+[![Download Latest Release](https://img.shields.io/badge/⬇%20Download%20Latest%20Release-CC785C?style=for-the-badge&logoColor=white)](https://github.com/MerciHanrim/FileNexusSuite/releases/latest)
+
+[Report Bug](https://github.com/MerciHanrim/FileNexusSuite/issues) · [Request Feature](https://github.com/MerciHanrim/FileNexusSuite/issues)
 
 </div>
 
@@ -40,9 +44,7 @@ File Nexus Suite는 일상적인 파일 작업을 하나의 데스크톱 애플�
 - 🗂️ **6 Integrated Tabs** — Text Merger, Text Converter, Tag Editor, Batch Renamer, Text Fixer, Bulk Fixer
 - 🎨 **9 Themes + Auto Mode** — Light, Dark, Sakura, Choco, Mint, Ocean, Sand, Honey, Lavender (+ OS dark mode detection)
 - 🌐 **5 Languages** — 한국어 · English · 日本語 · 简体中文 · 繁體中文 (auto-detected from OS)
-- ↩️ **Undo Support** — Every destructive action (renames, merges, tag edits) can be reverted
-- 👁️ **Preview Before Apply** — All batch operations show a preview before execution
-- 🔋 **Sleep Prevention** — Windows sleep mode is blocked during long operations
+- 🛡️ **Safe by Design** — Preview before apply + Undo support for every destructive action
 - 🎯 **Drag & Drop Everywhere** — Every tab accepts file/folder drag & drop
 - 💾 **Smart Encoding** — Auto-detect with chardet, supports UTF-8 / UTF-8-BOM / EUC-KR / CP949 / UTF-16
 
