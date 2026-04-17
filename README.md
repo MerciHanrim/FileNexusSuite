@@ -29,9 +29,9 @@ File Nexus Suite는 일상적인 파일 작업을 하나의 데스크톱 애플�
 
 ### 개발 방식 · Development Approach
 
-본 프로젝트는 **AI 페어 프로그래밍(Claude)으로 개발**되었습니다. [Hanrim](https://github.com/MerciHanrim)이 기획·UX 설계·기능 명세·품질 관리를 담당하고, 코드 작성은 AI와 협업하여 진행했습니다. 전체 소스 코드는 본 저장소에 공개되어 있어 자유롭게 검토·학습할 수 있습니다.
+본 프로젝트는 **AI 페어 프로그래밍(Claude)으로 개발**되었습니다. [신용우(Hanrim)](https://github.com/MerciHanrim)이 기획·UX 설계·기능 명세·품질 관리를 담당하고, 코드 작성은 AI와 협업하여 진행했습니다. 전체 소스 코드는 본 저장소에 공개되어 있어 자유롭게 검토·학습할 수 있습니다.
 
-> This project was developed with **AI pair programming (Claude)**. Planning, UX design, feature specification, and quality management were done by Hanrim, with code written in collaboration with AI. The full source code is published in this repository for open review and study.
+> This project was developed with **AI pair programming (Claude)**. Planning, UX design, feature specification, and quality management were done by Yongwoo Shin (Hanrim), with code written in collaboration with AI. The full source code is published in this repository for open review and study.
 
 ---
 
@@ -173,13 +173,13 @@ python FileNexusSuite.py
 
 전체 라이선스 정보는 앱 내 **[설정 → 라이선스]** 에서 확인할 수 있습니다.
 
-Copyright © 2026 Hanrim. All rights reserved.
+Copyright © 2026 Yongwoo Shin (Hanrim). All rights reserved.
 
 ---
 
 ## 제작자 · Author
 
-**신용우 (Hanrim)** — [@MerciHanrim](https://github.com/MerciHanrim)
+**신용우 Yongwoo Shin (Hanrim)** — [@MerciHanrim](https://github.com/MerciHanrim)
 
 제품 기획 · UX 설계 · 품질 관리 · AI 디렉팅 · 릴리즈 관리
 
