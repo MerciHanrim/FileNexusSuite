@@ -49,3 +49,5 @@ preview_ui.py
 *.temp
 *.log
 *~
+# ── 개인 작업 기록 (깃허브에 올리지 않음) ───────────────────
+Claude_Handover_FileNexusSuite.md

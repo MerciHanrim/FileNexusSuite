@@ -1,5 +1,50 @@
 # File Nexus Suite — 변경 내역
 
+## v1.0.2 사후 (2026-04-17) — 저장소 메타데이터 정비
+
+> 코드 변경 없음. v1.0.2 릴리즈 직후 GitHub 저장소 정비 작업으로,
+> 별도 릴리즈 없이 main 브랜치에 직접 반영함.
+
+### 문서·메타데이터
+
+- **LICENSE 파일 신규 생성**
+  - 영문 + 한국어 병기 (구분선으로 분리)
+  - DISCLAIMER OF WARRANTY 조항 포함
+  - Third-party libraries 목록 포함
+  - GitHub "View license" 자동 인식 활성화
+
+- **README.md 풍부한 버전으로 전면 개편**
+  - 뱃지 6개 추가 (version, python, PySide6, platform, license, AI pair programming)
+  - 강조형 Download 버튼 추가 (for-the-badge 스타일, CC785C)
+  - 프로젝트 소개 + 개발 방식 섹션 추가 (AI 페어 프로그래밍 명시)
+  - Highlights 6개로 정리 (Undo + Preview를 "Safe by Design"으로 통합)
+  - 탭별 기능 상세 설명 추가 (한·영 병기)
+  - 스크린샷 3열 표 형식으로 개편
+  - 설치 가이드 + 기술 스택 + 테마/언어 + 라이선스 섹션 추가
+  - 제작자 표기: 신용우 Yongwoo Shin (Hanrim)
+  - 총 208줄, 8.59KB
+
+- **GitHub 저장소 메타데이터 정비**
+  - About Description: 한·영 병기 + 이모지 추가
+  - Website 링크: Releases 최신 페이지로 직결
+  - Topics 15개 추가 (python, pyside6, qt6, windows, desktop-app, gui,
+    text-processing, epub, file-management, ebook, freeware, productivity,
+    dark-mode, ai-pair-programming, claude)
+
+- **v1.0.0 Release 정리**
+  - v1.0.0 GitHub Release 항목 삭제
+  - 외부에 노출된 다운로드 링크는 모두 `releases/latest` 사용으로 영향 없음
+  - v1.0.1, v1.0.2 두 개만 유지
+
+### 저작권 표기
+
+- 외부 노출 문서(README.md, LICENSE)의 Copyright 표기를
+  "Hanrim" → "Yongwoo Shin (Hanrim)"으로 변경
+- 앱 내 표시(FileNexusSuite.py, README.txt)는 "Hanrim" 그대로 유지
+  (GitHub 계정명과 일관성)
+
+---
+
 ## v1.0.2 (2026-04-17) — Opus 4.7 검토 기반 버그 수정 + 코드 위생
 
 ### 버그 수정
