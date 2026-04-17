@@ -1,0 +1,41 @@
+File Nexus Suite License
+
+Copyright © 2026 Yongwoo Shin (Hanrim). All rights reserved.
+
+This software is freeware (source available).
+Free for personal and commercial use.
+Unauthorized redistribution, repackaging, or resale is prohibited.
+
+DISCLAIMER OF WARRANTY:
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF THE
+SOFTWARE.
+
+Third-party libraries used:
+- Python (PSF License 2.0)
+- PySide6 (LGPL-3.0)
+- chardet (LGPL-2.1)
+- python-docx, pdfplumber, openpyxl (MIT)
+
+================================================================
+
+[한국어 안내 · Korean Notice]
+
+본 소프트웨어는 프리웨어(소스 공개)입니다.
+개인 및 상업적 사용이 자유롭게 허용되며,
+무단 재배포·재가공·판매는 금지됩니다.
+
+면책 조항:
+본 소프트웨어는 어떠한 보증도 없이 "있는 그대로" 제공됩니다.
+사용으로 인해 발생하는 모든 손해에 대해 제작자는 책임을 지지 않습니다.
+
+사용된 오픈소스 라이브러리:
+- Python (PSF License 2.0)
+- PySide6 (LGPL-3.0)
+- chardet (LGPL-2.1)
+- python-docx, pdfplumber, openpyxl (MIT)
+
+(법적 효력은 위 영문본을 기준으로 합니다.)
