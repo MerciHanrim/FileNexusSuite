@@ -18,11 +18,12 @@ SCRIPT        = "FileNexusSuite.py"
 OUTPUT_NAME   = "FileNexusSuite"
 ICON_TMP      = "_build_icon_tmp.ico"
 VERSION_FILE  = "version_info.txt"      # Windows 파일 속성 버전 정보
+README_FILE   = "README.txt"            # 빌드 후 dist 루트에 자동 복사
 DIST_DIR      = "dist"
 BUILD_DIR     = "build"
 
 # UPX path
-UPX_DIR = r"C:\Work Space\Coding\upx-5.0.2-win64"
+UPX_DIR = r"C:\Work Space\Coding\3_Tools\upx-5.0.2-win64"
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -152,6 +153,42 @@ def run_pyinstaller(has_icon, has_version_file, upx_exe):
     return subprocess.run(cmd).returncode == 0
 
 
+def copy_readme_to_dist():
+    """빌드 후 README.txt를 dist 루트로 복사 + 버전 일관성 검증.
+    매번 수동 복사하던 작업을 자동화.
+    """
+    src = Path(README_FILE)
+    if not src.exists():
+        print(f"  (skipped — {README_FILE} not found in project root)")
+        return False
+
+    dst_dir = Path(DIST_DIR) / OUTPUT_NAME
+    if not dst_dir.exists():
+        print(f"  ⚠ {dst_dir}/ not found — build may have failed.")
+        return False
+
+    # 버전 일관성 검증 — README.txt의 vX.Y.Z가 APP_VERSION과 일치하는지
+    try:
+        py_src = Path(SCRIPT).read_text(encoding="utf-8")
+        m = re.search(r'APP_VERSION\s*=\s*["\']([\d.]+)["\']', py_src)
+        app_ver = m.group(1) if m else None
+
+        readme_text = src.read_text(encoding="utf-8")
+        rm = re.search(r'v(\d+\.\d+\.\d+)', readme_text)
+        readme_ver = rm.group(1) if rm else None
+
+        if app_ver and readme_ver and app_ver != readme_ver:
+            print(f"  ⚠ Version mismatch — {README_FILE}: v{readme_ver}, APP_VERSION: v{app_ver}")
+            print(f"    → Update {README_FILE} to v{app_ver} before release.")
+    except Exception:
+        pass  # 버전 체크 실패는 무시 (복사는 계속)
+
+    dst = dst_dir / README_FILE
+    shutil.copy2(src, dst)
+    print(f"  ✅ {README_FILE} copied  →  {dst}")
+    return True
+
+
 def cleanup():
     removed = []
     if Path(ICON_TMP).exists():
@@ -172,7 +209,7 @@ def cleanup():
 # Main
 # ══════════════════════════════════════════════════════════════════════
 def main():
-    TOTAL = 6
+    TOTAL = 7
     print()
     print("╔══════════════════════════════════════════════╗")
     print("║  File Nexus Suite — PyInstaller Build Script ║")
@@ -198,7 +235,10 @@ def main():
     step(5, TOTAL, "PyInstaller build")
     success = run_pyinstaller(has_icon, has_version_file, upx_exe)
 
-    step(6, TOTAL, "Cleanup")
+    step(6, TOTAL, "Copy README.txt to dist")
+    copy_readme_to_dist()
+
+    step(7, TOTAL, "Cleanup")
     cleanup()
 
     print()

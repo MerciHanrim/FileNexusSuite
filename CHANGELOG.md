@@ -1,5 +1,78 @@
 # File Nexus Suite — 변경 내역
 
+## v1.0.2 (2026-04-17) — Opus 4.7 검토 기반 버그 수정 + 코드 위생
+
+### 버그 수정
+
+- **Tag Editor 폴더 스캔 중 종료 시 경고 누락** (`L13277`, `L6212~6214`)
+  - 폴더를 드래그 & 드롭한 직후 `_scan_worker` 가 실행 중일 때 X 버튼/Alt+F4 로 종료해도
+    "작업 중 종료 확인" 다이얼로그가 뜨지 않고 즉시 종료되던 문제
+  - 원인: `AppSuite.closeEvent()` 의 busy_panels 체크 리스트에 `_tag_panel` 누락
+    + `TagEditorPanel` 에 `is_busy()` 메서드 자체가 없었음
+  - 수정:
+    1. `TagEditorPanel.is_busy()` 추가 (`return bool(self._scan_worker and self._scan_worker.isRunning())`)
+    2. `closeEvent` busy_panels 리스트에 `('_tag_panel', 'Tag Editor')` 추가
+  - 다른 5개 패널(Text Merger, Text Converter, Text Fixer, Bulk Fixer)과 동일한 종료 보호 동작 확보
+
+- **중국어 UI 에서 Bulk Fixer 저장 옵션 설명이 한국어로 표시** (`L2422`, `L2756`)
+  - `bulk_save_desc` 번역 키가 zh_cn / zh_tw 사전에서 누락되어
+    `_t()` fallback 으로 한국어 원문이 그대로 표시되던 문제
+  - 영향 위치: Bulk Fixer 패널 저장 모드 설명 라벨 (`_lbl_save_desc`, L8460)
+  - 수정: 간체·번체 번역 추가
+    - zh_cn: `'在文件名前加 [Fixed] 标签保存。如未指定输出文件夹，将保存在原文件相同位置。'`
+    - zh_tw: `'在檔案名前加 [Fixed] 標籤儲存。如未指定輸出資料夾，將儲存在原檔案相同位置。'`
+
+- **TXT → EPUB 변환 시 챕터 제목 본문 중복** (`txt_to_epub`, `L3559~3564`)
+  - 첫 줄을 챕터 제목으로 자동 인식할 때, 본문에는 그 줄이 그대로 남아 있어서
+    EPUB 리더에서 `<h1>제목</h1>` 다음 첫 단락에 같은 제목이 한 번 더 표시되던 문제
+  - 수정: 첫 줄을 제목으로 채택한 경우 `p = "\n".join(lines[1:]).lstrip("\n")` 으로 본문에서 제거
+  - 빈 제목인 경우는 기본 제목(`Chapter N`) 유지 + 본문 보존
+
+### 코드 위생
+
+- **bare `except:` 좁힘** (`L7277`, `L7287`)
+  - `TextFixerPanel._start_keep_top()` 의 Qt 시그널 disconnect 패턴
+  - `except:` → `except (RuntimeError, TypeError):` 로 명시화 (PEP-8 권장)
+  - 동작 동일 — 의도하지 않은 예외 삼키기 방지
+
+- **무의미한 `replace()` 체인 제거** (`TextConverterPanel.retranslate`, `L5806`)
+  - `_t('conv_sub_'+val.replace('epub2txt','epub2txt').replace('txt2epub','txt2epub'))`
+  - 같은 문자열로 replace 하는 명백한 잘못된 코드 — `_t('conv_sub_' + val)` 로 단순화
+
+- **미사용 import / 변수 정리** (5건)
+  - `L58`: `QListWidgetItem` 미사용 import 제거
+  - `L3725`: `_ScrollHint.__init__` 의 `import math as _math` 제거 (`_tick` 메서드에서 별도 import 함)
+  - `L5673~5674`: `_on_file_progress` 의 미사용 지역변수 `total`, `done` 제거
+  - `L8779`: `BulkFixerPanel.retranslate` 의 미사용 `from itertools import chain` 제거
+  - `L13161`: placeholder 없는 f-string `f"File Nexus Suite"` → 일반 문자열로
+
+### 번역
+
+- 신규 번역 키 1개 × 2개 언어: `bulk_save_desc` (zh_cn, zh_tw)
+- ko / en / ja 는 기존 v1.0.1 부터 정의되어 있던 키
+
+### 알려진 이슈 (미수정 — 동작에 영향 없음)
+
+- `zh_cn` 사전이 두 블록(L2013~L2204, L2204~L2462)으로 나뉘어 188 개 키가 중복 정의되어 있음
+  - 모든 중복 키가 같은 값으로 정의되어 있어 ast.literal_eval 결과는 정상 (379 개 키)
+  - 향후 사전 정리 PR 별도 진행 권장 (회귀 위험으로 v1.0.2 범위에서는 제외)
+- `merge_open_explorer` 키가 ko / en / ja / zh_cn / zh_tw 모두에서 1 회씩 중복 (값 동일)
+- `ja` 의 `bulk_keep_structure` 키가 1 회 중복 (L1921 → L1922, 값 동일)
+
+### 내부 / 빌드
+
+- `APP_VERSION` `1.0.1` → `1.0.2`
+- 단일 파일 라인 수: 13,681 → 13,689 (+8)
+- pyflakes 경고: 5 건 → **0 건**
+- bare `except:`: 2 건 → **0 건**
+
+### 검토 방법
+
+- Claude Opus 4.7 (Anthropic) 기반 정적 분석 + 비즈니스 로직 검토
+- AST 파싱, pyflakes, 정규식 패턴 검색, 번역 키 정합성 검증
+
+---
+
 ## v1.0.1 (2026-04-14) — 다국어 UI 수정 + 인코딩 수정
 
 ### 버그 수정

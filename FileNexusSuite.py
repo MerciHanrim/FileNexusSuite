@@ -55,7 +55,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QLineEdit, QCheckBox, QRadioButton,
     QButtonGroup, QTextEdit, QPlainTextEdit, QScrollArea, QFrame, QFileDialog,
     QDialog, QProgressBar, QSplitter, QTabWidget,
-    QListWidget, QListWidgetItem, QAbstractItemView, QStackedWidget,
+    QListWidget, QAbstractItemView, QStackedWidget,
     QComboBox, QTreeWidget, QTreeWidgetItem, QHeaderView,
     QTableWidget, QTableWidgetItem, QGroupBox, QGridLayout,
     QSpinBox, QToolButton, QMenu,
@@ -67,7 +67,7 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle
 # ═══════════════════════════════════════════════
 # 앱 버전
 # ═══════════════════════════════════════════════
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 
 # ═══════════════════════════════════════════════
 # 절전 방지 유틸리티 (Windows 전용, 타 OS 무해 처리)
@@ -2419,6 +2419,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'bulk_save_over':  '覆盖原文件',
            'bulk_save_fixed': '在原位置保存为_fixed.txt',
            'bulk_save_dir':   '保存到输出文件夹',
+           'bulk_save_desc':  '在文件名前加 [Fixed] 标签保存。如未指定输出文件夹，将保存在原文件相同位置。',
            'bulk_out_folder': '// 输出文件夹',
            'bulk_out_ph':     '留空 = 保存在原文件旁边',
            'bulk_run':        '开始批量修复',
@@ -2752,6 +2753,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'bulk_save_over':  '覆蓋原始檔案',
            'bulk_save_fixed': '在原位置儲存為_fixed.txt',
            'bulk_save_dir':   '儲存到輸出資料夾',
+           'bulk_save_desc':  '在檔案名前加 [Fixed] 標籤儲存。如未指定輸出資料夾，將儲存在原檔案相同位置。',
            'bulk_out_folder': '// 輸出資料夾',
            'bulk_out_ph':     '留空 = 儲存在原檔案旁邊',
            'bulk_keep_structure': '保留資料夾結構（指定輸出資料夾時）',
@@ -3554,7 +3556,12 @@ def txt_to_epub(path, out_path, meta):
         p=p.strip()
         if not p: continue
         lines=p.split("\n"); title=f"Chapter {i+1}"
-        if len(lines)>1 and len(lines[0])<60 and not lines[0].endswith("."): title=lines[0].strip() or title
+        if len(lines)>1 and len(lines[0])<60 and not lines[0].endswith("."):
+            extracted = lines[0].strip()
+            if extracted:
+                title = extracted
+                # 첫 줄을 제목으로 사용했으므로 본문에서 제거 (h1 + p 중복 방지)
+                p = "\n".join(lines[1:]).lstrip("\n")
         chapters.append({"title":title,"content":p})
     if not chapters: raise ValueError("No chapters found")
     uid=str(uuid.uuid4()); bt=_ex(meta.get("title","Untitled")); ba=_ex(meta.get("author","Unknown"))
@@ -3722,7 +3729,6 @@ class _ScrollHint(QLabel):
         self.setFixedHeight(36)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
-        import math as _math
         self._phase = 0.0
         self._timer = QTimer(self)
         self._timer.setInterval(30)
@@ -5671,8 +5677,6 @@ class TextConverterPanel(QWidget):
 
     def _on_file_progress(self, pct: int, fname: str):
         self._file_progress.setValue(pct)
-        total = len(self._flist.files)
-        done  = self._progress.value() * total // 100
         self._lbl_file_progress.setText(f"{fname}  {pct:>3d}%")
 
     def _on_files(self, file_list):
@@ -5799,7 +5803,7 @@ class TextConverterPanel(QWidget):
         self._flist.setHeaderLabels([_t('tag_col_filename'), _t('tag_col_path')])
         self._flist.viewport().update()  # 드래그존 빈 상태 텍스트 갱신
         for val, btn in self._tab_btns.items():
-            btn.setText(_t('conv_sub_'+val.replace('epub2txt','epub2txt').replace('txt2epub','txt2epub')))
+            btn.setText(_t('conv_sub_' + val))
         self._out_gb.setTitle(_t('conv_out_folder'))
         self._edit_odir.setPlaceholderText(_t('conv_out_ph'))
         self._btn_brw.setText(_t('conv_btn_pick'))
@@ -6204,6 +6208,10 @@ class TagEditorPanel(QWidget):
     def _on_scan_error(self, msg: str):
         self._set_scan_ui(False)
         _dlg_error(self, _t('dlg_error_title'), msg)
+
+    def is_busy(self) -> bool:
+        """폴더 스캔 워커가 실행 중인지 여부 — 종료 확인용."""
+        return bool(self._scan_worker and self._scan_worker.isRunning())
 
     def _stop_worker(self):
         """앱 종료 시 스캔 워커 정리."""
@@ -7266,7 +7274,7 @@ class TextFixerPanel(QWidget):
         _layout_done = [False]
         for edit in edits:
             try: edit.verticalScrollBar().sliderPressed.disconnect()
-            except: pass
+            except (RuntimeError, TypeError): pass
             edit.verticalScrollBar().sliderPressed.connect(
                 lambda: _user_scrolled.__setitem__(0, True))
 
@@ -7276,7 +7284,7 @@ class TextFixerPanel(QWidget):
             _layout_done[0] = True
             for edit in edits:
                 try: edit.verticalScrollBar().rangeChanged.disconnect(_on_range)
-                except: pass
+                except (RuntimeError, TypeError): pass
         def _on_range(lo, hi):
             if _debounce[0]: _debounce[0].stop()
             t = QTimer(); t.setSingleShot(True); t.setInterval(2000)
@@ -8775,7 +8783,6 @@ class BulkFixerPanel(QWidget):
             self._combo_preset.blockSignals(False)
         # 상태 문구 — ready 상태일 때만 갱신 (진행 중 메시지 덮어쓰기 방지)
         if hasattr(self, '_lbl_status'):
-            from itertools import chain
             ready_msgs = set(_all_translations_of('bulk_status_ready'))
             if self._lbl_status.text() in ready_msgs or not self._lbl_status.text():
                 self._lbl_status.setText(_t('bulk_status_ready'))
@@ -13151,7 +13158,7 @@ class AppSuite(QMainWindow):
             STYLE = make_style(_T)
             _unpack(_T)
 
-        self.setWindowTitle(f"File Nexus Suite")
+        self.setWindowTitle("File Nexus Suite")
         self.setWindowIcon(_make_app_icon())
         self.setMinimumSize(1100,840)
         self.resize(1160,880)
@@ -13267,6 +13274,7 @@ class AppSuite(QMainWindow):
         for attr, label in [
             ('_merge_panel', 'Text Merger'),
             ('_text_panel',  'Text Converter'),
+            ('_tag_panel',   'Tag Editor'),
             ('_fixer_panel', 'Text Fixer'),
             ('_bulk_panel',  'Bulk Fixer'),
         ]:
