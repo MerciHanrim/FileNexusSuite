@@ -19,7 +19,7 @@ File Nexus Suite  —  통합 파일 관리 도구
 """
 
 # ── 표준 라이브러리 ────────────────────────────
-import sys, os, re, zipfile, uuid, json, base64, subprocess, atexit
+import sys, os, re, zipfile, uuid, json, base64, subprocess, atexit, html
 from pathlib import Path
 from datetime import datetime
 
@@ -67,7 +67,7 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle
 # ═══════════════════════════════════════════════
 # 앱 버전
 # ═══════════════════════════════════════════════
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.4"
 
 # ═══════════════════════════════════════════════
 # 절전 방지 유틸리티 (Windows 전용, 타 OS 무해 처리)
@@ -1173,6 +1173,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_reading':     '📂  파일 읽는 중...',
         'merge_save_done':   '저장 완료 ({enc}): {path}',
         'merge_save_err':    '❌ 오류 발생',
+        'merge_enc_warn_title': '⚠ 인코딩 호환성 경고',
+        'merge_enc_warn_msg':   '선택하신 저장 인코딩 <b>{enc}</b>(으)로는 일부 문자가 표현되지 않습니다.<br><br>• 깨질 문자 종류: 약 <b>{kinds}종</b><br>• 영향받는 글자 수: 약 <b>{total}자</b> (전체의 <b>{pct}%</b>)<br>• 샘플: <code>{samples}</code><br><br>계속 진행하면 해당 문자는 <code>?</code>로 대체되어 저장됩니다.<br><br>그래도 저장하시겠습니까?',
+        'merge_low_conf_hint':  'ℹ chardet 원본 신뢰도가 낮게 표시되어도 인코딩 결과는 정확할 수 있습니다 (특히 CJK 인코딩).',
         'tag_file_count':    '파일 {n}개',
         'sc_none':           '없음',
         'sc_press':          '입력하세요…',
@@ -1557,6 +1560,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_reading':     '📂  Reading files...',
         'merge_save_done':   'Saved ({enc}): {path}',
         'merge_save_err':    '❌ Error occurred',
+        'merge_enc_warn_title': '⚠ Encoding compatibility warning',
+        'merge_enc_warn_msg':   'The selected save encoding <b>{enc}</b> cannot represent some characters.<br><br>• Distinct incompatible characters: about <b>{kinds}</b><br>• Total affected characters: about <b>{total}</b> (<b>{pct}%</b> of file)<br>• Sample: <code>{samples}</code><br><br>If you continue, those characters will be replaced with <code>?</code>.<br><br>Proceed with save?',
+        'merge_low_conf_hint':  'ℹ Even if the chardet raw confidence is low, the detected encoding may still be accurate (especially for CJK encodings).',
         'tag_file_count':    '{n} file(s)',
         'sc_none':           'None',
         'sc_press':          'Press a key…',
@@ -1941,6 +1947,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_reading':     '📂  ファイルを読み込み中...',
         'merge_save_done':   '保存完了 ({enc}): {path}',
         'merge_save_err':    '❌ エラーが発生しました',
+        'merge_enc_warn_title': '⚠ エンコード互換性の警告',
+        'merge_enc_warn_msg':   '選択された保存エンコード <b>{enc}</b> では一部の文字を表現できません。<br><br>• 失われる文字の種類: 約 <b>{kinds}種</b><br>• 影響を受ける文字数: 約 <b>{total}文字</b> (全体の <b>{pct}%</b>)<br>• サンプル: <code>{samples}</code><br><br>続行すると該当文字は <code>?</code> に置き換えられて保存されます。<br><br>それでも保存しますか？',
+        'merge_low_conf_hint':  'ℹ chardet の元の信頼度が低く表示されても、検出されたエンコードは正確な場合があります（特にCJKエンコード）。',
         'tag_file_count':    '{n}個のファイル',
         'sc_none':           'なし',
         'sc_press':          'キーを入力…',
@@ -2457,6 +2466,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'merge_reading':     '📂  正在读取文件...',
            'merge_save_done':   '保存完成 ({enc}): {path}',
            'merge_save_err':    '❌ 发生错误',
+           'merge_enc_warn_title': '⚠ 编码兼容性警告',
+           'merge_enc_warn_msg':   '所选保存编码 <b>{enc}</b> 无法表示部分字符。<br><br>• 受影响字符种类: 约 <b>{kinds} 种</b><br>• 实际受影响字数: 约 <b>{total} 个</b> (占全文 <b>{pct}%</b>)<br>• 示例: <code>{samples}</code><br><br>如果继续，这些字符将被替换为 <code>?</code>。<br><br>仍要保存吗？',
+           'merge_low_conf_hint':  'ℹ chardet 原始置信度较低时，检测到的编码仍可能准确（尤其是 CJK 编码）。',
            'tag_file_count':    '{n}个文件',
            'sc_none':           '无',
            'sc_press':          '请按键…'},
@@ -2792,6 +2804,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'merge_reading':     '📂  正在讀取檔案...',
            'merge_save_done':   '儲存完成 ({enc}): {path}',
            'merge_save_err':    '❌ 發生錯誤',
+           'merge_enc_warn_title': '⚠ 編碼相容性警告',
+           'merge_enc_warn_msg':   '所選儲存編碼 <b>{enc}</b> 無法表示部分字元。<br><br>• 受影響字元種類: 約 <b>{kinds} 種</b><br>• 實際受影響字數: 約 <b>{total} 個</b> (佔全文 <b>{pct}%</b>)<br>• 範例: <code>{samples}</code><br><br>如果繼續，這些字元將被替換為 <code>?</code>。<br><br>仍要儲存嗎？',
+           'merge_low_conf_hint':  'ℹ chardet 原始信賴度較低時，偵測到的編碼仍可能準確（尤其是 CJK 編碼）。',
            'tag_file_count':    '{n}個檔案',
            'sc_none':           '無',
            'sc_press':          '請按鍵…',
@@ -3455,31 +3470,92 @@ def apply_renames(targets):
 # ═══════════════════════════════════════════════
 def alchemy_detect_encoding(path):
     """파일 인코딩 감지 — BOM 직접 검출 + chardet + 폴백.
+
     v1.0.3: CJK 인코딩(GBK/Big5/Shift-JIS)은 임계값을 0.5로 낮춤.
     chardet이 이들 인코딩에 대해 0.5~0.7 신뢰도를 반환하는 경우가 많아,
     0.7 엄격 기준을 그대로 적용하면 잘못된 utf-8/cp949 폴백으로 이어짐.
+
+    v1.0.4: (encoding, confidence) 튜플 반환으로 통합 — Text Merger가 사용하던
+    별도 _detect_encoding()을 흡수. 신뢰도는 chardet 원본값 그대로 (0~1),
+    BOM 감지 시 1.0, 폴백 시 0.0. 읽는 바이트도 8192 → 32768로 확대.
+
+    Returns:
+        tuple[str, float]: (정규화된 인코딩명, 0~1 신뢰도)
     """
     try:
-        with open(path, "rb") as f: raw = f.read(8192)
-        if raw[:3] == bytes([0xef,0xbb,0xbf]): return "utf-8-sig"
-        if raw[:2] in (bytes([0xff,0xfe]), bytes([0xfe,0xff])): return "utf-16"
+        with open(path, "rb") as f: raw = f.read(32768)
+        if raw[:3] == bytes([0xef,0xbb,0xbf]): return ("utf-8-sig", 1.0)
+        if raw[:2] in (bytes([0xff,0xfe]), bytes([0xfe,0xff])): return ("utf-16", 1.0)
         if HAS_CHARDET:
             result = _chardet.detect(raw); enc = (result.get("encoding") or "utf-8").lower()
-            conf = result.get("confidence", 0)
+            conf = float(result.get("confidence", 0) or 0.0)
             # CJK 인코딩은 chardet이 자주 0.5~0.7을 반환 → 임계값 완화
-            _CJK_ENCS = ("gb18030","gbk","gb2312","big5","shift_jis","shift-jis","euc-jp")
+            # cp932/windows-31j는 Windows의 Shift-JIS 확장 → shift_jis로 정규화
+            _CJK_ENCS = ("gb18030","gbk","gb2312","big5",
+                         "shift_jis","shift-jis","cp932","windows-31j","euc-jp")
             if conf >= 0.7 or (conf >= 0.5 and enc in _CJK_ENCS):
-                if enc in ("utf-8","utf-8-sig","ascii"): return "utf-8"
-                if enc in ("euc-kr","euc_kr","cp949","ms949"): return "cp949"
-                if enc in ("utf-16","utf-16-le","utf-16-be"): return "utf-16"
+                if enc in ("utf-8","utf-8-sig","ascii"): return ("utf-8", conf)
+                if enc in ("euc-kr","euc_kr","cp949","ms949"): return ("cp949", conf)
+                if enc in ("utf-16","utf-16-le","utf-16-be"): return ("utf-16", conf)
                 # GBK/GB2312/GB18030 → gbk로 정규화 (gbk가 상위 호환)
-                if enc in ("gb18030","gbk","gb2312"): return "gbk"
-                # Shift-JIS 변형 → shift_jis로 정규화
-                if enc in ("shift_jis","shift-jis"): return "shift_jis"
-                return enc
-        try: raw.decode("utf-8"); return "utf-8"
-        except UnicodeDecodeError: return "cp949"
-    except Exception: return "utf-8"
+                if enc in ("gb18030","gbk","gb2312"): return ("gbk", conf)
+                # Shift-JIS 변형 → shift_jis로 정규화 (cp932/windows-31j는 Windows 확장)
+                if enc in ("shift_jis","shift-jis","cp932","windows-31j"): return ("shift_jis", conf)
+                return (enc, conf)
+        try: raw.decode("utf-8"); return ("utf-8", 0.0)
+        except UnicodeDecodeError: pass
+        # v1.0.4: chardet이 CJK 파일을 잘못 감지(예: ASCII로 시작하는 Shift-JIS → cp1006 오판)해도
+        # 구제 가능하도록 CJK 인코딩을 순차 strict 검증. cp949 → shift_jis → gbk → big5 순서.
+        # (Shift-JIS 파일은 cp949 strict 디코딩 실패하므로 우선순위 무관)
+        for _fallback in ("cp949", "shift_jis", "gbk", "big5"):
+            try:
+                raw.decode(_fallback)
+                return (_fallback, 0.0)
+            except UnicodeDecodeError: continue
+        return ("cp949", 0.0)  # 최후의 폴백 (v1.0.3 동작 유지)
+    except Exception: return ("utf-8", 0.0)
+
+
+def alchemy_check_encoding_compat(text, codec):
+    """텍스트가 codec으로 손실 없이 저장 가능한지 사전 검증 (v1.0.4 신규).
+
+    한글 텍스트를 Shift-JIS로 저장하는 등 호환되지 않는 조합에서
+    UnicodeEncodeError가 발생하기 전에 미리 경고하기 위함.
+
+    유니코드 인코딩(UTF-8/UTF-16 계열)은 모든 유니코드 문자 표현 가능 →
+    검증 생략하고 즉시 (False, 0, 0, total, []) 반환.
+
+    Args:
+        text: 저장 대상 문자열
+        codec: Python codec 이름 (예: "shift_jis", "gbk", "big5", "cp949")
+
+    Returns:
+        tuple[bool, int, int, int, list[str]]:
+            - 손실 여부 (True=깨질 문자 있음)
+            - 깨질 고유 문자 종 수 (예: "한"이 50번 있어도 1)
+            - 영향받는 총 글자 수 (중복 포함, 예: "한"이 50번이면 50)
+            - 전체 글자 수 (비율 계산용)
+            - 샘플 깨진 문자 최대 5개 (다이얼로그 표시용)
+    """
+    total_chars = len(text)
+    if codec in ("utf-8", "utf-8-sig", "utf-16", "utf-16-le", "utf-16-be"):
+        return (False, 0, 0, total_chars, [])
+    try:
+        text.encode(codec)  # strict 모드로 한 번에 검증 (대부분의 케이스)
+        return (False, 0, 0, total_chars, [])
+    except UnicodeEncodeError:
+        pass
+    # 손실 있음 → 깨질 고유 문자 집합 파악 (set으로 중복 제거 후 1회만 검증)
+    bad_chars = set()
+    samples = []
+    for ch in set(text):
+        try: ch.encode(codec)
+        except UnicodeEncodeError:
+            bad_chars.add(ch)
+            if len(samples) < 5: samples.append(ch)
+    # 영향받는 총 글자 수 카운트 (전체 순회, 중복 포함)
+    bad_total_count = sum(1 for ch in text if ch in bad_chars)
+    return (True, len(bad_chars), bad_total_count, total_chars, samples)
 
 def _de(s):
     s = s.replace("&amp;","&").replace("&lt;","<").replace("&gt;",">") \
@@ -4296,7 +4372,7 @@ class ConvertWorker(QThread):
                         self.sig_log.emit(f"  → {os.path.basename(out_path)}  ({ch} ch)","ok")
                     else:
                         out_path=os.path.join(d,base+".epub")
-                        file_opts=dict(self.opts); file_opts["encoding"]=alchemy_detect_encoding(path)
+                        file_opts=dict(self.opts); file_opts["encoding"], _ = alchemy_detect_encoding(path)
                         self.sig_file_progress.emit(30, fname)
                         ch=txt_to_epub(path,out_path,file_opts)
                         self.sig_log.emit(f"  → {os.path.basename(out_path)}  ({ch} ch)","ok")
@@ -6527,12 +6603,20 @@ class MergeEncodingDelegate(QStyledItemDelegate):
         'utf-8': '#4CAF50', 'utf-8-sig': '#009688', 'ascii': '#78909C',
         'euc-kr': '#E67E22', 'cp949': '#E67E22', 'euc_kr': '#E67E22',
         'utf-16': '#3498DB', 'utf-16-le': '#3498DB', 'utf-16-be': '#3498DB',
+        # v1.0.4: CJK 인코딩 추가 (alchemy_detect_encoding 정규화 결과 대응)
+        'shift_jis': '#E91E63', 'shift-jis': '#E91E63',
+        'gbk': '#F1C40F', 'gb18030': '#F1C40F', 'gb2312': '#F1C40F',
+        'big5': '#00BCD4',
         'docx': '#2980B9', 'pdf': '#E74C3C', 'xlsx': '#27AE60',
     }
     _ENC_LABEL = {
         'utf-8': 'UTF-8', 'utf-8-sig': 'UTF-8 BOM', 'ascii': 'ASCII',
         'euc-kr': 'EUC-KR', 'cp949': 'CP949', 'euc_kr': 'EUC-KR',
         'utf-16': 'UTF-16', 'utf-16-le': 'UTF-16', 'utf-16-be': 'UTF-16',
+        # v1.0.4: CJK 인코딩 추가
+        'shift_jis': 'Shift-JIS', 'shift-jis': 'Shift-JIS',
+        'gbk': 'GBK', 'gb18030': 'GBK', 'gb2312': 'GBK',
+        'big5': 'Big5',
         'docx': 'DOCX', 'pdf': 'PDF', 'xlsx': 'XLSX',
     }
     _BADGE_ROLE  = Qt.ItemDataRole.UserRole + 1   # enc string
@@ -6586,7 +6670,12 @@ class MergeEncodingDelegate(QStyledItemDelegate):
             cf_font = QFont(painter.font())
             cf_font.setPointSize(8); cf_font.setBold(False)
             painter.setFont(cf_font)
-            painter.setPen(QColor(_T['MUTED']))
+            # v1.0.4: 신뢰도 4단계 색상 코딩 — chardet 원본값 기준
+            if   conf >= 0.90: conf_color = '#4CAF50'   # 초록 — 안전
+            elif conf >= 0.70: conf_color = '#F1C40F'   # 노랑 — 주의
+            elif conf >= 0.50: conf_color = '#E67E22'   # 주황 — 경고 (CJK 임계값 = alchemy 0.5)
+            else:              conf_color = '#E74C3C'   # 빨강 — 위험
+            painter.setPen(QColor(conf_color))
             painter.drawText(conf_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
                              f"{conf * 100:.0f}%")
 
@@ -7262,7 +7351,8 @@ class TextFixerPanel(QWidget):
         if not os.access(path, os.R_OK):
             _dlg_warn(self, _t('tf_dlg_noperm'), f"{_t('tf_err_perm')}:\n{path}"); return
         # v1.0.3: alchemy_detect_encoding으로 BOM/UTF-16/CJK 인코딩 감지
-        detected_enc = alchemy_detect_encoding(path)
+        # v1.0.4: alchemy가 (enc, conf) 튜플 반환 — 신뢰도는 사용 안 함
+        detected_enc, _ = alchemy_detect_encoding(path)
         for enc in (detected_enc, 'utf-8-sig', 'utf-8', 'cp949', 'euc-kr',
                     'shift_jis', 'gbk', 'big5'):
             try:
@@ -8203,8 +8293,9 @@ class BulkFixerWorker(QThread):
                 self.sig_file_progress.emit(0, fname)
                 try:
                     # 읽기 — v1.0.3: alchemy_detect_encoding으로 BOM/UTF-16/CJK 인코딩 감지
+                    # v1.0.4: alchemy가 (enc, conf) 튜플 반환 — 신뢰도는 사용 안 함
                     text = None
-                    detected_enc = alchemy_detect_encoding(path)
+                    detected_enc, _ = alchemy_detect_encoding(path)
                     for enc in (detected_enc, 'utf-8-sig', 'utf-8', 'cp949', 'euc-kr',
                                 'shift_jis', 'gbk', 'big5'):
                         try:
@@ -8642,7 +8733,8 @@ class BulkFixerPanel(QWidget):
         path = cur.toolTip(0)
         try:
             # v1.0.3: alchemy_detect_encoding으로 BOM/UTF-16/CJK 인코딩 감지
-            detected_enc = alchemy_detect_encoding(path)
+            # v1.0.4: alchemy가 (enc, conf) 튜플 반환 — 신뢰도는 사용 안 함
+            detected_enc, _ = alchemy_detect_encoding(path)
             for enc in (detected_enc, 'utf-8-sig', 'utf-8', 'cp949', 'euc-kr',
                         'shift_jis', 'gbk', 'big5'):
                 try:
@@ -9058,7 +9150,8 @@ class TextMergerPanel(QWidget):
         enc_row = QHBoxLayout(); enc_row.setSpacing(8)
         self._lbl_enc=QLabel(_t("conv_save_enc")); self._lbl_enc.setObjectName("field_lbl"); enc_row.addWidget(self._lbl_enc)
         self._combo_enc = _ThemedCombo()
-        self._combo_enc.addItems(["UTF-8", "UTF-8-BOM", "EUC-KR", "CP949", "UTF-16"])
+        self._combo_enc.addItems(["UTF-8", "UTF-8-BOM", "EUC-KR", "CP949", "UTF-16",
+                                  "Shift-JIS", "GBK", "Big5"])  # v1.0.4: CJK 추가
         enc_row.addWidget(self._combo_enc, stretch=1)
         self._combo_enc.setFixedHeight(30)
         self._combo_enc.setStyleSheet(
@@ -9122,22 +9215,9 @@ class TextMergerPanel(QWidget):
         body_lay.addWidget(right, stretch=2)
         root.addWidget(body, stretch=1)
 
-    def _detect_encoding(self, path) -> tuple:
-        """(encoding_str, confidence_float) 반환. chardet 없으면 conf=0."""
-        try:
-            with open(path, "rb") as f: raw = f.read(32768)
-            # BOM 우선 감지
-            if raw[:3] == b'\xef\xbb\xbf': return ("utf-8-sig", 1.0)
-            if raw[:2] in (b'\xff\xfe', b'\xfe\xff'): return ("utf-16", 1.0)
-            if HAS_CHARDET:
-                result = _chardet.detect(raw)
-                enc  = (result.get("encoding") or "utf-8").lower()
-                conf = result.get("confidence", 0.0)
-                if conf >= 0.5: return (enc, conf)
-            # chardet 없거나 신뢰도 낮으면 UTF-8 시도
-            try: raw.decode("utf-8"); return ("utf-8", 0.0)
-            except UnicodeDecodeError: return ("cp949", 0.0)
-        except Exception: return ("utf-8", 0.0)
+    # v1.0.4: _detect_encoding() 제거 — alchemy_detect_encoding으로 통합.
+    # 기존: BOM 감지 + chardet (32768바이트, 임계값 0.5)
+    # 통합 후: alchemy_detect_encoding이 모든 동작 흡수 (CJK 화이트리스트·정규화·임계값 분리 포함)
 
     def _extract_text(self,path,enc="utf-8"):
         ext=os.path.splitext(path)[1].lower()
@@ -9259,7 +9339,7 @@ class TextMergerPanel(QWidget):
             if ext in (".docx",".pdf",".xlsx"):
                 enc=ext[1:].upper(); conf=1.0
             else:
-                enc, conf = self._detect_encoding(path)
+                enc, conf = alchemy_detect_encoding(path)
             self.enc_map[path]=enc; self.enc_confidence[path]=conf; self.file_list.append(path)
             if ext in (".docx",".pdf",".xlsx"): self.line_cache[path]=0
             else:
@@ -9268,7 +9348,11 @@ class TextMergerPanel(QWidget):
                 except Exception: self.line_cache[path]=0
             lines=self.line_cache[path]
             item=QTreeWidgetItem([os.path.basename(path), os.path.dirname(path)])
-            item.setToolTip(0, path)
+            # v1.0.4: 신뢰도 90% 미만이면 툴팁에 chardet 안내 추가 (텍스트 파일만)
+            tip = path
+            if ext not in (".docx",".pdf",".xlsx") and 0 < conf < 0.90:
+                tip = f"{path}\n\n{_t('merge_low_conf_hint')}"
+            item.setToolTip(0, tip)
             item.setData(0, MergeEncodingDelegate._BADGE_ROLE, enc)
             item.setData(0, MergeEncodingDelegate._CONF_ROLE,  conf)
             item.setData(0, MergeEncodingDelegate._LINES_ROLE, lines)
@@ -9384,15 +9468,33 @@ class TextMergerPanel(QWidget):
         self._pb.setVisible(False)
         self._btn_merge.setEnabled(True)
         save_enc = self._save_enc
-        _enc_codec = {"UTF-8-BOM": "utf-8-sig"}.get(save_enc, save_enc)
+        # v1.0.4: CJK 인코딩 codec 매핑 추가
+        _enc_codec = {"UTF-8-BOM": "utf-8-sig",
+                      "Shift-JIS": "shift_jis",
+                      "GBK": "gbk",
+                      "Big5": "big5"}.get(save_enc, save_enc)
         default = os.path.join(self.save_dir, "merged.txt") if self.save_dir else os.path.join(_CFG.get('output_dir', str(_OUTPUT_DIR)), "merged.txt")
         save_path, _ = QFileDialog.getSaveFileName(
             self, _t('dlg_done'), default, "Text Files (*.txt);;All Files (*)"
         )
         if not save_path:
             self._lbl_status.setText(_t('merge_status_ready')); return
+        # v1.0.4: 저장 전 인코딩 호환성 검증 — 깨질 문자가 있으면 경고
+        save_errors = 'strict'
+        has_loss, bad_kinds, bad_total, total_chars, samples = alchemy_check_encoding_compat(merged_text, _enc_codec)
+        if has_loss:
+            sample_str = html.escape(' '.join(samples)) if samples else ''
+            pct = bad_total * 100 // total_chars if total_chars else 0
+            warn_msg = _t('merge_enc_warn_msg',
+                          enc=save_enc, kinds=bad_kinds, total=bad_total,
+                          pct=pct, samples=sample_str)
+            if not _dlg_question(self, _t('merge_enc_warn_title'), warn_msg, min_width=460, rich_text=True):
+                _glog(f"  ⚠ [Text Merger] 저장 취소 (인코딩 호환 경고): {save_enc}, {bad_kinds}종 / {bad_total}자 ({pct}%) 손실 예상")
+                self._lbl_status.setText(_t('merge_status_ready')); return
+            save_errors = 'replace'  # 사용자 동의 → ?로 대체하여 저장
+            _glog(f"  ⚠ [Text Merger] 호환 경고 무시하고 저장: {save_enc}, {bad_total}자가 ?로 대체됨")
         try:
-            with open(save_path, "w", encoding=_enc_codec) as f: f.write(merged_text)
+            with open(save_path, "w", encoding=_enc_codec, errors=save_errors) as f: f.write(merged_text)
             _glog(f"  ✅ [Text Merger] 저장 완료: {save_path}  ({save_enc})")
             self._undo_data = ('file', save_path)
             self._btn_undo.setEnabled(True)
@@ -9610,8 +9712,11 @@ def _dlg_icon_pix(kind: str, size: int = 44) -> QPixmap:
 
 
 
-def _build_dlg(parent, title: str, msg: str, kind: str) -> QDialog:
-    """공통 다이얼로그 뼈대 생성. 버튼은 호출자가 추가."""
+def _build_dlg(parent, title: str, msg: str, kind: str, rich_text: bool = False) -> QDialog:
+    """공통 다이얼로그 뼈대 생성. 버튼은 호출자가 추가.
+
+    v1.0.4: rich_text=True면 메시지를 HTML로 렌더링 (기본값 False, 기존 동작 유지).
+    """
     dlg = QDialog(parent)
     dlg.setWindowTitle(title)
     try:
@@ -9636,7 +9741,8 @@ def _build_dlg(parent, title: str, msg: str, kind: str) -> QDialog:
     ico_lbl.setStyleSheet("background:transparent;")
     msg_lbl = QLabel(msg)
     msg_lbl.setWordWrap(True)
-    msg_lbl.setTextFormat(Qt.TextFormat.PlainText)
+    # v1.0.4: rich_text 옵션에 따라 HTML 또는 Plain 렌더링 선택
+    msg_lbl.setTextFormat(Qt.TextFormat.RichText if rich_text else Qt.TextFormat.PlainText)
     msg_lbl.setStyleSheet(f"color:{TEXT};font-size:13px;background:transparent;")
     row.addWidget(ico_lbl); row.addWidget(msg_lbl, 1)
     root.addLayout(row)
@@ -9708,9 +9814,12 @@ def _dlg_error(parent, title: str, msg: str):
     root.addLayout(br); dlg.exec()
 
 
-def _dlg_question(parent, title: str, msg: str, min_width: int = 360) -> bool:
-    """예/아니오 질문 다이얼로그. True = 예."""
-    dlg, root = _build_dlg(parent, title or "확인", msg, "question")
+def _dlg_question(parent, title: str, msg: str, min_width: int = 360, rich_text: bool = False) -> bool:
+    """예/아니오 질문 다이얼로그. True = 예.
+
+    v1.0.4: rich_text=True면 메시지를 HTML로 렌더링 (기본값 False).
+    """
+    dlg, root = _build_dlg(parent, title or "확인", msg, "question", rich_text=rich_text)
     dlg.setMinimumWidth(min_width)
     br = QHBoxLayout(); br.setSpacing(10); br.addStretch()
     no  = QPushButton(_t('dlg_no'));  no.setStyleSheet(_btn_style(False))
@@ -12148,7 +12257,7 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ("step","<b><code>[▶ 병합 및 저장]</code></b> 클릭 — 완료 메시지에서 파일별 인코딩 요약을 확인할 수 있습니다."),
           ("divider",),
           ("tip","<b>인코딩 자동 감지</b> — chardet 라이브러리가 설치되어 있으면 파일 추가 시 인코딩을 자동 감지합니다. 신뢰도가 낮으면 콤보박스에서 직접 선택하세요."),
-          ("tip","<b>저장 인코딩 선택 기준</b> — UTF-8: 범용 권장 / UTF-8-BOM: Excel에서 한글이 깨지지 않음 / EUC-KR·CP949: 구형 한국어 프로그램 호환 / UTF-16: 특수 목적"),
+          ("tip","<b>저장 인코딩 선택 기준</b> — UTF-8: 범용 권장 / UTF-8-BOM: Excel에서 한글이 깨지지 않음 / EUC-KR·CP949: 구형 한국어 프로그램 호환 / UTF-16: 특수 목적 / <b>Shift-JIS·GBK·Big5</b>: 일본어·중국어(간체·번체) 시스템 호환"),
           ("tip","<b>파일 구분선 형식</b> — 구분선을 켜면 각 파일 앞에 <code>───── ▶ 파일이름.txt ──────</code> 형식의 줄이 삽입됩니다."),
           ("info","파일 읽기 중 오류가 발생하면 해당 파일만 건너뛰고 나머지는 정상적으로 병합됩니다. 오류 내용은 완료 메시지에 표시됩니다."),
           ("warn","<code>[실행 취소]</code> 버튼은 병합 결과 파일 자체를 삭제합니다. <b>원본 파일은 전혀 변경되지 않습니다.</b>"),
@@ -12285,7 +12394,7 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('step','<b><code>[▶ Merge & Save]</code></b> — Click to merge. The completion message shows a per-file encoding summary.'),
           ('divider',),
           ('tip','<b>Auto encoding detection</b> — If chardet is installed, encoding is detected automatically when files are added. If accuracy is low, select manually.'),
-          ('tip','<b>Save encoding guide</b> — UTF-8: general use / UTF-8-BOM: prevents garbled text in Excel / EUC-KR·CP949: legacy Korean apps / UTF-16: special use'),
+          ('tip','<b>Save encoding guide</b> — UTF-8: general use / UTF-8-BOM: prevents garbled text in Excel / EUC-KR·CP949: legacy Korean apps / UTF-16: special use / <b>Shift-JIS·GBK·Big5</b>: Japanese / Chinese (Simplified·Traditional) legacy systems'),
           ('tip','<b>Separator format</b> — When enabled, the following line is inserted before each file: <code>───── ▶ filename.txt ──────</code>'),
           ('info','If a file fails to read, it is skipped and the rest are merged normally. Errors are shown in the completion message.'),
           ('warn','<code>[Undo]</code> deletes the merged output file. <b>Original files are never modified.</b>'),
@@ -12422,7 +12531,7 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('step','<b><code>[▶ 結合・保存]</code></b> — クリックして結合を実行します。完了メッセージでファイルごとのエンコード概要を確認できます。'),
           ('divider',),
           ('tip','<b>エンコード自動検出</b> — chardetがインストールされていると、ファイル追加時にエンコードを自動検出します。精度が低い場合はコンボボックスで手動選択してください。'),
-          ('tip','<b>保存エンコード選択の目安</b> — UTF-8：汎用推奨 / UTF-8-BOM：Excelで文字化けしない / EUC-KR・CP949：韓国語レガシーアプリ向け / UTF-16：特殊用途'),
+          ('tip','<b>保存エンコード選択の目安</b> — UTF-8：汎用推奨 / UTF-8-BOM：Excelで文字化けしない / EUC-KR・CP949：韓国語レガシーアプリ向け / UTF-16：特殊用途 / <b>Shift-JIS・GBK・Big5</b>：日本語・中国語（簡体字・繁体字）レガシーシステム互換'),
           ('tip','<b>区切り線の形式</b> — オンにすると各ファイルの前に <code>───── ▶ ファイル名.txt ──────</code> 形式の行が挿入されます。'),
           ('info','ファイルの読み込みに失敗した場合、そのファイルのみスキップして残りは正常に結合されます。エラー内容は完了メッセージに表示されます。'),
           ('warn','<code>[元に戻す]</code>ボタンは結合済み出力ファイルを削除します。<b>元のファイルは一切変更されません。</b>'),
@@ -12559,7 +12668,7 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('step','<b><code>[▶ 合并保存]</code></b> — 点击执行合并。完成消息中可查看各文件的编码摘要。'),
           ('divider',),
           ('tip','<b>编码自动检测</b> — 安装chardet后，添加文件时将自动检测编码。准确度低时请从下拉框手动选择。'),
-          ('tip','<b>保存编码选择参考</b> — UTF-8：通用推荐 / UTF-8-BOM：Excel中不乱码 / EUC-KR·CP949：韩语旧版程序兼容 / UTF-16：特殊用途'),
+          ('tip','<b>保存编码选择参考</b> — UTF-8：通用推荐 / UTF-8-BOM：Excel中不乱码 / EUC-KR·CP949：韩语旧版程序兼容 / UTF-16：特殊用途 / <b>Shift-JIS·GBK·Big5</b>：日文·中文（简体·繁体）旧版系统兼容'),
           ('tip','<b>分隔线格式</b> — 启用后，每个文件前插入 <code>───── ▶ 文件名.txt ──────</code> 格式的行。'),
           ('info','读取文件时若出现错误，仅跳过该文件，其余文件正常合并。错误内容显示在完成消息中。'),
           ('warn','<code>[撤销]</code>按钮将删除合并的输出文件。<b>原始文件不会有任何修改。</b>'),
@@ -12696,7 +12805,7 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('step','<b><code>[▶ 合併儲存]</code></b> — 點擊執行合併。完成訊息中可查看各檔案的編碼摘要。'),
           ('divider',),
           ('tip','<b>編碼自動偵測</b> — 安裝chardet後，新增檔案時將自動偵測編碼。準確度低時請從下拉選單手動選擇。'),
-          ('tip','<b>儲存編碼選擇參考</b> — UTF-8：通用推薦 / UTF-8-BOM：Excel中不亂碼 / EUC-KR·CP949：韓語舊版程式相容 / UTF-16：特殊用途'),
+          ('tip','<b>儲存編碼選擇參考</b> — UTF-8：通用推薦 / UTF-8-BOM：Excel中不亂碼 / EUC-KR·CP949：韓語舊版程式相容 / UTF-16：特殊用途 / <b>Shift-JIS·GBK·Big5</b>：日文·中文（簡體·繁體）舊版系統相容'),
           ('tip','<b>分隔線格式</b> — 啟用後，每個檔案前插入 <code>───── ▶ 檔案名稱.txt ──────</code> 格式的行。'),
           ('info','讀取檔案時若發生錯誤，僅跳過該檔案，其餘檔案正常合併。錯誤內容顯示在完成訊息中。'),
           ('warn','<code>[復原]</code>按鈕將刪除合併的輸出檔案。<b>原始檔案不會有任何修改。</b>'),

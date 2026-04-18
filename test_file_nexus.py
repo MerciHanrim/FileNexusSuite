@@ -1760,7 +1760,10 @@ class TestAppConstants(unittest.TestCase):
 # ════════════════════════════════════════════════════════════════════════
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패")
 class TestAlchemyDetectEncoding(unittest.TestCase):
-    """alchemy_detect_encoding() — 실제 모듈 함수 직접 검증."""
+    """alchemy_detect_encoding() — 실제 모듈 함수 직접 검증.
+
+    v1.0.4: (encoding, confidence) 튜플 반환으로 변경됨.
+    이전 문자열 반환 형식도 지원하도록 헬퍼로 첫 요소만 추출."""
 
     def setUp(self):
         self.td = tempfile.mkdtemp()
@@ -1774,26 +1777,31 @@ class TestAlchemyDetectEncoding(unittest.TestCase):
             f.write(data)
         return p
 
+    def _enc(self, path):
+        """v1.0.3(str) / v1.0.4(tuple) 양쪽 호환으로 인코딩명만 추출."""
+        result = _alchemy_detect_enc(path)
+        return result[0] if isinstance(result, tuple) else result
+
     def test_utf8_bom(self):
         p = self._write('bom.txt', b'\xef\xbb\xbf' + '내용'.encode('utf-8'))
-        self.assertEqual(_alchemy_detect_enc(p), 'utf-8-sig')
+        self.assertEqual(self._enc(p), 'utf-8-sig')
 
     def test_utf16_le_bom(self):
         p = self._write('u16.txt', b'\xff\xfe' + '내용'.encode('utf-16-le'))
-        self.assertEqual(_alchemy_detect_enc(p), 'utf-16')
+        self.assertEqual(self._enc(p), 'utf-16')
 
     def test_utf16_be_bom(self):
         p = self._write('u16be.txt', b'\xfe\xff' + '내용'.encode('utf-16-be'))
-        self.assertEqual(_alchemy_detect_enc(p), 'utf-16')
+        self.assertEqual(self._enc(p), 'utf-16')
 
     def test_pure_utf8(self):
         p = self._write('utf8.txt', 'Hello World'.encode('utf-8'))
-        result = _alchemy_detect_enc(p)
+        result = self._enc(p)
         self.assertIn(result, ('utf-8', 'ascii'))
 
     def test_returns_string(self):
         p = self._write('any.txt', b'hello')
-        self.assertIsInstance(_alchemy_detect_enc(p), str)
+        self.assertIsInstance(self._enc(p), str)
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -2467,8 +2475,10 @@ class TestBulkFixerFileIO(unittest.TestCase):
         # 감지 → 디코딩 → 교정 순으로 검증
         from FileNexusSuite import alchemy_detect_encoding
         detected = alchemy_detect_encoding(src)
-        self.assertEqual(detected, 'utf-8-sig')
-        with open(src, 'r', encoding=detected) as f: text = f.read()
+        # v1.0.4: 튜플 반환 호환 (이전 str / 신규 (str, float))
+        enc = detected[0] if isinstance(detected, tuple) else detected
+        self.assertEqual(enc, 'utf-8-sig')
+        with open(src, 'r', encoding=enc) as f: text = f.read()
         w = _BulkFixerWorker(files=[src], out_dir='',
                              do_mid=False, do_blank=False, max_blank=1)
         out, _, _ = w._fix_text(text)
@@ -2482,8 +2492,10 @@ class TestBulkFixerFileIO(unittest.TestCase):
             f.write(b'\xff\xfe' + content.encode('utf-16-le'))
         from FileNexusSuite import alchemy_detect_encoding
         detected = alchemy_detect_encoding(src)
-        self.assertEqual(detected, 'utf-16')
-        with open(src, 'r', encoding=detected) as f: text = f.read()
+        # v1.0.4: 튜플 반환 호환
+        enc = detected[0] if isinstance(detected, tuple) else detected
+        self.assertEqual(enc, 'utf-16')
+        with open(src, 'r', encoding=enc) as f: text = f.read()
         w = _BulkFixerWorker(files=[src], out_dir='',
                              do_mid=False, do_blank=False, max_blank=1)
         out, _, _ = w._fix_text(text)
@@ -2497,8 +2509,10 @@ class TestBulkFixerFileIO(unittest.TestCase):
             f.write(b'\xfe\xff' + content.encode('utf-16-be'))
         from FileNexusSuite import alchemy_detect_encoding
         detected = alchemy_detect_encoding(src)
-        self.assertEqual(detected, 'utf-16')
-        with open(src, 'r', encoding=detected) as f: text = f.read()
+        # v1.0.4: 튜플 반환 호환
+        enc = detected[0] if isinstance(detected, tuple) else detected
+        self.assertEqual(enc, 'utf-16')
+        with open(src, 'r', encoding=enc) as f: text = f.read()
         w = _BulkFixerWorker(files=[src], out_dir='',
                              do_mid=False, do_blank=False, max_blank=1)
         out, _, _ = w._fix_text(text)
@@ -3065,12 +3079,18 @@ class TestV103RegressionModule(unittest.TestCase):
     """v1.0.3 모듈 로드 기반 회귀 테스트."""
 
     def test_app_version_is_103(self):
-        """APP_VERSION이 '1.0.3'이어야 한다."""
+        """APP_VERSION이 '1.0.3' 이상이어야 한다.
+        v1.0.3에 도입된 인코딩 감지 개선 기능 회귀 검증이므로,
+        1.0.3 이상이면 충족 (V012/V100 패턴과 일관)."""
         ver = _ns.get('APP_VERSION')
-        self.assertEqual(ver, '1.0.3', f"APP_VERSION 불일치: {ver}")
+        self.assertIsNotNone(ver, "APP_VERSION 정의 없음")
+        parts = [int(p) for p in ver.split('.')]
+        self.assertGreaterEqual(parts, [1, 0, 3],
+            f"APP_VERSION {ver}은 1.0.3 이상이어야 함")
 
     def test_alchemy_detect_encoding_utf16_le(self):
-        """alchemy_detect_encoding이 UTF-16 LE를 정확히 감지."""
+        """alchemy_detect_encoding이 UTF-16 LE를 정확히 감지.
+        v1.0.4: (encoding, confidence) 튜플 반환으로 변경됨 — 첫 요소 확인."""
         detect = _ns.get('alchemy_detect_encoding')
         self.assertIsNotNone(detect)
         import tempfile
@@ -3079,12 +3099,15 @@ class TestV103RegressionModule(unittest.TestCase):
             path = f.name
         try:
             result = detect(path)
-            self.assertEqual(result, 'utf-16')
+            # v1.0.3까지: str, v1.0.4부터: (str, float). 두 형식 모두 호환.
+            enc = result[0] if isinstance(result, tuple) else result
+            self.assertEqual(enc, 'utf-16')
         finally:
             os.unlink(path)
 
     def test_alchemy_detect_encoding_utf16_be(self):
-        """alchemy_detect_encoding이 UTF-16 BE를 정확히 감지."""
+        """alchemy_detect_encoding이 UTF-16 BE를 정확히 감지.
+        v1.0.4: (encoding, confidence) 튜플 반환으로 변경됨 — 첫 요소 확인."""
         detect = _ns.get('alchemy_detect_encoding')
         self.assertIsNotNone(detect)
         import tempfile
@@ -3093,7 +3116,311 @@ class TestV103RegressionModule(unittest.TestCase):
             path = f.name
         try:
             result = detect(path)
-            self.assertEqual(result, 'utf-16')
+            enc = result[0] if isinstance(result, tuple) else result
+            self.assertEqual(enc, 'utf-16')
+        finally:
+            os.unlink(path)
+
+
+# ════════════════════════════════════════════════════════════════════════
+# v1.0.4 회귀 테스트 — Text Merger 종합 개선
+# ════════════════════════════════════════════════════════════════════════
+class TestV104Regression(unittest.TestCase):
+    """v1.0.4 — Text Merger 인코딩 옵션 확장 + 사전 경고 + 신뢰도 UI + 통합.
+
+    인수인계 후보 1/2/3/4를 모두 포함:
+      - D. _detect_encoding 통합 (alchemy 시그니처 (str, float) 확장)
+      - A. Text Merger 저장 인코딩 확장 (Shift-JIS / GBK / Big5)
+      - B. UnicodeEncodeError 사전 경고 다이얼로그
+      - C. 신뢰도 % 색상 코딩 + 툴팁
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            cls.src = f.read()
+
+    # ── D: _detect_encoding 통합 ──────────────────────────────────
+    def test_alchemy_returns_tuple_in_source(self):
+        """alchemy_detect_encoding 함수가 (enc, conf) 튜플 형식으로 반환해야 함."""
+        m = re.search(
+            r'def alchemy_detect_encoding\(path\):(.*?)(?=\ndef |\nclass )',
+            self.src, re.DOTALL)
+        self.assertIsNotNone(m, "alchemy_detect_encoding 함수를 찾을 수 없음")
+        body = m.group(1)
+        # return 문이 튜플 형식 ("...", ...)인지 확인 (문자열만 반환하던 v1.0.3 형식 차단)
+        self.assertIn('return ("utf-8-sig", 1.0)', body,
+            "BOM 감지 시 (str, float) 튜플 반환이 아님 (v1.0.3 시그니처 잔재)")
+        self.assertIn('return ("utf-16", 1.0)', body,
+            "UTF-16 BOM 감지 시 (str, float) 튜플 반환이 아님")
+
+    def test_text_merger_no_self_detect_encoding(self):
+        """Text Merger 패널의 _detect_encoding 메서드가 제거되었어야 함 (alchemy 통합).
+        v1.0.3까지 Text Merger는 자체 _detect_encoding을 가지고 있었으나,
+        v1.0.4에서 alchemy_detect_encoding으로 통합됨."""
+        # MergePanel 클래스 내부에 def _detect_encoding이 있으면 안 됨
+        self.assertNotIn('def _detect_encoding(self, path)', self.src,
+            "Text Merger의 _detect_encoding 메서드가 아직 남아있음 (D 작업 누락)")
+
+    def test_text_merger_uses_alchemy(self):
+        """Text Merger 파일 추가 흐름에서 alchemy_detect_encoding을 호출해야 함."""
+        # _add_files 또는 동등한 흐름에서 alchemy 호출 확인
+        # self._detect_encoding(path) → alchemy_detect_encoding(path) 변경됐는지
+        self.assertNotIn('self._detect_encoding(path)', self.src,
+            "Text Merger가 여전히 self._detect_encoding을 호출 (D 작업 누락)")
+        # 호출 패턴 변경 확인
+        m = re.search(r'enc, conf = alchemy_detect_encoding\(path\)', self.src)
+        self.assertIsNotNone(m, "Text Merger _add_files에서 alchemy 호출 패턴이 안 보임")
+
+    def test_alchemy_callers_unpack_tuple(self):
+        """alchemy_detect_encoding의 모든 호출부가 튜플 언패킹을 사용해야 함.
+        v1.0.4: 시그니처 변경으로 (enc, conf) 또는 (enc, _) 형식으로 받아야 함."""
+        # 호출 전체 카운트 (정의 1건 제외)
+        all_calls = re.findall(r'alchemy_detect_encoding\(', self.src)
+        self.assertGreaterEqual(len(all_calls), 6,
+            f"alchemy_detect_encoding 호출이 6건 미만: {len(all_calls)}")
+        # 단일 변수 할당 패턴(예: detected_enc = alchemy_detect_encoding(path)) 잔재 차단
+        bad = re.findall(r'^\s*[a-z_]+ = alchemy_detect_encoding\(',
+                         self.src, re.MULTILINE)
+        self.assertEqual(bad, [],
+            f"튜플 언패킹 안 한 호출부 발견 (v1.0.3 시그니처 잔재): {bad}")
+
+    # ── A: Text Merger 인코딩 옵션 추가 ──────────────────────────
+    def test_text_merger_combo_has_cjk_encodings(self):
+        """Text Merger 콤보박스에 Shift-JIS, GBK, Big5가 추가되어야 함."""
+        # addItems 호출에 신규 인코딩 라벨이 포함되는지
+        m = re.search(
+            r'addItems\(\["UTF-8", "UTF-8-BOM", "EUC-KR", "CP949", "UTF-16",[\s\n]*'
+            r'"Shift-JIS", "GBK", "Big5"\]\)',
+            self.src)
+        self.assertIsNotNone(m,
+            "Text Merger 콤보박스에 Shift-JIS/GBK/Big5가 추가 안 됨")
+
+    def test_text_merger_codec_map_has_cjk(self):
+        """저장 시 라벨→codec 매핑에 신규 3개가 추가되어야 함."""
+        # _enc_codec dict에 Shift-JIS / GBK / Big5 매핑 확인
+        for label, codec in (("Shift-JIS", "shift_jis"),
+                              ("GBK",       "gbk"),
+                              ("Big5",      "big5")):
+            with self.subTest(label=label):
+                pattern = f'"{label}":\\s*"{codec}"'
+                self.assertIsNotNone(re.search(pattern, self.src),
+                    f"codec 매핑 누락: {label} → {codec}")
+
+    def test_delegate_color_label_has_cjk(self):
+        """MergeEncodingDelegate의 _ENC_COLOR/_ENC_LABEL에 신규 인코딩 키가 있어야 함."""
+        for key in ('shift_jis', 'gbk', 'big5'):
+            with self.subTest(key=key):
+                # 두 dict 모두에 키가 등장해야 하므로 최소 2회
+                count = self.src.count(f"'{key}':")
+                self.assertGreaterEqual(count, 2,
+                    f"_ENC_COLOR/_ENC_LABEL에 '{key}' 키 누락 (현재 {count}회)")
+
+    # ── B: UnicodeEncodeError 사전 경고 ──────────────────────────
+    def test_alchemy_check_encoding_compat_defined(self):
+        """v1.0.4 신규 함수 alchemy_check_encoding_compat이 정의되어야 함."""
+        self.assertIn('def alchemy_check_encoding_compat(text, codec):', self.src,
+            "alchemy_check_encoding_compat 함수가 정의되어 있지 않음")
+
+    def test_merge_done_uses_check_encoding_compat(self):
+        """_on_merge_done에서 alchemy_check_encoding_compat을 호출해야 함."""
+        m = re.search(
+            r'def _on_merge_done\(self, merged_text, enc_summary\):(.*?)(?=\n    def |\nclass )',
+            self.src, re.DOTALL)
+        self.assertIsNotNone(m, "_on_merge_done 메서드를 찾을 수 없음")
+        body = m.group(1)
+        self.assertIn('alchemy_check_encoding_compat(merged_text', body,
+            "_on_merge_done이 사전 검증 함수를 호출하지 않음")
+
+    def test_merge_enc_warn_keys_in_5_languages(self):
+        """5개 언어 사전에 merge_enc_warn_title / merge_enc_warn_msg 키가 있어야 함."""
+        for key in ('merge_enc_warn_title', 'merge_enc_warn_msg'):
+            with self.subTest(key=key):
+                count = self.src.count(f"'{key}'")
+                self.assertGreaterEqual(count, 5,
+                    f"'{key}' 키가 5개 언어 미만 정의됨 (현재 {count}회)")
+
+    # ── C: 신뢰도 색상 코딩 + 툴팁 ──────────────────────────────
+    def test_confidence_4_tier_color_coding(self):
+        """MergeEncodingDelegate.paint에 신뢰도 4단계 색상 분기가 있어야 함."""
+        # 4가지 색상이 모두 등장하는지
+        for hex_color in ('#4CAF50', '#F1C40F', '#E67E22', '#E74C3C'):
+            with self.subTest(color=hex_color):
+                self.assertIn(hex_color, self.src,
+                    f"신뢰도 색상 {hex_color} 누락 (4단계 색상 코딩 미적용)")
+        # 임계값 분기 패턴 확인
+        self.assertIn('conf >= 0.90', self.src, "≥90% 분기 누락")
+        self.assertIn('conf >= 0.70', self.src, "≥70% 분기 누락")
+        self.assertIn('conf >= 0.50', self.src, "≥50% 분기 누락")
+
+    def test_merge_low_conf_hint_keys_in_5_languages(self):
+        """5개 언어 사전에 merge_low_conf_hint 키가 있어야 함 (툴팁용)."""
+        count = self.src.count("'merge_low_conf_hint'")
+        self.assertGreaterEqual(count, 5,
+            f"'merge_low_conf_hint' 키가 5개 언어 미만 정의됨 (현재 {count}회)")
+
+    # ── 버그 수정 검증 (v1.0.4 초판 피드백 반영) ──────────────
+    def test_dlg_question_supports_rich_text(self):
+        """_dlg_question이 rich_text 파라미터를 지원해야 함.
+        버그 1 수정: 경고 다이얼로그에서 HTML 태그(<b>, <br>, <code>)가
+        렌더링되지 않고 그대로 텍스트로 표시되던 문제 해결."""
+        # 함수 시그니처에 rich_text 파라미터 존재 확인
+        self.assertIn('def _dlg_question(parent, title: str, msg: str, min_width: int = 360, rich_text: bool = False)',
+                      self.src,
+                      "_dlg_question에 rich_text 파라미터 추가 누락")
+        # Text Merger 경고 호출부가 rich_text=True로 호출해야 함
+        self.assertIn("_dlg_question(self, _t('merge_enc_warn_title'), warn_msg, min_width=460, rich_text=True)",
+                      self.src,
+                      "Text Merger 경고 다이얼로그 호출부가 rich_text=True를 전달하지 않음")
+
+    def test_alchemy_fallback_covers_cjk(self):
+        """alchemy_detect_encoding의 폴백 로직에 CJK 인코딩 순차 검증이 포함되어야 함.
+        버그 2 수정: chardet이 ASCII로 시작하는 Shift-JIS 파일을 cp1006 등으로
+        오인식해도 폴백 단계에서 strict 디코딩으로 올바른 인코딩을 찾도록 강화."""
+        m = re.search(
+            r'def alchemy_detect_encoding\(path\):(.*?)(?=\ndef |\nclass )',
+            self.src, re.DOTALL)
+        self.assertIsNotNone(m)
+        body = m.group(1)
+        # 폴백 루프에 CJK 4종이 명시되어야 함 (순서 중요: cp949 → shift_jis → gbk → big5)
+        self.assertIn('for _fallback in ("cp949", "shift_jis", "gbk", "big5"):',
+                      body,
+                      "alchemy 폴백 루프에 CJK 순차 검증 누락")
+        # raw.decode(_fallback) 패턴 확인
+        self.assertIn('raw.decode(_fallback)', body,
+                      "alchemy 폴백 루프에서 strict 디코딩 검증 누락")
+
+
+@unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
+class TestV104RegressionModule(unittest.TestCase):
+    """v1.0.4 모듈 로드 기반 회귀 테스트 — 런타임 동작 검증."""
+
+    def test_app_version_is_104(self):
+        """APP_VERSION이 정확히 '1.0.4'이어야 한다."""
+        ver = _ns.get('APP_VERSION')
+        self.assertEqual(ver, '1.0.4', f"APP_VERSION 불일치: {ver}")
+
+    def test_alchemy_detect_encoding_returns_tuple(self):
+        """alchemy_detect_encoding이 (str, float) 튜플을 반환해야 함."""
+        detect = _ns.get('alchemy_detect_encoding')
+        self.assertIsNotNone(detect)
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as f:
+            f.write(b'\xef\xbb\xbf' + 'hello'.encode('utf-8'))  # UTF-8 BOM
+            path = f.name
+        try:
+            result = detect(path)
+            self.assertIsInstance(result, tuple, f"튜플이 아님: {type(result)}")
+            self.assertEqual(len(result), 2, "튜플이 (enc, conf) 2-tuple이 아님")
+            enc, conf = result
+            self.assertIsInstance(enc, str)
+            self.assertIsInstance(conf, float)
+            self.assertEqual(enc, 'utf-8-sig')
+            self.assertEqual(conf, 1.0, "BOM 감지 시 신뢰도 1.0이어야 함")
+        finally:
+            os.unlink(path)
+
+    def test_check_encoding_compat_korean_to_shift_jis(self):
+        """한글 텍스트를 Shift-JIS로 저장 시도하면 손실 감지되어야 함.
+        v1.0.4 확장: SAMPLE_KO_LONG_SENTENCES(약 140자)로 확장하여 실제 사용 환경 근접.
+        v1.0.4 수정: 반환값이 5-tuple로 확장됨 (kinds, total, total_chars 추가)."""
+        check = _ns.get('alchemy_check_encoding_compat')
+        self.assertIsNotNone(check, "alchemy_check_encoding_compat 함수 누락")
+        has_loss, bad_kinds, bad_total, total_chars, samples = check(
+            SAMPLE_KO_LONG_SENTENCES, 'shift_jis')
+        self.assertTrue(has_loss, "한글→Shift-JIS 손실이 감지되지 않음")
+        self.assertGreater(bad_kinds, 0, "깨질 고유 종류 수가 0")
+        self.assertGreater(bad_total, 0, "영향 받는 총 글자 수가 0")
+        self.assertGreaterEqual(bad_total, bad_kinds,
+            "영향 총 글자 수는 고유 종류 수보다 작을 수 없음")
+        self.assertEqual(total_chars, len(SAMPLE_KO_LONG_SENTENCES),
+            "total_chars가 텍스트 길이와 불일치")
+        self.assertGreater(len(samples), 0, "샘플 문자가 비어있음")
+        # 긴 텍스트면 샘플 5개 슬롯이 채워져야 함 (한글은 고유 문자 종류 많음)
+        self.assertEqual(len(samples), 5,
+            f"긴 한글 텍스트인데 샘플이 5개 미만: {len(samples)}개")
+
+    def test_check_encoding_compat_utf8_passthrough(self):
+        """UTF-8 인코딩은 모든 유니코드 문자를 표현 가능 → 손실 없음.
+        v1.0.4 확장: 다국어 + 이모지 조합을 풍부하게 늘려 실제 환경 근접.
+        v1.0.4 수정: 반환값이 5-tuple로 확장됨."""
+        check = _ns.get('alchemy_check_encoding_compat')
+        self.assertIsNotNone(check)
+        # 한국어·일본어·중국어·이모지·특수문자 혼합 긴 텍스트
+        text = ('안녕하세요 반갑습니다. 이것은 인코딩 호환성 검증을 위한 테스트 문장입니다. '
+                'こんにちは世界。これは日本語のサンプル文章です。テスト用に作成されました。 '
+                '你好世界。这是简体中文的测试样本。用于验证编码兼容性。 '
+                '你好世界。這是繁體中文的測試樣本。用於驗證編碼相容性。 '
+                'Hello World! This is an English test sample. Used for encoding verification. '
+                '🌸 🌏 🎉 © ® ™ € £ ¥ — « » “ ” ‘ ’')
+        has_loss, bad_kinds, bad_total, total_chars, samples = check(text, 'utf-8')
+        self.assertFalse(has_loss, "UTF-8에서 손실이 감지됨 (잘못된 동작)")
+        self.assertEqual(bad_kinds, 0)
+        self.assertEqual(bad_total, 0)
+        self.assertEqual(total_chars, len(text))
+        self.assertEqual(samples, [])
+
+    def test_check_encoding_compat_samples_limited_to_5(self):
+        """샘플 리스트는 깨질 문자가 많아도 최대 5개로 제한되어야 함 (다이얼로그 가독성).
+        v1.0.4 수정: 반환값이 5-tuple로 확장됨."""
+        check = _ns.get('alchemy_check_encoding_compat')
+        self.assertIsNotNone(check)
+        # 깨질 고유 문자 수십 개 확보 (이모지 + 한글 + 일본어 + 중국어)
+        text = ('🌸🌏🎉🔥🌟🎨🎭🎪🎯🎲'
+                '안녕하세요반갑습니다테스트문장'
+                'こんにちは世界サンプル文章'
+                '你好世界简体繁體')
+        has_loss, bad_kinds, bad_total, total_chars, samples = check(text, 'cp949')
+        self.assertTrue(has_loss, "cp949에서 이모지/번체 손실이 감지되지 않음")
+        self.assertGreater(bad_kinds, 5, "테스트 설계 오류: 깨질 고유 종류가 5개 이하")
+        self.assertEqual(len(samples), 5,
+            f"샘플 개수가 5개로 제한되지 않음: {len(samples)}개")
+
+    def test_check_encoding_compat_total_affected_count(self):
+        """영향받는 총 글자 수는 중복을 포함한 실제 ? 대체 개수와 일치해야 함.
+        v1.0.4 B 옵션: 사용자에게 '실제 파일의 몇 %가 깨지는지' 정확히 안내하기 위함."""
+        check = _ns.get('alchemy_check_encoding_compat')
+        self.assertIsNotNone(check)
+        # '한' 문자가 정확히 10번 반복 + ASCII 공백
+        text = '한 ' * 10  # 총 20자 중 '한'이 10번
+        has_loss, bad_kinds, bad_total, total_chars, samples = check(text, 'cp1252')
+        self.assertTrue(has_loss)
+        # cp1252는 한글 표현 불가, 공백은 표현 가능 → '한' 10번이 전부 깨짐
+        self.assertEqual(bad_kinds, 1, f"고유 종류 수가 1이 아님: {bad_kinds}")
+        self.assertEqual(bad_total, 10, f"영향 총 글자 수가 10이 아님: {bad_total}")
+        self.assertEqual(total_chars, 20, f"전체 글자 수가 20이 아님: {total_chars}")
+        # 실제로 replace 저장 시 ? 개수와 일치하는지 교차 검증
+        encoded = text.encode('cp1252', errors='replace')
+        question_count = encoded.count(b'?')
+        self.assertEqual(bad_total, question_count,
+            f"bad_total({bad_total}) != 실제 ? 개수({question_count})")
+
+    def test_alchemy_detect_ascii_started_shift_jis(self):
+        """ASCII로 시작하는 Shift-JIS 파일을 올바르게 감지해야 함.
+        버그 2 수정: chardet이 이런 파일을 cp1006(우르두어) 등으로 오인식하는데,
+        alchemy 폴백 단계에서 CJK 순차 strict 검증으로 구제.
+
+        테스트 컨텐츠는 실제 보고된 케이스(~9KB) 수준으로 충분히 길게 구성.
+        짧은 컨텐츠는 cp949로도 우연히 decode 성공할 수 있어 의미 있는 검증이 안 됨."""
+        detect = _ns.get('alchemy_detect_encoding')
+        self.assertIsNotNone(detect)
+        import tempfile
+        # 실제 보고된 케이스(9552 bytes) 수준으로 충분한 일본어 본문 포함
+        # + Shift-JIS 고유 특수문자로 cp949 decode 실패 보장
+        ja_line = 'これは日本語のエンコーディングテストです。漢字・ひらがな・カタカナを含みます。\r\n'
+        special = '々ヽヾゝゞ〃仝〆〇ー「」『』〜\r\n'  # Shift-JIS 고유 심볼 (모두 인코딩 가능)
+        content = ('Hello. This is an English encoding test file.\r\n'
+                   'For File Nexus Suite Bulk Fixer verification.\r\n'
+                   '\r\n'
+                   + ja_line * 80  # ~8KB 일본어
+                   + special * 10)  # Shift-JIS 고유 문자 확실히 포함
+        with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as f:
+            f.write(content.encode('shift_jis'))
+            path = f.name
+        try:
+            enc, _conf = detect(path)
+            self.assertEqual(enc, 'shift_jis',
+                f"ASCII로 시작하는 Shift-JIS 파일을 올바르게 감지 못함: {enc}")
         finally:
             os.unlink(path)
 
