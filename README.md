@@ -8,7 +8,7 @@
 
 <br>
 
-![version](https://img.shields.io/badge/version-1.0.2-CC785C?style=flat-square)
+![version](https://img.shields.io/badge/version-1.0.3-CC785C?style=flat-square)
 ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/PySide6-Qt_6-41CD52?style=flat-square&logo=qt&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
@@ -46,7 +46,7 @@ File Nexus Suite는 일상적인 파일 작업을 하나의 데스크톱 애플�
 - 🌐 **5 Languages** — 한국어 · English · 日本語 · 简体中文 · 繁體中文 (auto-detected from OS)
 - 🛡️ **Safe by Design** — Preview before apply + Undo support for every destructive action
 - 🎯 **Drag & Drop Everywhere** — Every tab accepts file/folder drag & drop
-- 💾 **Smart Encoding** — Auto-detect with chardet, supports UTF-8 / UTF-8-BOM / EUC-KR / CP949 / UTF-16
+- 💾 **Smart Encoding** — Auto-detect with chardet, supports UTF-8 / UTF-8-BOM / UTF-16 LE·BE / CP949 / Shift-JIS / GBK / Big5
 
 ---
 

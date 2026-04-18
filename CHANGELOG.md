@@ -1,47 +1,65 @@
 # File Nexus Suite — 변경 내역
 
-## v1.0.2 사후 (2026-04-17) — 저장소 메타데이터 정비
+## v1.0.3 (2026-04-18) — 인코딩 감지 버그 수정
 
-> 코드 변경 없음. v1.0.2 릴리즈 직후 GitHub 저장소 정비 작업으로,
-> 별도 릴리즈 없이 main 브랜치에 직접 반영함.
+### 버그 수정
 
-### 문서·메타데이터
+- **Text Fixer·Bulk Fixer의 UTF-16 / CJK 인코딩 처리 실패** (`L7253`, `L8193`, `L8628`)
+  - UTF-16 LE/BE, Shift-JIS, GBK, Big5 인코딩 파일이 깨진 상태로 저장되던 문제
+  - 원인: 3곳의 인코딩 감지 로직이 `('utf-8-sig', 'utf-8', 'cp949', 'euc-kr', 'latin-1')`만 시도
+    - UTF-16 계열 누락 → BOM 검출 못하고 다른 인코딩으로 오해
+    - 비-한국어 ANSI 누락 → Shift-JIS·GBK·Big5 파일 실패
+    - `latin-1`이 폴백 → 모든 바이트를 무조건 "디코딩 성공"시켜 깨진 채 처리됨
+  - 수정: 3곳 모두 기존 `alchemy_detect_encoding()` 함수를 재사용하도록 통일
+    1. `TextFixerPanel.load_file()` (L7253) — 단일 파일 로드
+    2. `BulkFixerWorker.run()` (L8193) — 일괄 처리
+    3. `BulkFixerPanel._on_file_selected()` (L8628) — 미리보기 ⭐
+  - `latin-1` 폴백 제거, `shift_jis`/`gbk`/`big5` 폴백 추가 (5개 언어 지원 일치)
+  - 영향 범위: 5개 언어 × UTF-16 LE/BE + 일본어·중국어 간체·번체 ANSI = 12개 케이스
 
-- **LICENSE 파일 신규 생성**
-  - 영문 + 한국어 병기 (구분선으로 분리)
-  - DISCLAIMER OF WARRANTY 조항 포함
-  - Third-party libraries 목록 포함
-  - GitHub "View license" 자동 인식 활성화
+- **`alchemy_detect_encoding()`의 GBK/Big5/Shift-JIS 감지 실패** (`L3456`)
+  - chardet이 CJK 인코딩에 대해 자주 0.5~0.7 신뢰도를 반환하는데,
+    기존 임계값 0.7 엄격 기준 때문에 GBK/Big5 파일이 `cp949` 폴백으로 잘못 디코딩
+  - 수정: CJK 인코딩 화이트리스트 추가, 이들은 0.5 이상이면 신뢰하도록 완화
+    - `gb18030`, `gbk`, `gb2312`, `big5`, `shift_jis`, `shift-jis`, `euc-jp`
+  - `gb18030`/`gb2312` → `gbk` 정규화, `shift-jis` → `shift_jis` 정규화 추가
+  - 기타 인코딩은 기존 0.7 임계값 유지 (보수적 처리)
+  - Text Converter(L4288)에도 함께 적용됨 — 모든 탭 일관 동작
 
-- **README.md 풍부한 버전으로 전면 개편**
-  - 뱃지 6개 추가 (version, python, PySide6, platform, license, AI pair programming)
-  - 강조형 Download 버튼 추가 (for-the-badge 스타일, CC785C)
-  - 프로젝트 소개 + 개발 방식 섹션 추가 (AI 페어 프로그래밍 명시)
-  - Highlights 6개로 정리 (Undo + Preview를 "Safe by Design"으로 통합)
-  - 탭별 기능 상세 설명 추가 (한·영 병기)
-  - 스크린샷 3열 표 형식으로 개편
-  - 설치 가이드 + 기술 스택 + 테마/언어 + 라이선스 섹션 추가
-  - 제작자 표기: 신용우 Yongwoo Shin (Hanrim)
-  - 총 208줄, 8.59KB
+### 테스트 자동화 강화
 
-- **GitHub 저장소 메타데이터 정비**
-  - About Description: 한·영 병기 + 이모지 추가
-  - Website 링크: Releases 최신 페이지로 직결
-  - Topics 15개 추가 (python, pyside6, qt6, windows, desktop-app, gui,
-    text-processing, epub, file-management, ebook, freeware, productivity,
-    dark-mode, ai-pair-programming, claude)
+- `TestBulkFixerFileIO`에 인코딩 라운드트립 테스트 5개 추가
+  - `test_utf8_bom_roundtrip`, `test_utf16_le_roundtrip`, `test_utf16_be_roundtrip`
+  - `test_cp949_roundtrip`, `test_5_languages_utf8`
+- 신규 회귀 테스트 클래스 2개 추가
+  - `TestV103Regression` — 소스 코드에 `latin-1` 재등장 여부 검출 (7개 테스트)
+  - `TestV103RegressionModule` — `alchemy_detect_encoding()` 동작 검증 (3개 테스트)
+- 기존 v0.12.0 / v1.0.0 회귀 테스트의 APP_VERSION 하드코딩 체크를
+  "v1.0.0 이상"으로 완화 (향후 버전 호환성 확보)
+- **테스트 샘플 데이터를 완전 중립 텍스트(CC0)로 교체** — 저작권 분리
+  - 기존: 실존 소설 텍스트를 테스트 입력으로 사용
+  - 교체: 서사·캐릭터·세계관 요소가 없는 완전 중립 샘플
+    (예: "테스트 샘플 [1] 섹션 A에서 섹션 B까지", "응답자/검사자" 같은 일반 역할만 등장)
+  - `test_file_nexus.py` 상단에 `SAMPLE_KO_*` 상수 섹션 추가 (총 11개 상수)
+  - 13곳의 테스트에서 상수 참조 방식으로 변경 → 저작권 이슈 없는 공개 가능한 구조
 
-- **v1.0.0 Release 정리**
-  - v1.0.0 GitHub Release 항목 삭제
-  - 외부에 노출된 다운로드 링크는 모두 `releases/latest` 사용으로 영향 없음
-  - v1.0.1, v1.0.2 두 개만 유지
+### 알려진 이슈 (미수정 — 동작에 영향 없음)
 
-### 저작권 표기
+- `zh_cn` 사전이 두 블록(L2013~L2204, L2204~L2462)으로 나뉘어 188 개 키가 중복 정의되어 있음 (v1.0.2에서 식별됨)
+  - 모든 중복 키가 같은 값으로 정의되어 있어 동작 정상
+  - 향후 사전 정리 PR 별도 진행 권장 (회귀 위험으로 v1.0.3 범위에서도 제외)
 
-- 외부 노출 문서(README.md, LICENSE)의 Copyright 표기를
-  "Hanrim" → "Yongwoo Shin (Hanrim)"으로 변경
-- 앱 내 표시(FileNexusSuite.py, README.txt)는 "Hanrim" 그대로 유지
-  (GitHub 계정명과 일관성)
+### 검증 범위
+
+- **입력**: 5개 언어 × 5개 인코딩 = 25개 테스트 파일 (수동 검증)
+  - 한국어·English·日本語·简体中文·繁體中文
+  - UTF-8 / UTF-8 BOM / UTF-16 LE / UTF-16 BE / ANSI(각 언어별)
+- **수정 전 결과**: 13/25 (52%) — UTF-16 전체 + 일본어/중국어 ANSI 깨짐
+- **수정 후 결과**: 25/25 (100%) ⭐
+- **2종 프리셋** 모두에서 동일하게 100% 달성 (Normal, Novel)
+- **정상 작동 확인된 탭** (수정 불필요)
+  - Text Merger: 25/25 통과 (기존에 이미 `_detect_encoding()` 사용 중)
+  - Text Converter: alchemy 개선으로 함께 혜택
 
 ---
 
