@@ -67,7 +67,7 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle
 # ═══════════════════════════════════════════════
 # 앱 버전
 # ═══════════════════════════════════════════════
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 
 # ═══════════════════════════════════════════════
 # 절전 방지 유틸리티 (Windows 전용, 타 OS 무해 처리)
@@ -3454,6 +3454,11 @@ def apply_renames(targets):
 # Text Converter 핵심 로직
 # ═══════════════════════════════════════════════
 def alchemy_detect_encoding(path):
+    """파일 인코딩 감지 — BOM 직접 검출 + chardet + 폴백.
+    v1.0.3: CJK 인코딩(GBK/Big5/Shift-JIS)은 임계값을 0.5로 낮춤.
+    chardet이 이들 인코딩에 대해 0.5~0.7 신뢰도를 반환하는 경우가 많아,
+    0.7 엄격 기준을 그대로 적용하면 잘못된 utf-8/cp949 폴백으로 이어짐.
+    """
     try:
         with open(path, "rb") as f: raw = f.read(8192)
         if raw[:3] == bytes([0xef,0xbb,0xbf]): return "utf-8-sig"
@@ -3461,10 +3466,16 @@ def alchemy_detect_encoding(path):
         if HAS_CHARDET:
             result = _chardet.detect(raw); enc = (result.get("encoding") or "utf-8").lower()
             conf = result.get("confidence", 0)
-            if conf >= 0.7:
+            # CJK 인코딩은 chardet이 자주 0.5~0.7을 반환 → 임계값 완화
+            _CJK_ENCS = ("gb18030","gbk","gb2312","big5","shift_jis","shift-jis","euc-jp")
+            if conf >= 0.7 or (conf >= 0.5 and enc in _CJK_ENCS):
                 if enc in ("utf-8","utf-8-sig","ascii"): return "utf-8"
                 if enc in ("euc-kr","euc_kr","cp949","ms949"): return "cp949"
                 if enc in ("utf-16","utf-16-le","utf-16-be"): return "utf-16"
+                # GBK/GB2312/GB18030 → gbk로 정규화 (gbk가 상위 호환)
+                if enc in ("gb18030","gbk","gb2312"): return "gbk"
+                # Shift-JIS 변형 → shift_jis로 정규화
+                if enc in ("shift_jis","shift-jis"): return "shift_jis"
                 return enc
         try: raw.decode("utf-8"); return "utf-8"
         except UnicodeDecodeError: return "cp949"
@@ -7250,7 +7261,10 @@ class TextFixerPanel(QWidget):
             _dlg_warn(self, _t('tf_dlg_nofile'), f"{_t('tf_err_nofile')}:\n{path}"); return
         if not os.access(path, os.R_OK):
             _dlg_warn(self, _t('tf_dlg_noperm'), f"{_t('tf_err_perm')}:\n{path}"); return
-        for enc in ('utf-8-sig', 'utf-8', 'cp949', 'euc-kr', 'latin-1'):
+        # v1.0.3: alchemy_detect_encoding으로 BOM/UTF-16/CJK 인코딩 감지
+        detected_enc = alchemy_detect_encoding(path)
+        for enc in (detected_enc, 'utf-8-sig', 'utf-8', 'cp949', 'euc-kr',
+                    'shift_jis', 'gbk', 'big5'):
             try:
                 with open(path, 'r', encoding=enc) as f: text = f.read()
                 self._input_edit.setPlainText(text)
@@ -8188,9 +8202,11 @@ class BulkFixerWorker(QThread):
                 self.sig_progress.emit(int(idx / total * 100))
                 self.sig_file_progress.emit(0, fname)
                 try:
-                    # 읽기
+                    # 읽기 — v1.0.3: alchemy_detect_encoding으로 BOM/UTF-16/CJK 인코딩 감지
                     text = None
-                    for enc in ('utf-8-sig', 'utf-8', 'cp949', 'euc-kr', 'latin-1'):
+                    detected_enc = alchemy_detect_encoding(path)
+                    for enc in (detected_enc, 'utf-8-sig', 'utf-8', 'cp949', 'euc-kr',
+                                'shift_jis', 'gbk', 'big5'):
                         try:
                             with open(path, 'r', encoding=enc) as f: text = f.read()
                             break
@@ -8625,7 +8641,10 @@ class BulkFixerPanel(QWidget):
         if not cur: self._preview_edit.clear(); return
         path = cur.toolTip(0)
         try:
-            for enc in ('utf-8-sig', 'utf-8', 'cp949', 'euc-kr', 'latin-1'):
+            # v1.0.3: alchemy_detect_encoding으로 BOM/UTF-16/CJK 인코딩 감지
+            detected_enc = alchemy_detect_encoding(path)
+            for enc in (detected_enc, 'utf-8-sig', 'utf-8', 'cp949', 'euc-kr',
+                        'shift_jis', 'gbk', 'big5'):
                 try:
                     with open(path, 'r', encoding=enc) as f:
                         preview = ''.join(f.readlines()[:80])

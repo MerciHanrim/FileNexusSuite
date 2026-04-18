@@ -41,7 +41,7 @@ MANIFEST
 참고 자료/
 HANDOVER.md
 # README.txt  (v1.0.2부터 빌드 자동 복사 대상이라 추적함)
-test_file_nexus.py
+# test_file_nexus.py  (v1.0.3부터 공개 — 저작권 없는 중립 샘플로 교체 완료)
 preview_ui.py
 *.md.bak
 # ── 임시 파일 ────────────────────────────────
