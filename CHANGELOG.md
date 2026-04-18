@@ -1,5 +1,125 @@
 # File Nexus Suite — 변경 내역
 
+## v1.0.4 (2026-04-18) — Text Merger 인코딩 종합 개선
+
+### 버그 수정 (초판 피드백 반영)
+
+- **경고 다이얼로그에 HTML 태그가 그대로 표시되던 문제** (`_build_dlg` / `_dlg_question`)
+  - `_build_dlg`가 메시지 라벨에 `PlainText` 포맷을 강제 지정 → 신규 `merge_enc_warn_msg`의 `<b>`, `<br>`, `<code>` 태그가 텍스트로 보이던 문제
+  - 수정: `_build_dlg`와 `_dlg_question`에 `rich_text: bool = False` 파라미터 추가 (기본값은 기존 동작 유지)
+  - Text Merger 경고 호출부만 `rich_text=True`로 변경 → 다른 다이얼로그 동작 영향 0
+  - 기본값이 False이므로 외부 다이얼로그 호출부는 변경 불필요
+
+- **ASCII로 시작하는 Shift-JIS/GBK/Big5 파일을 cp949로 오판정하던 문제** (`alchemy_detect_encoding` 폴백)
+  - chardet이 "영어 도입부 + CJK 본문" 파일을 `cp1006`(우르두어) 등 엉뚱한 인코딩으로 24% 정도 낮은 신뢰도로 감지 → 임계값 통과 못 함
+  - 폴백 단계에서 `utf-8` 실패 시 곧바로 `cp949`를 반환해 실제 Shift-JIS 파일도 cp949로 잘못 분류되던 문제
+  - 수정: `utf-8` 실패 시 `cp949 → shift_jis → gbk → big5` 순차로 strict 디코딩을 검증해 실제로 디코딩 가능한 인코딩을 찾음
+  - 추가: Windows의 Shift-JIS 확장 인코딩(`cp932`, `windows-31j`)을 CJK 화이트리스트에 추가하고 `shift_jis`로 정규화 (chardet이 긴 일본어 콘텐츠를 `cp932`로 반환하는 케이스 대응)
+  - 최후의 폴백은 `cp949` 유지 (v1.0.3 동작과 호환)
+  - v1.0.4 Shift-JIS 저장 결과물을 다시 Text Merger에 드롭하는 자연스러운 시나리오에서 발견됨
+
+- **경고 다이얼로그가 실제 파일 손실 규모를 축소 표현하던 문제** (`alchemy_check_encoding_compat` UX 개선)
+  - 기존 표시: "깨질 문자: 약 N자" — 여기서 N은 "고유 문자 **종류 수**" (예: "한"이 50번 있어도 1로 카운트)
+  - 사용자가 "N자만 ?로 대체될 것"으로 오해 → 실제로는 파일 대부분이 `?`가 되는 상황이 발생
+  - 신용우님의 실기 테스트: 25개 다국어 파일을 Shift-JIS로 저장 시도 → 다이얼로그엔 "약 313자"로 표시됐으나 실제 ? 대체는 **3,023자** (10배 차이)
+  - 수정: `alchemy_check_encoding_compat` 시그니처를 `(has_loss, bad_count, samples)` 3-tuple → `(has_loss, bad_kinds, bad_total, total_chars, samples)` 5-tuple로 확장
+  - 다이얼로그 표시도 3단 구조로 개선: "깨질 문자 **종류**: N종 / 영향받는 **글자 수**: M자 (전체의 **P%**)"
+  - 사용자는 이제 실제 손실 규모와 비율까지 인지한 상태에서 저장 여부 결정 가능
+  - 5개 언어 메시지 모두 동일한 정보 구조로 통일
+
+### 기능 추가
+
+- **Text Merger 저장 인코딩에 Shift-JIS / GBK / Big5 추가** (`L9072`)
+  - 기존 5종(UTF-8, UTF-8-BOM, EUC-KR, CP949, UTF-16) → 8종으로 확장
+  - 5개 지원 언어(한·영·일·중간·중번)와 저장 인코딩 범위 일치
+  - codec 매핑 4종으로 확장: `Shift-JIS`→`shift_jis`, `GBK`→`gbk`, `Big5`→`big5`
+  - 기존 콤보박스 인덱스(0~4) 그대로 보존 → 저장된 설정값 호환
+
+- **UnicodeEncodeError 사전 경고 다이얼로그** (`L9445~9456`)
+  - 저장 직전 `alchemy_check_encoding_compat()`로 손실 검증
+  - 한글→Shift-JIS 같은 호환 불가 조합에서 저장 실패 전 미리 경고
+  - 다이얼로그에 깨질 문자 개수 + 샘플 5개 표시
+  - 사용자 동의 시 `errors='replace'`로 저장 (`?`로 대체), 거부 시 저장 중단
+  - 샘플 문자 HTML 이스케이프 처리로 다이얼로그 렌더링 안전성 확보
+  - 5개 언어에 `merge_enc_warn_title` / `merge_enc_warn_msg` 키 추가
+
+- **신뢰도 % 4단계 색상 코딩 + 툴팁** (`L6647~6665`, `L9328~9332`)
+  - 기존 균일 회색 표시 → 4단계 의미별 색상 (인수인계 후보 #3)
+    - ≥90%: `#4CAF50` 초록 (안전)
+    - ≥70%: `#F1C40F` 노랑 (주의)
+    - ≥50%: `#E67E22` 주황 (경고, alchemy CJK 임계값 0.5와 일치)
+    - <50%: `#E74C3C` 빨강 (위험)
+  - 신뢰도 <90%인 텍스트 파일은 툴팁에 안내 추가
+    (chardet 원본 신뢰도가 낮아도 결과는 정확할 수 있음)
+  - 5개 언어에 `merge_low_conf_hint` 키 추가
+
+- **CJK 인코딩 배지 색상/라벨 추가** (`L6526~6552`)
+  - v1.0.3 누락 보완 — alchemy가 감지한 `shift_jis/gbk/big5`가 보라색 fallback으로만 표시되던 문제
+  - 새 색상: `shift_jis`=분홍(`#E91E63`), `gbk/gb18030/gb2312`=골드(`#F1C40F`), `big5`=시안(`#00BCD4`)
+  - 배지 라벨 정규화: `Shift-JIS`, `GBK`, `Big5`
+
+### 리팩토링
+
+- **`alchemy_detect_encoding()` 시그니처 확장 + Text Merger `_detect_encoding` 통합** (`L3456`)
+  - 반환 타입: `str` → `(str, float)` 튜플 (인코딩명 + 신뢰도)
+  - Text Merger 패널의 자체 `_detect_encoding()` 메서드 제거 → alchemy로 통일
+  - 읽는 바이트 8192 → 32768로 확대 (Text Merger 기존 동작 흡수)
+  - 인수인계 후보 #4 "`_detect_encoding()` 통합 여부" 완료
+  - 호출부 5곳 업데이트:
+    1. `TxtEpubConvertWorker.run()` (L4307)
+    2. `TextFixerPanel.load_file()` (L7274)
+    3. `BulkFixerWorker.run()` (L8217)
+    4. `BulkFixerPanel._on_file_selected()` (L8656)
+    5. `MergePanel._add_files()` (L9319, 패턴 `enc, conf = alchemy_detect_encoding(path)`)
+  - Text Merger 부수 효과: v1.0.3 alchemy 강화분(CJK 정규화·화이트리스트) 자동 흡수
+  - Text Fixer/Bulk Fixer 부수 효과: 읽는 바이트 8192 → 32768로 CJK 감지 정확도 ↑
+
+### 도움말·문서
+
+- **Text Merger 도움말 5개 언어 갱신** (`L12162`, `L12299`, `L12436`, `L12573`, `L12710`)
+  - 저장 인코딩 선택 기준에 Shift-JIS·GBK·Big5 설명 추가
+  - 한국어·English·日本語·简体中文·繁體中文 모두 동일 분량으로 갱신
+
+### 테스트 자동화 강화
+
+- 신규 회귀 테스트 클래스 2개 추가
+  - `TestV104Regression` — 소스 코드 검증 (14개 테스트)
+    - D: alchemy 튜플 반환 + `_detect_encoding` 제거 + 호출부 언패킹
+    - A: 콤보박스 + codec 매핑 + 델리게이트 색상/라벨
+    - B: `alchemy_check_encoding_compat` 정의 + `_on_merge_done` 호출 + 다국어 키
+    - C: 4단계 색상 분기 + 툴팁 다국어 키
+    - 초판 피드백: `_dlg_question` rich_text 파라미터 + alchemy CJK 폴백 루프
+  - `TestV104RegressionModule` — 모듈 로드 기반 (7개 테스트)
+    - APP_VERSION 정확히 '1.0.4'
+    - alchemy가 실제 `(str, float)` 튜플 반환
+    - `alchemy_check_encoding_compat` 실제 동작 (5-tuple: 한글→Shift-JIS 손실 감지, UTF-8 통과, 샘플 5개 제한)
+    - B 옵션 개선: 영향받는 총 글자 수가 실제 ? 대체 개수와 일치 (교차 검증)
+    - 초판 피드백: ASCII로 시작하는 Shift-JIS 파일 감지 검증
+- v1.0.3 기존 테스트 중 시그니처 변경 영향 11개 업데이트 (의도 유지)
+  - `TestAlchemyDetectEncoding` 5개 (utf8_bom / utf16_le_bom / utf16_be_bom / pure_utf8 / returns_string) — 튜플 호환 헬퍼로 첫 요소 추출
+  - `TestBulkFixerFileIO` 3개 (utf8_bom_roundtrip / utf16_le_roundtrip / utf16_be_roundtrip) — `enc = detected[0] if isinstance(...) else detected` 패턴 적용
+  - `TestV103RegressionModule.test_app_version_is_103` — "정확히 1.0.3" → "1.0.3 이상"으로 완화 (V012/V100 패턴과 일관)
+  - `test_alchemy_detect_encoding_utf16_le/be` — 튜플 반환 호환 패턴 적용
+
+### 알려진 이슈 (미수정 — 동작에 영향 없음)
+
+- `zh_cn` 사전이 두 블록으로 나뉘어 188개 키 중복 정의됨 (v1.0.2부터 식별)
+  - 모든 중복 키가 같은 값으로 정의되어 있어 동작 정상
+  - 향후 사전 정리 PR 별도 진행 (회귀 위험으로 v1.0.4 범위에서도 제외)
+
+### 검증 범위
+
+- **단위 테스트**: 472개 (전체), V104 신규 21개 포함 — 실패 0 / 오류 0
+  - v1.0.3: 451개 → v1.0.4 초판: 467개 → v1.0.4 최종: 472개 (초판 피드백 + UX 개선 반영)
+- **실기 검증**: 25개 인코딩 샘플 파일 드래그 감지, 한글→Shift-JIS 저장 경고 동작, 저장 결과물 재드롭 시나리오
+- **구조적 안전성**:
+  - 콤보박스 기존 인덱스 0~4 보존 → 설정 저장값 호환
+  - `alchemy_detect_encoding` 호출부 4곳 모두 튜플 언패킹 적용 (누락 없음)
+  - `_detect_encoding` 메서드 완전 제거 (잔재 0건)
+  - 회귀 테스트로 위 구조 자동 검증
+
+---
+
 ## v1.0.3 (2026-04-18) — 인코딩 감지 버그 수정
 
 ### 버그 수정
