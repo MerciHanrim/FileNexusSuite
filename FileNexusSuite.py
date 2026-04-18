@@ -67,7 +67,7 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle
 # ═══════════════════════════════════════════════
 # 앱 버전
 # ═══════════════════════════════════════════════
-APP_VERSION = "1.0.4"
+APP_VERSION = "1.0.5"
 
 # ═══════════════════════════════════════════════
 # 절전 방지 유틸리티 (Windows 전용, 타 OS 무해 처리)
@@ -1050,7 +1050,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tag_no_files_msg': '추가된 파일이 없습니다.',
         'tag_no_tag_msg':   '추가할 태그를 입력해주세요.',
         'merge_clr_confirm':'목록의 모든 파일을 삭제할까요?',
-        'merge_open_explorer':'탐색기에서 열기',
         'merge_undo_done':  '병합 파일을 삭제했습니다.',
         'merge_undo_miss':  '파일을 찾을 수 없습니다.',
         'first_run_title':  '처음 실행하셨군요!',
@@ -1175,6 +1174,16 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_save_err':    '❌ 오류 발생',
         'merge_enc_warn_title': '⚠ 인코딩 호환성 경고',
         'merge_enc_warn_msg':   '선택하신 저장 인코딩 <b>{enc}</b>(으)로는 일부 문자가 표현되지 않습니다.<br><br>• 깨질 문자 종류: 약 <b>{kinds}종</b><br>• 영향받는 글자 수: 약 <b>{total}자</b> (전체의 <b>{pct}%</b>)<br>• 샘플: <code>{samples}</code><br><br>계속 진행하면 해당 문자는 <code>?</code>로 대체되어 저장됩니다.<br><br>그래도 저장하시겠습니까?',
+        # v1.0.5: Text Merger 저장 인코딩 드롭다운 용도 설명 라벨 + 한 줄 도움말
+        'merge_enc_utf8':      'UTF-8',
+        'merge_enc_utf8_bom':  'UTF-8-BOM (Excel 호환)',
+        'merge_enc_euckr':     'EUC-KR (한국어)',
+        'merge_enc_cp949':     'CP949 (한국어 Windows)',
+        'merge_enc_utf16':     'UTF-16',
+        'merge_enc_shiftjis':  'Shift-JIS (일본어)',
+        'merge_enc_gbk':       'GBK (중국어 간체)',
+        'merge_enc_big5':      'Big5 (중국어 번체)',
+        'merge_enc_hint':      '확실하지 않으면 UTF-8을 선택하세요',
         'merge_low_conf_hint':  'ℹ chardet 원본 신뢰도가 낮게 표시되어도 인코딩 결과는 정확할 수 있습니다 (특히 CJK 인코딩).',
         'tag_file_count':    '파일 {n}개',
         'sc_none':           '없음',
@@ -1437,7 +1446,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tag_no_files_msg': 'No files added.',
         'tag_no_tag_msg':   'Please enter a tag to add.',
         'merge_clr_confirm':'Remove all files from the list?',
-        'merge_open_explorer':'Open in Explorer',
         'merge_undo_done':  'Merged file deleted.',
         'merge_undo_miss':  'File not found.',
         'first_run_title':  'Welcome to File Nexus Suite!',
@@ -1562,6 +1570,16 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_save_err':    '❌ Error occurred',
         'merge_enc_warn_title': '⚠ Encoding compatibility warning',
         'merge_enc_warn_msg':   'The selected save encoding <b>{enc}</b> cannot represent some characters.<br><br>• Distinct incompatible characters: about <b>{kinds}</b><br>• Total affected characters: about <b>{total}</b> (<b>{pct}%</b> of file)<br>• Sample: <code>{samples}</code><br><br>If you continue, those characters will be replaced with <code>?</code>.<br><br>Proceed with save?',
+        # v1.0.5: Text Merger save-encoding dropdown labels + one-line hint
+        'merge_enc_utf8':      'UTF-8',
+        'merge_enc_utf8_bom':  'UTF-8-BOM (Excel compatible)',
+        'merge_enc_euckr':     'EUC-KR (Korean)',
+        'merge_enc_cp949':     'CP949 (Korean Windows)',
+        'merge_enc_utf16':     'UTF-16',
+        'merge_enc_shiftjis':  'Shift-JIS (Japanese)',
+        'merge_enc_gbk':       'GBK (Simplified Chinese)',
+        'merge_enc_big5':      'Big5 (Traditional Chinese)',
+        'merge_enc_hint':      'If unsure, select UTF-8',
         'merge_low_conf_hint':  'ℹ Even if the chardet raw confidence is low, the detected encoding may still be accurate (especially for CJK encodings).',
         'tag_file_count':    '{n} file(s)',
         'sc_none':           'None',
@@ -1823,7 +1841,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tag_no_files_msg': 'ファイルが追加されていません。',
         'tag_no_tag_msg':   '追加するタグを入力してください。',
         'merge_clr_confirm':'リストのすべてのファイルを削除しますか？',
-        'merge_open_explorer':'エクスプローラーで開く',
         'merge_undo_done':  '統合ファイルを削除しました。',
         'merge_undo_miss':  'ファイルが見つかりません。',
         'first_run_title':  'ようこそ File Nexus Suite へ！',
@@ -1925,7 +1942,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'bulk_save_mode':  '// 保存設定',
         'bulk_save_desc':   '[Fixed]タグを先頭に付けて保存します。出力フォルダを指定しない場合、元ファイルと同じ場所に保存されます。',
         'bulk_keep_structure': 'フォルダ構造を維持（出力フォルダ指定時）',
-        'bulk_keep_structure': 'フォルダ構造を維持（出力フォルダ指定時）',
         'bulk_save_over':  '元ファイルに上書き',
         'bulk_save_fixed': '元の場所に_fixed.txtで保存',
         'bulk_save_dir':   '出力フォルダに保存',
@@ -1949,6 +1965,16 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_save_err':    '❌ エラーが発生しました',
         'merge_enc_warn_title': '⚠ エンコード互換性の警告',
         'merge_enc_warn_msg':   '選択された保存エンコード <b>{enc}</b> では一部の文字を表現できません。<br><br>• 失われる文字の種類: 約 <b>{kinds}種</b><br>• 影響を受ける文字数: 約 <b>{total}文字</b> (全体の <b>{pct}%</b>)<br>• サンプル: <code>{samples}</code><br><br>続行すると該当文字は <code>?</code> に置き換えられて保存されます。<br><br>それでも保存しますか？',
+        # v1.0.5: Text Merger 保存エンコード ドロップダウン 用途ラベル + 1行ヒント
+        'merge_enc_utf8':      'UTF-8',
+        'merge_enc_utf8_bom':  'UTF-8-BOM (Excel 互換)',
+        'merge_enc_euckr':     'EUC-KR (韓国語)',
+        'merge_enc_cp949':     'CP949 (韓国語 Windows)',
+        'merge_enc_utf16':     'UTF-16',
+        'merge_enc_shiftjis':  'Shift-JIS (日本語)',
+        'merge_enc_gbk':       'GBK (簡体字中国語)',
+        'merge_enc_big5':      'Big5 (繁体字中国語)',
+        'merge_enc_hint':      'わからない場合は UTF-8 を選択してください',
         'merge_low_conf_hint':  'ℹ chardet の元の信頼度が低く表示されても、検出されたエンコードは正確な場合があります（特にCJKエンコード）。',
         'tag_file_count':    '{n}個のファイル',
         'sc_none':           'なし',
@@ -2210,7 +2236,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tag_no_files_msg': '没有添加文件。',
            'tag_no_tag_msg':   '请输入要添加的标签。',
            'merge_clr_confirm':'删除列表中的所有文件？',
-           'merge_open_explorer':'在资源管理器中打开',
            'merge_undo_done':  '已删除合并文件。',
            'merge_undo_miss':  '找不到文件。',
            'first_run_title':  '欢迎使用 File Nexus Suite！',
@@ -2386,75 +2411,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'dlg_rename_confirm': '重命名确认',
            'dlg_rename_done': '完成',
            'dlg_rename_partial': '部分失败',
-           'tf_title':        'Text Fixer',
-           'tf_subtitle':     '修复文本换行',
-           'tf_open':         '打开文件',
-           'tf_run':          '执行修复',
-           'tf_copy':         '复制',
-           'tf_save':         '保存',
-           'tf_save_overwrite': '覆盖原文件',
-           'tf_save_fixed':   '在原位置另存为_fixed.txt',
-           'tf_save_as':      '另存为…',
-           'tf_clear':        '清空',
-           'tf_opt_mid':      '合并段落内换行（以空行为基准）',
-           'tf_opt_blank':    '减少过多空行 — 最多',
-           'tf_opt_line':     '行',
-           'tf_lang_mode':    '合并模式',
-           'tf_lang_auto':    '自动',
-           'tf_lang_ko':      '韩语·其他',
-           'tf_lang_en':      'English',
-           'tf_grp_opt':      '修复选项',
-           'tf_grp_input':    '// 原始文本',
-           'tf_grp_output':   '// 修复后的文本',
-           'tf_ph_input':     '在此粘贴文本或打开文件...',
-        'tf_ph_input_edit': '在此直接粘贴文本...',
-           'tf_ph_output':    '修复结果将显示在此处...',
-           'tf_stat_mid':     '合并行数: -',
-           'tf_stat_blank':   '空行缩减: -',
-           'tf_stat_orig':    '原始行数: -',
-           'tf_stat_new':     '修复后行数: -',
-           'tf_status_ready': '欢迎使用 Text Fixer',
-           'tf_done':         '🌿  完成 — 合并 {mid} 行，修复空行 {blank} 处',
-           'tf_copied':       '📋  已复制到剪贴板',
-           'tf_saved':        '💾  保存完成: {name}',
-           'tf_cleared':      '已清空',
-           'bulk_file_list':  '// 文件列表',
-           'bulk_drop_txt':   '将文件或文件夹拖到此处',
-           'bulk_drop_fmt':   '支持TXT (*.txt) 格式',
-           'bulk_options':    '// 修复选项',
-           'bulk_preview':    '// 预览',
-           'bulk_preview_ph': '选择文件后显示预览',
-           'bulk_save_mode':  '// 保存方式',
-           'bulk_save_over':  '覆盖原文件',
-           'bulk_save_fixed': '在原位置保存为_fixed.txt',
-           'bulk_save_dir':   '保存到输出文件夹',
            'bulk_save_desc':  '在文件名前加 [Fixed] 标签保存。如未指定输出文件夹，将保存在原文件相同位置。',
-           'bulk_out_folder': '// 输出文件夹',
-           'bulk_out_ph':     '留空 = 保存在原文件旁边',
-           'bulk_run':        '开始批量修复',
-           'bulk_running':    '⏳ 处理中…',
-           'bulk_status_ready': '添加文件后开始批量修复。',
-           'bulk_status_done':  '✔  完成 — 已处理{n}个文件',
-           'bulk_status_err':   '⚠  错误: {msg}',
-           'bulk_file_count': '{n}个文件',
-           'bulk_err_nofiles': '没有可处理的文件。',
-           'bulk_scanning':    '扫描中... 已找到{n}个',
-           'bulk_no_txt':      '在文件夹中找不到TXT文件。',
-           'tf_running':      '✨  修复中...',
-           'tf_err_nofile':   '找不到文件',
-           'tf_err_perm':     '没有读取权限',
-           'tf_err_enc':      '无法使用支持的编码读取文件',
-           'tf_err_fix':      '发生错误',
-           'tf_err_save':     '无法保存',
-           'tf_dlg_nofile':   '文件不存在',
-           'tf_dlg_noperm':   '访问错误',
-           'tf_dlg_ioerr':    '文件错误',
-           'tf_dlg_encerr':   '编码错误',
-           'tf_dlg_overwrite':'确认覆盖',
-           'tf_highlight':    '🟡 黄色 = 已合并  🟠 橙色 = 空行已删除',
-           'tf_drop1': '将TXT文件拖到此处或使用打开文件按钮',
-           'tf_drop2': '支持 TXT (*.txt) 格式',
-           'tf_drop_hover': '放开以加载文件！',
            'conv_status_done':  '✅ 完成!',
            'conv_status_fail':  '❌ 转换失败',
            'tf_undo_done':      '已撤销 — 已恢复原始文本',
@@ -2468,6 +2425,16 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'merge_save_err':    '❌ 发生错误',
            'merge_enc_warn_title': '⚠ 编码兼容性警告',
            'merge_enc_warn_msg':   '所选保存编码 <b>{enc}</b> 无法表示部分字符。<br><br>• 受影响字符种类: 约 <b>{kinds} 种</b><br>• 实际受影响字数: 约 <b>{total} 个</b> (占全文 <b>{pct}%</b>)<br>• 示例: <code>{samples}</code><br><br>如果继续，这些字符将被替换为 <code>?</code>。<br><br>仍要保存吗？',
+           # v1.0.5: Text Merger 保存编码下拉框用途说明标签 + 一行提示
+           'merge_enc_utf8':      'UTF-8',
+           'merge_enc_utf8_bom':  'UTF-8-BOM (Excel 兼容)',
+           'merge_enc_euckr':     'EUC-KR (韩语)',
+           'merge_enc_cp949':     'CP949 (韩语 Windows)',
+           'merge_enc_utf16':     'UTF-16',
+           'merge_enc_shiftjis':  'Shift-JIS (日文)',
+           'merge_enc_gbk':       'GBK (简体中文)',
+           'merge_enc_big5':      'Big5 (繁体中文)',
+           'merge_enc_hint':      '不确定时请选择 UTF-8',
            'merge_low_conf_hint':  'ℹ chardet 原始置信度较低时，检测到的编码仍可能准确（尤其是 CJK 编码）。',
            'tag_file_count':    '{n}个文件',
            'sc_none':           '无',
@@ -2663,7 +2630,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tag_no_files_msg': '沒有新增檔案。',
            'tag_no_tag_msg':   '請輸入要新增的標籤。',
            'merge_clr_confirm':'刪除清單中的所有檔案？',
-           'merge_open_explorer':'在檔案總管中開啟',
            'merge_undo_done':  '已刪除合併檔案。',
            'merge_undo_miss':  '找不到檔案。',
            'first_run_title':  '歡迎使用 File Nexus Suite！',
@@ -2806,6 +2772,16 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'merge_save_err':    '❌ 發生錯誤',
            'merge_enc_warn_title': '⚠ 編碼相容性警告',
            'merge_enc_warn_msg':   '所選儲存編碼 <b>{enc}</b> 無法表示部分字元。<br><br>• 受影響字元種類: 約 <b>{kinds} 種</b><br>• 實際受影響字數: 約 <b>{total} 個</b> (佔全文 <b>{pct}%</b>)<br>• 範例: <code>{samples}</code><br><br>如果繼續，這些字元將被替換為 <code>?</code>。<br><br>仍要儲存嗎？',
+           # v1.0.5: Text Merger 儲存編碼下拉選單用途說明標籤 + 一行提示
+           'merge_enc_utf8':      'UTF-8',
+           'merge_enc_utf8_bom':  'UTF-8-BOM (Excel 相容)',
+           'merge_enc_euckr':     'EUC-KR (韓語)',
+           'merge_enc_cp949':     'CP949 (韓語 Windows)',
+           'merge_enc_utf16':     'UTF-16',
+           'merge_enc_shiftjis':  'Shift-JIS (日文)',
+           'merge_enc_gbk':       'GBK (簡體中文)',
+           'merge_enc_big5':      'Big5 (繁體中文)',
+           'merge_enc_hint':      '不確定時請選擇 UTF-8',
            'merge_low_conf_hint':  'ℹ chardet 原始信賴度較低時，偵測到的編碼仍可能準確（尤其是 CJK 編碼）。',
            'tag_file_count':    '{n}個檔案',
            'sc_none':           '無',
@@ -9033,6 +9009,20 @@ class TextMergeWorker(QThread):
 
 class TextMergerPanel(QWidget):
     SUPPORTED_EXT={".txt",".md",".csv",".log",".json",".xml",".html",".py",".docx",".pdf",".xlsx"}
+    # v1.0.5: 저장 인코딩 드롭다운 (내부 키, i18n 키) 매핑
+    # — 내부 키는 codec 매핑/설정 저장에 사용되는 기존 값 (v1.0.4까지 currentText였음)
+    # — i18n 키는 각 언어별로 표시 라벨을 가져올 때 사용 (예: 'UTF-8 (추천)' 스타일 확장 포인트)
+    # 순서 = 콤보박스 표시 순서 (기존 v1.0.4 인덱스 0~7 호환 유지)
+    _ENC_ITEMS = [
+        ("UTF-8",     'merge_enc_utf8'),
+        ("UTF-8-BOM", 'merge_enc_utf8_bom'),
+        ("EUC-KR",    'merge_enc_euckr'),
+        ("CP949",     'merge_enc_cp949'),
+        ("UTF-16",    'merge_enc_utf16'),
+        ("Shift-JIS", 'merge_enc_shiftjis'),
+        ("GBK",       'merge_enc_gbk'),
+        ("Big5",      'merge_enc_big5'),
+    ]
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -9150,8 +9140,9 @@ class TextMergerPanel(QWidget):
         enc_row = QHBoxLayout(); enc_row.setSpacing(8)
         self._lbl_enc=QLabel(_t("conv_save_enc")); self._lbl_enc.setObjectName("field_lbl"); enc_row.addWidget(self._lbl_enc)
         self._combo_enc = _ThemedCombo()
-        self._combo_enc.addItems(["UTF-8", "UTF-8-BOM", "EUC-KR", "CP949", "UTF-16",
-                                  "Shift-JIS", "GBK", "Big5"])  # v1.0.4: CJK 추가
+        # v1.0.5: 내부 키 + 표시 라벨 분리 (userData에 기존 키 보존 → 설정 호환 자동 유지)
+        for _enc_key, _i18n_key in self._ENC_ITEMS:
+            self._combo_enc.addItem(_t(_i18n_key), _enc_key)
         enc_row.addWidget(self._combo_enc, stretch=1)
         self._combo_enc.setFixedHeight(30)
         self._combo_enc.setStyleSheet(
@@ -9167,7 +9158,14 @@ class TextMergerPanel(QWidget):
             f"background:{SRF2};}}"
             f"QComboBox::down-arrow{{image:{_combo_arrow_url(MUTED)};width:10px;height:6px;}}"
             f"QComboBox:hover::down-arrow{{image:{_combo_arrow_url(TEXT)};}}"
-            f"QComboBox:focus::down-arrow{{image:{_combo_arrow_url(ACCENT)};}}"); sg.addLayout(enc_row)
+            f"QComboBox:focus::down-arrow{{image:{_combo_arrow_url(ACCENT)};}}")
+        sg.addLayout(enc_row)
+
+        # v1.0.5: 저장 인코딩 한 줄 도움말 (비프로그래머 가이드)
+        self._lbl_enc_hint = QLabel(_t('merge_enc_hint'))
+        self._lbl_enc_hint.setStyleSheet(f"color:{MUTED};font-size:11px;padding-left:2px;")
+        self._lbl_enc_hint.setWordWrap(True)
+        sg.addWidget(self._lbl_enc_hint)
 
         self._lbl_path_label=QLabel(_t("merge_save_path")); self._lbl_path_label.setObjectName("field_lbl"); sg.addWidget(self._lbl_path_label)
         self._lbl_save_path = QLabel(_t("merge_path_none"))
@@ -9449,7 +9447,8 @@ class TextMergerPanel(QWidget):
     def _merge_files(self):
         if not self.file_list: _dlg_warn(self, _t('dlg_warning'), _t('merge_no_files')); return
         if self._merge_worker and self._merge_worker.isRunning(): return
-        self._save_enc = self._combo_enc.currentText()
+        # v1.0.5: userData에서 내부 키 획득 (표시 라벨과 무관하게 기존 codec 매핑 호환)
+        self._save_enc = self._combo_enc.currentData() or self._combo_enc.currentText()
         _glog(f"▶ [Text Merger] 병합 시작 — {len(self.file_list)}개 파일")
         self._btn_merge.setEnabled(False)
         self._pb.setValue(0); self._pb.setVisible(True)
@@ -9587,15 +9586,82 @@ class TextMergerPanel(QWidget):
         # 드롭존 갱신
         if hasattr(self, '_refresh_drop_zone'): self._refresh_drop_zone()
 
+    # ── v1.0.5: 상태 메시지 재번역 헬퍼 ───────────────────────
+    def _match_status_template(self, text, key):
+        """현재 _lbl_status 텍스트가 특정 번역 키의 템플릿 중 하나와 매칭되는지 검사.
+        플레이스홀더({n}, {path}, {enc} 등)는 `.+?`로 변환해 정규식 매칭.
+
+        Args:
+            text: 현재 _lbl_status에 표시된 문자열
+            key: 검사할 번역 키 (예: 'merge_status_add')
+
+        Returns:
+            bool: 5개 언어 중 하나의 템플릿이라도 매칭되면 True
+        """
+        import re as _re
+        for tmpl in _all_translations_of(key):
+            if not tmpl:
+                continue
+            # 템플릿 문자열 이스케이프 후 {xxx} 부분만 .+? 로 치환
+            pattern = _re.escape(tmpl)
+            pattern = _re.sub(r'\\\{[a-zA-Z_][a-zA-Z0-9_]*\\\}', r'.+?', pattern)
+            if _re.fullmatch(pattern, text):
+                return True
+        return False
+
+    def _retranslate_status(self):
+        """_lbl_status 내용을 현재 언어로 재렌더링.
+        정적 텍스트는 직접 재렌더, 복원 가능한 동적 텍스트는 원본 정보로 재구성,
+        복원 불가한 경우 'merge_status_ready'로 리셋.
+        언어 전환 시 한국어 메시지가 남아있던 버그(v1.0.4 이전부터 존재) 해소."""
+        cur = self._lbl_status.text()
+        if not cur:
+            return
+
+        # ── 1) 플레이스홀더 없는 정적 상태 — 단순 매핑 후 재렌더
+        for key in ('merge_status_ready', 'merge_status_clr', 'merge_reading',
+                    'merge_save_err', 'merge_path_reset_done'):
+            if cur in _all_translations_of(key):
+                self._lbl_status.setText(_t(key))
+                return
+
+        # ── 2) 복원 가능한 동적 상태 — 원본 정보로 재구성
+        # merge_status_add — 현재 파일 수로 복원
+        if self._match_status_template(cur, 'merge_status_add'):
+            self._lbl_status.setText(_t('merge_status_add', n=len(self.file_list)))
+            return
+        # merge_path_set — 현재 저장 경로로 복원 (save_dir이 유효할 때만)
+        if self._match_status_template(cur, 'merge_path_set'):
+            if self.save_dir:
+                self._lbl_status.setText(_t('merge_path_set', path=self.save_dir))
+            else:
+                self._lbl_status.setText(_t('merge_status_ready'))
+            return
+
+        # ── 3) 복원 불가 상태 — 'ready'로 리셋 (원본 정보 손실된 경우)
+        for key in ('merge_status_del', 'merge_save_done', 'bulk_scanning'):
+            if self._match_status_template(cur, key):
+                _glog(f"[Text Merger] 언어 전환으로 상태 메시지 리셋: {key!r} → 'merge_status_ready'")
+                self._lbl_status.setText(_t('merge_status_ready'))
+                return
+
+        # ── 4) 알려지지 않은 상태 — 손대지 않음 (방어적 처리)
+        # 예: 외부 플러그인이나 향후 추가 메시지
+
     def retranslate(self):
         self._tree.update()  # 빈 상태 텍스트 갱신
         self._tree.setHeaderLabels([_t('tag_col_filename'), _t('tag_col_path')])
         self._refresh_drop_zone()
         self._lbl_selection.setText(_t("merge_sel_none"))
-        if self._lbl_status.text() in _all_translations_of('merge_status_ready'):
-            self._lbl_status.setText(_t("merge_status_ready"))
+        # v1.0.5: 상태 메시지 재번역 (이전엔 'ready' 상태만 갱신되던 버그 수정)
+        self._retranslate_status()
         self._save_gb.setTitle(_t('merge_save_settings'))
         self._lbl_enc.setText(_t('merge_save_enc'))
+        # v1.0.5: 콤보박스 아이템 표시 라벨 갱신 (userData는 보존)
+        for _i, (_enc_key, _i18n_key) in enumerate(self._ENC_ITEMS):
+            self._combo_enc.setItemText(_i, _t(_i18n_key))
+        # v1.0.5: 저장 인코딩 한 줄 도움말 갱신
+        if hasattr(self, '_lbl_enc_hint'): self._lbl_enc_hint.setText(_t('merge_enc_hint'))
         self._lbl_path_label.setText(_t('merge_save_path'))
         if not self.save_dir: self._lbl_save_path.setText(_t('merge_path_none'))
         self._btn_browse.setText(_t('merge_path_pick'))
@@ -9614,7 +9680,8 @@ class TextMergerPanel(QWidget):
     def get_config(self) -> dict:
         return {
             'save_dir':  self.save_dir,
-            'combo_enc': self._combo_enc.currentText(),
+            # v1.0.5: 표시 라벨이 아닌 내부 키 저장 (언어 전환 후에도 안정적)
+            'combo_enc': self._combo_enc.currentData() or self._combo_enc.currentText(),
             'sep_check': self._chk_sep.isChecked(),
         }
 
@@ -9625,7 +9692,9 @@ class TextMergerPanel(QWidget):
             self._lbl_save_path.setText(self.save_dir)
             self._lbl_save_path.setToolTip(self.save_dir)
         enc = d.get('combo_enc', 'UTF-8')
-        idx = self._combo_enc.findText(enc)
+        # v1.0.5: 내부 키(userData)로 먼저 찾기 → 실패 시 표시 텍스트로 폴백 (v1.0.4 구설정 호환)
+        idx = self._combo_enc.findData(enc)
+        if idx < 0: idx = self._combo_enc.findText(enc)
         if idx >= 0: self._combo_enc.setCurrentIndex(idx)
         self._chk_sep.setChecked(d.get('sep_check', False))
 

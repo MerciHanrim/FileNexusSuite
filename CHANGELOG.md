@@ -1,5 +1,116 @@
 # File Nexus Suite — 변경 내역
 
+## v1.0.5 (2026-04-18) — Text Merger 저장 인코딩 드롭다운 UI 사용성 개선
+
+### 버그 수정 (릴리즈 QA 중 발견)
+
+- **언어 전환 시 Text Merger 하단 상태 메시지가 한국어로 남는 문제** (`TextMergerPanel.retranslate`, `L9589~`)
+  - 현상: 파일 추가 후 언어를 영어/일본어/중국어로 전환하면 "26개 파일 추가됨 (인코딩 자동 감지 완료)"가 한국어 그대로 표시됨
+  - 범위 확장: 동일 구조의 다른 상태 메시지들도 모두 같은 버그 존재 — `merge_status_del`, `merge_status_clr`, `merge_reading`, `merge_save_done`, `merge_save_err`, `merge_path_set`, `merge_path_reset_done`, `bulk_scanning`
+  - 원인: `retranslate()`가 `merge_status_ready` 상태일 때만 `_lbl_status`를 갱신하는 구조 (v1.0.4 이전부터 존재한 기존 버그, v1.0.5 빌드 후 실기 QA 중 신용우님이 3개 언어 스크린샷으로 발견)
+  - 수정: `_retranslate_status()` 헬퍼 메서드 + `_match_status_template()` 정규식 매칭 유틸 신설
+    - **정적 메시지** (플레이스홀더 없음, 5종): 단순 매핑 후 현재 언어로 재렌더
+    - **복원 가능 동적 메시지** (2종): 원본 정보로 재구성
+      - `merge_status_add` → `len(self.file_list)`로 `{n}` 복원
+      - `merge_path_set` → `self.save_dir`로 `{path}` 복원 (save_dir 비어있으면 `ready` 폴백)
+    - **복원 불가 메시지** (3종, 원본 정보 손실): `ready`로 리셋 + `_glog` 디버그 로그로 원인 추적 가능
+  - 방어적 처리: 알려지지 않은 상태 텍스트는 변경하지 않음 (외부 확장 대응)
+
+### 기능 개선 (UI)
+
+- **저장 인코딩 드롭다운에 용도 설명 병기** (`L9152~9162`)
+  - 기존: `UTF-8`, `Shift-JIS`, `GBK` 같은 기술명만 노출 → 비프로그래머가 8종 중 무엇을 고를지 판단이 어려움
+  - 개선: 각 아이템에 연관 언어 병기 (예: `Shift-JIS (일본어)`, `GBK (중국어 간체)`)
+  - 주관적 표현(`(추천)`, `(전용)`)은 배제하고 **사실 기반 수식어만** 사용
+  - UTF-8 / UTF-16은 특정 언어에 종속되지 않으므로 수식어 없이 표기
+  - 5개 지원 언어(한·영·일·중간·중번) 모두 해당 언어권 표준 표기 적용
+  - 중국어 간체/번체에서 일본어는 `日文`으로 표기 (v1.0.4 tip 문구와 일관성)
+
+- **저장 인코딩 콤보박스 아래 한 줄 도움말 추가** (`L9189~9193`)
+  - 문구: "확실하지 않으면 UTF-8을 선택하세요" (5개 언어 번역)
+  - 회색 작은 글씨(`MUTED`, `font-size:11px`)로 기존 도움말 톤과 통일
+  - 목적: 콤보박스를 열기 전에도 권장 기본값을 시각적으로 안내
+
+### 내부 구조 개선 (리팩토링)
+
+- **표시 라벨과 내부 키 분리** (`TextMergerPanel._ENC_ITEMS` 클래스 상수 신설, `L9086~9099`)
+  - 기존(v1.0.4): `addItems(["UTF-8", ...])` → `currentText()`로 저장값 획득 → 언어 전환 시 라벨이 바뀌면 내부 로직에 영향 가능
+  - 개선(v1.0.5): `addItem(display, userData)` 패턴 — `userData`에 기존 내부 키 8종 보존
+  - `_merge_files()` / `get_config()` → `currentText()` → `currentData()` 로 마이그레이션
+  - `apply_config()` → `findData()` 우선, 실패 시 `findText()` 폴백 (v1.0.4 이하 설정 파일 호환 자동 유지)
+  - 향후 라벨 스타일 변경 시 내부 codec 매핑 / 설정 저장 로직에 영향 없음
+
+- **Text Merger의 `retranslate()` 갱신**  (`L9671~9677`)
+  - 언어 전환 시 콤보박스 8개 아이템의 표시 라벨과 도움말 라벨을 모두 재번역
+  - `_ENC_ITEMS` 상수 한 곳에서 매핑을 관리하여 초기화/재번역 양쪽에서 동기화 사고 위험 제거
+
+### 번역 리소스 추가
+
+- 5개 언어 × 9개 키 = **45개 번역 항목 신규 추가** (`merge_enc_utf8` ~ `merge_enc_big5` + `merge_enc_hint`)
+- 키 이름은 기존 `merge_enc_warn_*` 패턴을 따라 `merge_enc_*` prefix로 통일
+- 각 언어 사전의 `merge_enc_warn_msg` 바로 뒤에 논리적 그룹핑
+
+### 기술 부채 해소 — 번역 사전 중복 키 정리
+
+v1.0.2 인수인계에서 식별된 `zh_cn` 중복 이슈를 이번 버전에서 전체 언어 일괄 정리:
+
+- **74개 중복 라인 삭제** (zh_cn 69 + ko 1 + en 1 + ja 2 + zh_tw 1)
+- **모든 중복의 두 출현 값이 완전히 일치** 확인 후 삭제 (AST 파싱 기반 안전 검증)
+- 각 중복 그룹의 첫 출현 보존, 나머지 삭제 원칙
+- **동작 영향 0**: Python dict는 나중 값이 앞선 값을 덮어쓰지만, 값 동일이므로 결과 동일
+- 주요 중복 패턴:
+  - `merge_open_explorer` 키가 5개 언어 **모두**에서 중복 (dict 전체 재삽입 흔적)
+  - `bulk_*` / `tf_*` 접두사 키들이 `zh_cn`에 대량 중복 (Bulk Fixer·Text Fixer 확장 시점의 의도치 않은 중복 삽입)
+- 결과: 5개 언어 각 dict가 390~391키로 슬림화 (zh_cn 463줄 → 394줄)
+
+### 테스트 자동화 강화
+
+- **`TestV105Regression` (소스 검증 12개)**:
+  - `_ENC_ITEMS` 상수 정의 + 8종 내부 키 + 8종 i18n 키 전수 검증
+  - 콤보박스가 `addItem(display, userData)` 패턴 사용 확인 (v1.0.4 `addItems` 잔재 검출)
+  - `_lbl_enc_hint` 도움말 라벨 생성 + retranslate 갱신 로직 존재
+  - `retranslate()`에서 콤보박스 아이템 라벨 갱신 로직 존재
+  - `_merge_files` / `get_config` / `apply_config`의 `currentData`·`findData` 마이그레이션
+  - 5개 언어 사전 × 9개 키 = 45개 항목 존재 (정규식 기반 개수 검증)
+  - 중국어 간체/번체에서 `日文` 표기 사용 + `日语`/`日語` 부재 검증 (v1.0.4 tip과 일관성)
+  - APP_VERSION 소스값 `1.0.5` 검증
+
+- **`TestV105RegressionModule` (런타임 검증 6개)**:
+  - APP_VERSION 실제 런타임 값 `1.0.5` 검증
+  - 5개 언어 딕셔너리에 9개 `merge_enc_*` 키가 실제 문자열 값으로 존재
+  - 각 라벨이 대응 인코딩 키(예: `UTF-8`)를 포함함으로써 식별 가능성 보장
+  - 중국어 간체/번체 `merge_enc_shiftjis` 값에 `日文` 포함 + `日语`/`日語` 부재
+  - `TextMergerPanel._ENC_ITEMS` 내부 키 순서가 v1.0.4 콤보박스 순서와 동일 (설정 호환성 보장)
+  - 도움말 문구에 `UTF-8` 안내가 모든 언어에 포함
+
+- **v1.0.4 기존 테스트 2개 업데이트** (시그니처 변경 영향, 의도 유지):
+  - `test_text_merger_combo_has_cjk_encodings`: `addItems` 정규식 → `_ENC_ITEMS` 상수 블록 검색으로 변경
+  - `test_app_version_is_104` → `test_app_version_is_104_or_later`: 정확 일치 → 튜플 비교 (`≥ (1,0,4)`) 완화
+
+- **`TestV105TranslationNoDuplicates` (중복 재발 방지 2개)**:
+  - 5개 언어 사전의 중복 키가 전부 0개임을 AST 파싱 기반으로 검증
+  - 언어별 키 개수 편차가 5 이내임을 검증 (번역 완결성 간접 보장)
+
+- **`TestV105StatusRetranslate` (상태 메시지 재번역 10개)**:
+  - 정적 메시지(ready/clr/save_err) 재렌더링 검증
+  - 동적 메시지 `merge_status_add` — 언어 전환 시 현재 file_list 수로 재구성
+  - 동적 메시지 `merge_path_set` — 현재 save_dir로 재구성, 빈 값이면 ready 폴백
+  - 복원 불가 메시지(`del`, `save_done`) → ready 리셋 검증
+  - 알려지지 않은 임의 텍스트는 변경하지 않는 방어적 처리 검증
+  - `_match_status_template` 단위 테스트 (플레이스홀더 있는 템플릿 정규식 매칭 정확도)
+
+**최종 결과: 502개 / 실패 0 / 오류 0 / 스킵 0 (로컬, Offscreen Qt 환경)**
+
+### 호환성
+
+- **v1.0.4 이하 사용자 설정 파일 자동 호환**:
+  - v1.0.4까지 `combo_enc`는 표시 텍스트(`"Shift-JIS"` 등)로 저장됨
+  - v1.0.5의 `apply_config()`은 `findData()` 1차 → `findText()` 2차 폴백 → 구버전 설정 그대로 로드 성공
+  - 한 번 저장되면 v1.0.5 이후 형식(내부 키)으로 자동 마이그레이션
+- **회귀 위험 최소화**: `TextMergerPanel` 외 다른 탭(Text Converter 등) 및 콤보박스 미변경. 설정 저장 스키마 키 이름(`combo_enc`) 그대로 유지.
+
+---
+
 ## v1.0.4 (2026-04-18) — Text Merger 인코딩 종합 개선
 
 ### 버그 수정 (초판 피드백 반영)

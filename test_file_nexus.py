@@ -3187,14 +3187,17 @@ class TestV104Regression(unittest.TestCase):
 
     # ── A: Text Merger 인코딩 옵션 추가 ──────────────────────────
     def test_text_merger_combo_has_cjk_encodings(self):
-        """Text Merger 콤보박스에 Shift-JIS, GBK, Big5가 추가되어야 함."""
-        # addItems 호출에 신규 인코딩 라벨이 포함되는지
-        m = re.search(
-            r'addItems\(\["UTF-8", "UTF-8-BOM", "EUC-KR", "CP949", "UTF-16",[\s\n]*'
-            r'"Shift-JIS", "GBK", "Big5"\]\)',
-            self.src)
+        """Text Merger 콤보박스에 Shift-JIS, GBK, Big5가 추가되어야 함.
+        v1.0.5: addItems([...]) → _ENC_ITEMS 상수로 이동. 정규식을 상수 블록 검색으로 업데이트."""
+        # v1.0.5: _ENC_ITEMS 클래스 상수에서 CJK 3종 검증
+        m = re.search(r'_ENC_ITEMS\s*=\s*\[(.*?)\]', self.src, re.DOTALL)
         self.assertIsNotNone(m,
-            "Text Merger 콤보박스에 Shift-JIS/GBK/Big5가 추가 안 됨")
+            "_ENC_ITEMS 상수를 찾을 수 없음 (v1.0.5 구조 누락)")
+        block = m.group(1)
+        for key in ('Shift-JIS', 'GBK', 'Big5'):
+            with self.subTest(key=key):
+                self.assertIn(f'"{key}"', block,
+                    f"_ENC_ITEMS에 {key} 누락")
 
     def test_text_merger_codec_map_has_cjk(self):
         """저장 시 라벨→codec 매핑에 신규 3개가 추가되어야 함."""
@@ -3295,10 +3298,16 @@ class TestV104Regression(unittest.TestCase):
 class TestV104RegressionModule(unittest.TestCase):
     """v1.0.4 모듈 로드 기반 회귀 테스트 — 런타임 동작 검증."""
 
-    def test_app_version_is_104(self):
-        """APP_VERSION이 정확히 '1.0.4'이어야 한다."""
+    def test_app_version_is_104_or_later(self):
+        """APP_VERSION이 '1.0.4' 이상이어야 한다.
+        v1.0.4 시점: '정확히 1.0.4' 검증이었으나, 이후 버전(v1.0.5+)에서도 통과 가능하도록
+        '이상' 비교로 완화. 의도(v1.0.4 릴리즈 이후의 버전 번호) 유지."""
         ver = _ns.get('APP_VERSION')
-        self.assertEqual(ver, '1.0.4', f"APP_VERSION 불일치: {ver}")
+        self.assertIsNotNone(ver, "APP_VERSION 없음")
+        # '1.0.4' 이상 (문자열 비교 대신 튜플 비교로 '1.0.10' 같은 케이스도 대응)
+        parts = tuple(int(p) for p in ver.split('.'))
+        self.assertGreaterEqual(parts, (1, 0, 4),
+            f"APP_VERSION이 v1.0.4 미만: {ver}")
 
     def test_alchemy_detect_encoding_returns_tuple(self):
         """alchemy_detect_encoding이 (str, float) 튜플을 반환해야 함."""
@@ -3423,6 +3432,513 @@ class TestV104RegressionModule(unittest.TestCase):
                 f"ASCII로 시작하는 Shift-JIS 파일을 올바르게 감지 못함: {enc}")
         finally:
             os.unlink(path)
+
+
+class TestV105Regression(unittest.TestCase):
+    """v1.0.5 — Text Merger 저장 인코딩 드롭다운 UI 사용성 개선 (소스 검증).
+
+    핵심 변경:
+      - 콤보박스: addItems(문자열) → addItem(display, userData) 패턴
+      - 내부 키(기존 8종)는 userData에 보존 → 기존 설정값 100% 호환
+      - 표시 라벨은 언어별 i18n 키 참조 (예: 'Shift-JIS (일본어)', '(日文)' 등)
+      - 도움말 라벨 신규 (merge_enc_hint): "확실하지 않으면 UTF-8을 선택하세요"
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            cls.src = f.read()
+
+    # ── 클래스 상수 _ENC_ITEMS 검증 ───────────────────────────────
+    def test_enc_items_constant_defined(self):
+        """TextMergerPanel에 _ENC_ITEMS 클래스 상수가 정의되어야 한다."""
+        self.assertIn('_ENC_ITEMS = [', self.src,
+            "TextMergerPanel._ENC_ITEMS 상수 누락")
+
+    def test_enc_items_contains_all_8_keys(self):
+        """_ENC_ITEMS에 기존 8종 내부 키가 모두 포함되어야 한다 (순서 포함)."""
+        m = re.search(
+            r'_ENC_ITEMS\s*=\s*\[(.*?)\]',
+            self.src, re.DOTALL)
+        self.assertIsNotNone(m, "_ENC_ITEMS 리스트 블록을 찾지 못함")
+        block = m.group(1)
+        expected_keys = ['UTF-8', 'UTF-8-BOM', 'EUC-KR', 'CP949',
+                         'UTF-16', 'Shift-JIS', 'GBK', 'Big5']
+        for key in expected_keys:
+            self.assertIn(f'"{key}"', block,
+                f"_ENC_ITEMS에 내부 키 {key!r} 누락 (설정 호환성 위험)")
+        # 각 키마다 i18n 키 매핑
+        for i18n_key in ['merge_enc_utf8', 'merge_enc_utf8_bom', 'merge_enc_euckr',
+                         'merge_enc_cp949', 'merge_enc_utf16', 'merge_enc_shiftjis',
+                         'merge_enc_gbk', 'merge_enc_big5']:
+            self.assertIn(f"'{i18n_key}'", block,
+                f"_ENC_ITEMS에 i18n 키 {i18n_key!r} 누락")
+
+    # ── 콤보박스 addItem 패턴 검증 ────────────────────────────────
+    def test_combo_uses_add_item_with_user_data(self):
+        """콤보박스 초기화는 addItem(display, userData) 패턴을 사용해야 한다."""
+        # v1.0.4의 addItems(["UTF-8", ...]) 패턴이 남아있으면 안 됨
+        self.assertNotIn(
+            'self._combo_enc.addItems(["UTF-8", "UTF-8-BOM"',
+            self.src,
+            "v1.0.4 addItems 패턴이 아직 남아있음 (안 B 적용 누락)")
+        # 새 패턴 확인
+        self.assertIn(
+            'self._combo_enc.addItem(_t(_i18n_key), _enc_key)',
+            self.src,
+            "addItem(display, userData) 신규 패턴이 보이지 않음")
+
+    # ── 도움말 라벨 검증 ─────────────────────────────────────────
+    def test_enc_hint_label_created(self):
+        """_lbl_enc_hint QLabel이 생성되어야 한다 (콤보박스 아래 도움말)."""
+        self.assertIn('self._lbl_enc_hint = QLabel(_t(\'merge_enc_hint\'))', self.src,
+            "_lbl_enc_hint 라벨 생성 코드 누락")
+
+    def test_enc_hint_label_retranslated(self):
+        """retranslate()에서 _lbl_enc_hint 텍스트 갱신 로직이 있어야 한다."""
+        self.assertIn("self._lbl_enc_hint.setText(_t('merge_enc_hint'))", self.src,
+            "retranslate()에서 도움말 라벨 setText 누락")
+
+    def test_retranslate_updates_combo_item_text(self):
+        """retranslate()에서 콤보박스 8개 아이템 라벨도 갱신되어야 한다 (언어 전환 대응)."""
+        self.assertIn('self._combo_enc.setItemText(_i, _t(_i18n_key))', self.src,
+            "retranslate()에서 콤보박스 아이템 라벨 갱신 로직 누락")
+
+    # ── currentText → currentData 마이그레이션 검증 ─────────────
+    def test_merge_files_uses_current_data(self):
+        """_merge_files()에서 currentData() 기반으로 내부 키를 가져와야 한다."""
+        # v1.0.5: currentData() or currentText() 폴백 패턴
+        self.assertIn(
+            'self._save_enc = self._combo_enc.currentData() or self._combo_enc.currentText()',
+            self.src,
+            "_merge_files에서 currentData 패턴이 보이지 않음")
+
+    def test_get_config_uses_current_data(self):
+        """get_config()에서 currentData() 기반으로 내부 키를 저장해야 한다."""
+        # get_config 내부의 'combo_enc': 라인에 currentData()가 있어야 함
+        m = re.search(
+            r"'combo_enc':\s*self\._combo_enc\.currentData\(\)\s*or\s*self\._combo_enc\.currentText\(\)",
+            self.src)
+        self.assertIsNotNone(m,
+            "get_config()에서 currentData 폴백 패턴이 보이지 않음")
+
+    def test_apply_config_uses_find_data_with_fallback(self):
+        """apply_config()는 findData() 우선, 실패 시 findText() 폴백을 사용해야 한다.
+        이유: v1.0.4까지는 표시 텍스트(='Shift-JIS')를 저장했으므로,
+        구버전 설정 파일을 v1.0.5가 열어도 로드 실패하지 않게 이중 방어."""
+        self.assertIn('idx = self._combo_enc.findData(enc)', self.src,
+            "apply_config()에서 findData 호출 누락")
+        self.assertIn('if idx < 0: idx = self._combo_enc.findText(enc)', self.src,
+            "apply_config()에서 findText 폴백 누락 (구버전 호환 위험)")
+
+    # ── 45개 번역 항목 존재 검증 ─────────────────────────────────
+    def test_all_languages_have_enc_keys(self):
+        """5개 언어 사전에 9개 merge_enc_* 키가 모두 있어야 한다 (총 45개)."""
+        required_keys = [
+            'merge_enc_utf8', 'merge_enc_utf8_bom', 'merge_enc_euckr',
+            'merge_enc_cp949', 'merge_enc_utf16', 'merge_enc_shiftjis',
+            'merge_enc_gbk', 'merge_enc_big5', 'merge_enc_hint',
+        ]
+        # 각 키가 최소 5회(5개 언어) 등장해야 함
+        for key in required_keys:
+            count = len(re.findall(rf"'{key}'\s*:", self.src))
+            self.assertGreaterEqual(count, 5,
+                f"키 '{key}'가 5개 언어 사전 중 {count}개에만 존재 (누락)")
+
+    def test_zh_uses_rifun_not_rigoyu(self):
+        """중국어 간체/번체에서 '日文' 표기를 사용해야 한다 (v1.0.4 tip과 일관성).
+        제가 작성 중 '日语'/'日語'로 실수할 여지가 있어 명시 검증."""
+        # 간체/번체 모두 Shift-JIS 라벨은 '(日文)'
+        # '日语'나 '日語'가 쓰였다면 잘못된 번역 (v1.0.4 tip은 일관되게 '日文')
+        # 중국어 사전 블록에서만 검사 (일본어 사전의 '日本語'는 정상)
+        m_zh_cn = re.search(
+            r"'zh_cn':\s*\{(.*?)(?='zh_tw'|\Z)", self.src, re.DOTALL)
+        self.assertIsNotNone(m_zh_cn, "zh_cn 사전 블록 탐색 실패")
+        zh_cn_block = m_zh_cn.group(1)
+        self.assertIn("'Shift-JIS (日文)'", zh_cn_block,
+            "중국어 간체에서 Shift-JIS 라벨이 '(日文)' 아님")
+        self.assertNotIn("'Shift-JIS (日语)'", zh_cn_block,
+            "중국어 간체에서 '日语' 사용됨 (v1.0.4 tip과 불일치)")
+
+        m_zh_tw = re.search(
+            r"'zh_tw':\s*\{(.*?)$", self.src, re.DOTALL)
+        self.assertIsNotNone(m_zh_tw, "zh_tw 사전 블록 탐색 실패")
+        zh_tw_block = m_zh_tw.group(1)
+        self.assertIn("'Shift-JIS (日文)'", zh_tw_block,
+            "중국어 번체에서 Shift-JIS 라벨이 '(日文)' 아님")
+        self.assertNotIn("'Shift-JIS (日語)'", zh_tw_block,
+            "중국어 번체에서 '日語' 사용됨 (v1.0.4 tip과 불일치)")
+
+    # ── APP_VERSION 검증 ────────────────────────────────────────
+    def test_app_version_source_is_105(self):
+        """소스 상 APP_VERSION 문자열이 정확히 '1.0.5'이어야 한다."""
+        m = re.search(r'^APP_VERSION\s*=\s*[\"\']([^\"\']+)[\"\']',
+                      self.src, re.MULTILINE)
+        self.assertIsNotNone(m, "APP_VERSION 정의 없음")
+        self.assertEqual(m.group(1), '1.0.5',
+            f"APP_VERSION 소스값 불일치: {m.group(1)}")
+
+
+class TestV105RegressionModule(unittest.TestCase):
+    """v1.0.5 모듈 로드 기반 회귀 테스트 — 런타임 동작 검증."""
+
+    def test_app_version_is_105(self):
+        """APP_VERSION이 정확히 '1.0.5'이어야 한다."""
+        ver = _ns.get('APP_VERSION')
+        self.assertEqual(ver, '1.0.5', f"APP_VERSION 불일치: {ver}")
+
+    def test_translations_have_all_enc_keys(self):
+        """5개 언어 각각에 9개 merge_enc_* 키가 실제 값으로 존재해야 한다."""
+        translations = _ns.get('TRANSLATIONS')
+        self.assertIsNotNone(translations, "TRANSLATIONS 딕셔너리 누락")
+        required_keys = [
+            'merge_enc_utf8', 'merge_enc_utf8_bom', 'merge_enc_euckr',
+            'merge_enc_cp949', 'merge_enc_utf16', 'merge_enc_shiftjis',
+            'merge_enc_gbk', 'merge_enc_big5', 'merge_enc_hint',
+        ]
+        for lang_code in ('ko', 'en', 'ja', 'zh_cn', 'zh_tw'):
+            self.assertIn(lang_code, translations,
+                f"언어 '{lang_code}' 사전 누락")
+            lang_dict = translations[lang_code]
+            for key in required_keys:
+                self.assertIn(key, lang_dict,
+                    f"[{lang_code}] 키 '{key}' 누락")
+                val = lang_dict[key]
+                self.assertIsInstance(val, str,
+                    f"[{lang_code}] '{key}' 값이 문자열 아님")
+                self.assertTrue(len(val) > 0,
+                    f"[{lang_code}] '{key}' 값이 빈 문자열")
+
+    def test_enc_labels_contain_internal_keys(self):
+        """각 언어의 라벨이 내부 인코딩 키를 포함해야 한다 (예: 'UTF-8 (...)').
+        이유: 사용자가 라벨을 봐도 어떤 인코딩인지 식별 가능해야 함."""
+        translations = _ns.get('TRANSLATIONS')
+        key_to_enc = [
+            ('merge_enc_utf8',     'UTF-8'),
+            ('merge_enc_utf8_bom', 'UTF-8-BOM'),
+            ('merge_enc_euckr',    'EUC-KR'),
+            ('merge_enc_cp949',    'CP949'),
+            ('merge_enc_utf16',    'UTF-16'),
+            ('merge_enc_shiftjis', 'Shift-JIS'),
+            ('merge_enc_gbk',      'GBK'),
+            ('merge_enc_big5',     'Big5'),
+        ]
+        for lang_code in ('ko', 'en', 'ja', 'zh_cn', 'zh_tw'):
+            lang_dict = translations.get(lang_code, {})
+            for i18n_key, enc_name in key_to_enc:
+                label = lang_dict.get(i18n_key, '')
+                self.assertIn(enc_name, label,
+                    f"[{lang_code}] '{i18n_key}' 라벨에 '{enc_name}'가 없음: {label!r}")
+
+    def test_zh_labels_use_rifun(self):
+        """중국어 간체/번체에서 Shift-JIS 라벨은 '日文'을 포함해야 한다.
+        (일본어권 '日本語'와 구별되는 중국어권 관용 표기)"""
+        translations = _ns.get('TRANSLATIONS')
+        for lang_code in ('zh_cn', 'zh_tw'):
+            label = translations[lang_code].get('merge_enc_shiftjis', '')
+            self.assertIn('日文', label,
+                f"[{lang_code}] Shift-JIS 라벨에 '日文' 없음: {label!r}")
+            self.assertNotIn('日语', label,
+                f"[{lang_code}] '日语' 사용됨 (v1.0.4 tip과 불일치): {label!r}")
+            self.assertNotIn('日語', label,
+                f"[{lang_code}] '日語' 사용됨 (v1.0.4 tip과 불일치): {label!r}")
+
+    def test_enc_items_preserves_v104_keys(self):
+        """TextMergerPanel._ENC_ITEMS의 내부 키가 v1.0.4까지의 저장값과 호환되어야 한다.
+        이 테스트는 이전 사용자의 설정 파일을 열었을 때 정상 로드됨을 보장."""
+        panel_cls = _ns.get('TextMergerPanel')
+        self.assertIsNotNone(panel_cls, "TextMergerPanel 클래스 누락")
+        enc_items = getattr(panel_cls, '_ENC_ITEMS', None)
+        self.assertIsNotNone(enc_items, "_ENC_ITEMS 상수 누락")
+        # 내부 키만 추출
+        internal_keys = [k for k, _ in enc_items]
+        # v1.0.4 콤보박스 순서와 동일해야 함 (setCurrentIndex 관련 회귀 방지)
+        expected_order = ['UTF-8', 'UTF-8-BOM', 'EUC-KR', 'CP949',
+                          'UTF-16', 'Shift-JIS', 'GBK', 'Big5']
+        self.assertEqual(internal_keys, expected_order,
+            f"내부 키 순서가 v1.0.4와 불일치: {internal_keys}")
+
+    def test_hint_message_guides_to_utf8(self):
+        """도움말 문구가 UTF-8을 안내해야 한다 (비프로그래머 가이드 핵심 목적)."""
+        translations = _ns.get('TRANSLATIONS')
+        for lang_code in ('ko', 'en', 'ja', 'zh_cn', 'zh_tw'):
+            hint = translations[lang_code].get('merge_enc_hint', '')
+            self.assertIn('UTF-8', hint,
+                f"[{lang_code}] 도움말에 'UTF-8' 안내 누락: {hint!r}")
+
+
+@unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
+class TestV105StatusRetranslate(unittest.TestCase):
+    """v1.0.5 — Text Merger 언어 전환 시 상태 메시지 갱신 버그 수정 검증.
+
+    배경:
+      - v1.0.4 이전부터 존재했을 가능성이 큰 기존 버그
+      - retranslate()가 `merge_status_ready` 상태일 때만 _lbl_status를 갱신했음
+      - 결과: 파일 추가 후 언어 전환하면 "26개 파일 추가됨..."이 한국어로 남음
+      - v1.0.5에서 빌드 후 실기 QA(신용우님) 중 3개 언어 스크린샷으로 발견됨
+
+    수정 설계:
+      - 정적 메시지(`ready`, `clr`, `reading`, `save_err`, `path_reset_done`): 단순 재렌더
+      - 복원 가능 동적 메시지(`add`: file_list 수, `path_set`: save_dir): 원본 정보로 재구성
+      - 복원 불가 메시지(`del`, `save_done`, `bulk_scanning`): `ready`로 리셋 + 디버그 로그
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from PySide6.QtWidgets import QApplication
+        # 단일 QApplication 재사용 (다른 테스트와 충돌 방지)
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _make_panel(self, lang_code='ko'):
+        """테스트용 TextMergerPanel 인스턴스 생성.
+        _current_lang을 임시로 변경해 panel 구축."""
+        # _ns['_current_lang']을 직접 변경 (exec 네임스페이스 = _t의 전역 스코프)
+        _ns['_current_lang'] = lang_code
+        PanelCls = _ns.get('TextMergerPanel')
+        return PanelCls()
+
+    def _set_lang(self, lang_code):
+        """현재 언어 설정 (런타임에서 언어 전환 시뮬레이션)."""
+        _ns['_current_lang'] = lang_code
+
+    # ── 정적 메시지 재렌더링 ────────────────────────────────
+    def test_status_ready_retranslates(self):
+        """'ready' 상태에서 언어 전환 시 해당 언어의 'ready' 메시지로 바뀐다."""
+        panel = self._make_panel('ko')
+        try:
+            # 초기 상태 = ready 한국어
+            translations = _ns.get('TRANSLATIONS')
+            self.assertEqual(panel._lbl_status.text(), translations['ko']['merge_status_ready'])
+            # 영어로 전환
+            self._set_lang('en')
+            panel._retranslate_status()
+            self.assertEqual(panel._lbl_status.text(), translations['en']['merge_status_ready'])
+            # 일본어로 전환
+            self._set_lang('ja')
+            panel._retranslate_status()
+            self.assertEqual(panel._lbl_status.text(), translations['ja']['merge_status_ready'])
+        finally:
+            self._set_lang('ko')
+            panel.deleteLater()
+
+    def test_status_clr_retranslates(self):
+        """'merge_status_clr' 상태에서 언어 전환 시 해당 언어로 갱신된다."""
+        panel = self._make_panel('ko')
+        try:
+            translations = _ns.get('TRANSLATIONS')
+            panel._lbl_status.setText(translations['ko']['merge_status_clr'])
+            self._set_lang('en')
+            panel._retranslate_status()
+            self.assertEqual(panel._lbl_status.text(), translations['en']['merge_status_clr'])
+        finally:
+            self._set_lang('ko')
+            panel.deleteLater()
+
+    def test_status_save_err_retranslates(self):
+        """'merge_save_err' 상태에서 언어 전환 시 해당 언어로 갱신된다."""
+        panel = self._make_panel('ko')
+        try:
+            translations = _ns.get('TRANSLATIONS')
+            panel._lbl_status.setText(translations['ko']['merge_save_err'])
+            self._set_lang('zh_cn')
+            panel._retranslate_status()
+            self.assertEqual(panel._lbl_status.text(), translations['zh_cn']['merge_save_err'])
+        finally:
+            self._set_lang('ko')
+            panel.deleteLater()
+
+    # ── 동적 메시지 복원 재렌더링 ────────────────────────────
+    def test_status_add_retranslates_with_current_count(self):
+        """'merge_status_add' 상태에서 언어 전환 시 현재 file_list 수로 재구성된다.
+        이게 스크린샷에서 신용우님이 발견한 주요 버그 시나리오 (26개 파일 추가 후 언어 전환)."""
+        panel = self._make_panel('ko')
+        try:
+            translations = _ns.get('TRANSLATIONS')
+            # file_list를 26개로 시뮬레이션 (내부 상태만, 실제 파일 객체는 불필요)
+            panel.file_list = ['/dummy/path' + str(i) for i in range(26)]
+            # 파일 추가 메시지 세팅 (한국어)
+            panel._lbl_status.setText(translations['ko']['merge_status_add'].format(n=26))
+            # 일본어로 전환
+            self._set_lang('ja')
+            panel._retranslate_status()
+            expected = translations['ja']['merge_status_add'].format(n=26)
+            self.assertEqual(panel._lbl_status.text(), expected,
+                f"언어 전환 후 파일 추가 메시지가 일본어로 재구성 안 됨")
+            # 간체로 전환
+            self._set_lang('zh_cn')
+            panel._retranslate_status()
+            expected = translations['zh_cn']['merge_status_add'].format(n=26)
+            self.assertEqual(panel._lbl_status.text(), expected)
+        finally:
+            self._set_lang('ko')
+            panel.deleteLater()
+
+    def test_status_path_set_retranslates_with_save_dir(self):
+        """'merge_path_set' 상태에서 언어 전환 시 현재 save_dir로 재구성된다."""
+        panel = self._make_panel('ko')
+        try:
+            translations = _ns.get('TRANSLATIONS')
+            panel.save_dir = 'C:/test/output'
+            panel._lbl_status.setText(translations['ko']['merge_path_set'].format(path='C:/test/output'))
+            self._set_lang('en')
+            panel._retranslate_status()
+            expected = translations['en']['merge_path_set'].format(path='C:/test/output')
+            self.assertEqual(panel._lbl_status.text(), expected)
+        finally:
+            self._set_lang('ko')
+            panel.deleteLater()
+
+    def test_status_path_set_falls_back_to_ready_if_save_dir_empty(self):
+        """save_dir이 비어있는데 메시지만 path_set 패턴인 엣지 케이스 → ready로 폴백."""
+        panel = self._make_panel('ko')
+        try:
+            translations = _ns.get('TRANSLATIONS')
+            panel.save_dir = ''  # 경로 없음
+            panel._lbl_status.setText(translations['ko']['merge_path_set'].format(path='/removed/path'))
+            self._set_lang('en')
+            panel._retranslate_status()
+            # save_dir 빈 상태 → ready 폴백
+            self.assertEqual(panel._lbl_status.text(), translations['en']['merge_status_ready'])
+        finally:
+            self._set_lang('ko')
+            panel.deleteLater()
+
+    # ── 복원 불가 메시지 → ready 리셋 ───────────────────────
+    def test_status_del_resets_to_ready_with_log(self):
+        """'merge_status_del' 상태 (원본 개수 소실) → ready 리셋 + 디버그 로그 남김."""
+        panel = self._make_panel('ko')
+        try:
+            translations = _ns.get('TRANSLATIONS')
+            panel._lbl_status.setText(translations['ko']['merge_status_del'].format(n=5))
+            self._set_lang('ja')
+            panel._retranslate_status()
+            self.assertEqual(panel._lbl_status.text(), translations['ja']['merge_status_ready'],
+                "del 메시지가 ready로 리셋되지 않음")
+        finally:
+            self._set_lang('ko')
+            panel.deleteLater()
+
+    def test_status_save_done_resets_to_ready(self):
+        """'merge_save_done' 상태 (enc/path 소실) → ready 리셋."""
+        panel = self._make_panel('ko')
+        try:
+            translations = _ns.get('TRANSLATIONS')
+            panel._lbl_status.setText(
+                translations['ko']['merge_save_done'].format(enc='UTF-8', path='C:/out.txt'))
+            self._set_lang('zh_tw')
+            panel._retranslate_status()
+            self.assertEqual(panel._lbl_status.text(), translations['zh_tw']['merge_status_ready'])
+        finally:
+            self._set_lang('ko')
+            panel.deleteLater()
+
+    # ── 방어적 처리 ─────────────────────────────────────────
+    def test_unknown_status_text_left_untouched(self):
+        """알려지지 않은 임의 텍스트는 변경하지 않는다 (방어적 처리)."""
+        panel = self._make_panel('ko')
+        try:
+            arbitrary = "이건 어떤 상태도 아닌 임의 텍스트 @#$%"
+            panel._lbl_status.setText(arbitrary)
+            self._set_lang('en')
+            panel._retranslate_status()
+            # 변경되지 않음
+            self.assertEqual(panel._lbl_status.text(), arbitrary,
+                "알려지지 않은 상태 텍스트가 의도치 않게 변경됨")
+        finally:
+            self._set_lang('ko')
+            panel.deleteLater()
+
+    # ── 패턴 매칭 유틸 단위 테스트 ─────────────────────────
+    def test_match_status_template_with_placeholders(self):
+        """_match_status_template이 플레이스홀더가 있는 템플릿을 정확히 인식한다."""
+        panel = self._make_panel('ko')
+        try:
+            # 한국어 'merge_status_add' 템플릿: "{n}개 파일 추가됨 (인코딩 자동 감지 완료)"
+            self.assertTrue(
+                panel._match_status_template("26개 파일 추가됨 (인코딩 자동 감지 완료)",
+                                              'merge_status_add'))
+            # 영어 템플릿
+            self.assertTrue(
+                panel._match_status_template("26 file(s) added (encoding auto-detected)",
+                                              'merge_status_add'))
+            # 매칭 안 되는 경우
+            self.assertFalse(
+                panel._match_status_template("전혀 다른 텍스트", 'merge_status_add'))
+            # 다른 키의 템플릿 (merge_status_clr)은 매칭 안 돼야 함
+            self.assertFalse(
+                panel._match_status_template("26개 파일 추가됨 (인코딩 자동 감지 완료)",
+                                              'merge_status_clr'))
+        finally:
+            panel.deleteLater()
+
+
+class TestV105TranslationNoDuplicates(unittest.TestCase):
+    """v1.0.5 — 번역 사전 중복 키 제거 후 재발 방지 검증.
+
+    배경:
+      - v1.0.2 인수인계에서 'zh_cn 사전 188개 키 중복' 이슈가 식별됨
+      - v1.0.5 시점 실측으로 74개 중복 라인이 잔존 (값은 전부 일치, 동작 영향 0)
+      - 모두 단순 삭제 가능이라 이번 버전에서 일괄 정리함
+      - 본 테스트는 해당 이슈가 재발하지 않도록 소스 파싱 기반으로 상시 감시
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            cls.src = f.read()
+
+    def _count_keys_per_language(self):
+        """AST로 TRANSLATIONS의 각 언어 dict 범위를 정확히 잡고,
+        해당 범위에서 딕셔너리 키 출현 횟수를 집계."""
+        import ast as _ast
+        tree = _ast.parse(self.src)
+        lines = self.src.split('\n')
+        entry_pattern = re.compile(r"^\s*'([a-zA-Z_][a-zA-Z0-9_]*)'\s*:")
+
+        per_lang = {}  # lang_code -> {key: count}
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.Assign):
+                for tgt in node.targets:
+                    if isinstance(tgt, _ast.Name) and tgt.id == 'TRANSLATIONS':
+                        if isinstance(node.value, _ast.Dict):
+                            for k, v in zip(node.value.keys, node.value.values):
+                                if isinstance(k, _ast.Constant):
+                                    block = lines[v.lineno-1:v.end_lineno]
+                                    from collections import Counter
+                                    keys_found = []
+                                    for line in block:
+                                        m = entry_pattern.match(line)
+                                        if m:
+                                            keys_found.append(m.group(1))
+                                    per_lang[k.value] = Counter(keys_found)
+        return per_lang
+
+    def test_no_duplicate_keys_in_any_language(self):
+        """5개 언어 각각의 사전에 중복 키가 없어야 한다.
+        Python dict는 중복 키를 나중 값으로 덮어쓰기 때문에 동작상 문제는 없지만,
+        - 코드 라인 수 낭비
+        - 번역 수정 시 한 쪽만 고치면 다른 쪽이 살아남아 혼란 유발
+        - v1.0.2~v1.0.4까지 방치된 기술 부채
+        를 상시 감시하기 위해 구조 검증 테스트로 포함."""
+        per_lang = self._count_keys_per_language()
+        self.assertEqual(len(per_lang), 5,
+            f"TRANSLATIONS에 5개 언어가 있어야 하는데 {len(per_lang)}개")
+        for lang_code, counter in per_lang.items():
+            dups = {k: v for k, v in counter.items() if v > 1}
+            self.assertEqual(len(dups), 0,
+                f"[{lang_code}] 중복 키 {len(dups)}개 발견: {list(dups.items())[:5]}")
+
+    def test_all_languages_have_similar_key_count(self):
+        """5개 언어의 고유 키 수가 비슷해야 한다 (완결성 보장).
+        큰 차이가 있으면 어떤 언어에서 번역이 누락됐다는 신호.
+        v1.0.5 중복 정리 직후 기준 391±2 정도를 허용 범위로 설정."""
+        per_lang = self._count_keys_per_language()
+        counts = {lang: len(c) for lang, c in per_lang.items()}
+        max_count = max(counts.values())
+        min_count = min(counts.values())
+        # 완전 동일은 어려우니 5개 이내 차이까지 허용 (일부 언어 미번역 키가 남을 수 있음)
+        self.assertLessEqual(max_count - min_count, 5,
+            f"언어별 키 수 차이 과다 (허용 ≤5): {counts}")
 
 
 # ════════════════════════════════════════════════════════════════════════
