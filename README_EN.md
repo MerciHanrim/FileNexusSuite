@@ -2,8 +2,6 @@
 
 # File Nexus Suite
 
-[한국어](./README.md) | **English**
-
 **Integrated File Utility**
 
 Text merging · EPUB conversion · Filename tag editing · Batch renaming · Line-break correction
@@ -16,6 +14,10 @@ Text merging · EPUB conversion · Filename tag editing · Batch renaming · Lin
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
 ![license](https://img.shields.io/badge/license-Freeware_(source_available)-7B6FA3?style=flat-square)
 ![AI](https://img.shields.io/badge/AI_pair_programming-Claude-CC785C?style=flat-square)
+
+<br>
+
+[한국어](./README.md) | **English**
 
 <br>
 

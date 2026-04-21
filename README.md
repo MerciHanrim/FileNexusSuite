@@ -2,8 +2,6 @@
 
 # File Nexus Suite
 
-**한국어** | [English](./README_EN.md)
-
 **통합 파일 관리 도구**
 
 텍스트 병합 · EPUB 변환 · 파일명 태그 편집 · 일괄 이름 변경 · 줄바꿈 교정
@@ -16,6 +14,10 @@
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
 ![license](https://img.shields.io/badge/license-Freeware_(source_available)-7B6FA3?style=flat-square)
 ![AI](https://img.shields.io/badge/AI_pair_programming-Claude-CC785C?style=flat-square)
+
+<br>
+
+**한국어** | [English](./README_EN.md)
 
 <br>
 
@@ -41,7 +43,7 @@ File Nexus Suite는 일상적인 파일 작업을 하나의 데스크톱 애플�
 
 - 🗂️ **6 Integrated Tabs** — 한 창에서 6개 핵심 도구 일관 UI로 운영
 - 🛡️ **Safe by Design** — 미리보기·실행취소 + 부분 손상 파일 자동 3-티어 처리
-- 🌐 **5 Languages** — 한국어·English·日本語·简体中文·繁體中文 (OS 자동 감지)
+- 🌐 **5 Languages** — 한국어 · English · 日本語 · 简体中文 · 繁體中文 (OS 자동 감지)
 - 📄 **HWPX 지원** — 한국 문서 표준 포맷을 Text Merger에서 직접 읽기
 
 ---
