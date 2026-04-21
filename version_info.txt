@@ -5,8 +5,8 @@
 #
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 5, 0),
-    prodvers=(1, 0, 5, 0),
+    filevers=(1, 0, 6, 0),
+    prodvers=(1, 0, 6, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -22,12 +22,12 @@ VSVersionInfo(
           [
             StringStruct(u'CompanyName',      u'Hanrim'),
             StringStruct(u'FileDescription',  u'File Nexus Suite — 통합 파일 작업 도구'),
-            StringStruct(u'FileVersion',      u'1.0.5.0'),
+            StringStruct(u'FileVersion',      u'1.0.6.0'),
             StringStruct(u'InternalName',     u'FileNexusSuite'),
             StringStruct(u'LegalCopyright',   u'Copyright © 2026 Hanrim. All rights reserved.'),
             StringStruct(u'OriginalFilename', u'FileNexusSuite.exe'),
             StringStruct(u'ProductName',      u'File Nexus Suite'),
-            StringStruct(u'ProductVersion',   u'1.0.5.0'),
+            StringStruct(u'ProductVersion',   u'1.0.6.0'),
           ]
         )
       ]

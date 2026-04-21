@@ -1,5 +1,371 @@
 # File Nexus Suite — 변경 내역
 
+## [Unreleased] — v1.0.6 최종 릴리즈 후보
+
+> **📦 릴리즈 후보 상태** — 2026-04-21 오후 세션 완료 시점 반영. 릴리즈 시 날짜/제목 확정 예정.
+> 현재 기준: `FileNexusSuite.py` **14,971줄** (v1.0.5 원본 13,886줄 대비 +1,085줄)
+> **문서 이력**: 2026-04-21 오후, #7 Text Converter 리팩토링 + 설정 다이얼로그 번체 잔재 수정 + APP_VERSION 갱신 완료 반영. 상세 검증 내역은 `docs/archive/v1.0.6_Phase2_Completion_Record.md` 참조.
+
+### 완료 — Text Merger 기능 강화
+
+- **인코딩 자동 추천 (A1'' 정책)** — `merger_recommend_save_encoding()` 함수 추가 (`L4091` 부근)
+  - 모든 텍스트 파일이 **같은 비유니코드 인코딩 + 신뢰도 ≥ 0.7** → 그 인코딩 추천, 그 외 UTF-8
+  - UI: 드롭다운 아래 "💡 추천: XXX" 라벨 + [적용] 버튼
+  - 5개 언어 번역 키 추가 (`merge_enc_recommend`, `merge_enc_recommend_apply`)
+  - 자동 갱신 트리거 4곳 (파일 추가/선택삭제/전체삭제/언어전환)
+  - 14/14 시나리오 회귀 테스트 통과
+
+- **HWPX 입력 지원** — `python-hwpx 2.9.0` (MIT) 도입
+  - lxml 5.4.0으로 자동 다운그레이드 발생 (경고만)
+  - `import hwpx as _hwpx` + `HWPX_AVAILABLE` 플래그 추가
+  - `_extract_text`에 `elif ext==".hwpx"` 분기 (`HwpxDocument.open(path).export_text()`)
+  - 모든 분기 7곳에 `.hwpx` 추가 (SUPPORTED_EXT, TextMergeWorker, 파일 추가, 다이얼로그 필터 등)
+  - MergeEncodingDelegate에 HWPX 배지 (#9B59B6 보라색)
+  - HWP(구형) 감지 시 통합 안내 다이얼로그 (`{n}`개 카운트) — 5개 언어
+  - `_dlg_warn`에 `rich_text` 파라미터 추가 (기본 False, 회귀 영향 0)
+  - 도움말 5개 언어 모두에 HWPX pill 추가
+  - LICENSE 화면에 python-hwpx 항목 추가
+
+### 완료 — alchemy_detect_encoding 신뢰도 개선
+
+- **폴백 루프 통과 시 신뢰도 0.0 → 0.7** (cp949/shift_jis/gbk/big5) (`L3676`)
+- **utf-8 strict 폴백도 0.0 → 0.7** (일관성)
+- 짧은 한글 CP949 파일 → "70% CP949" 배지 + "💡 추천: CP949" 정상 동작
+
+### 완료 — toolTip 오염 버그 근본 수정 (v1.0.4부터 존재한 기존 버그)
+
+- **증상**: 신뢰도 < 0.90 파일의 툴팁에 안내문이 덧붙어 `item.toolTip(0)` 기반 경로 조회 실패
+  - 삭제한 파일이 병합 결과에 포함되는 데이터 손실 버그
+- **해결**: `_PATH_ROLE = Qt.ItemDataRole.UserRole + 4` 신설, 순수 경로 저장
+- 3개 클래스에 적용: `MergeEncodingDelegate`, `TextConverterFileList` (`L4810`), `BulkFixerFileList` (`L8683`)
+- 하위 호환 폴백: `item.data(0, _PATH_ROLE) or item.toolTip(0)`
+
+### 완료 — Bulk Fixer 구조 리팩토링 (드롭존 분리)
+
+- **신규 클래스 `BulkFixerDropZone(QLabel)`** 추가 (`L8540`)
+  - 외부 파일/폴더 드롭 전용, `files_dropped`/`folder_dropped` 2개 시그널
+  - `MergeDropZone` + `TextFixerDropZone` 패턴 융합
+  - 파일/폴더 구분 감지, idle/hover 상태 스타일
+
+- **`BulkFixerFileList` 재구성** (`L8638`):
+  - `InternalMove` → `DragDrop` 모드 전환 (Qt의 자동 소스 삭제 버그 회피)
+  - `startDrag` CopyAction 강제
+  - 수동 `dropEvent` 구현 (`target is None` 빈 영역 → 맨 끝 이동 지원)
+  - 외부 파일 드롭 처리 제거 (드롭존이 담당)
+  - `paintEvent` 빈 상태 렌더링 제거
+  - `order_changed` 시그널 추가
+
+- **`BulkFixerPanel._build` 레이아웃 재구성**: 드롭존 상단 배치
+- 드롭존 시그널 핸들러 2개 추가 (`_on_files_dropped`, `_on_folder_dropped`)
+- `_set_scan_ui`에 드롭존 비활성화 추가 (스캔 중 추가 드롭 방지)
+- `retranslate`/`refresh_btn_styles`에 드롭존 갱신 추가
+
+### 완료 — 헤더 정렬 버그 수정 (v1.0.4부터 존재한 기존 버그)
+
+- **증상**: `setSortingEnabled(False)` + `DragDrop` 모드 조합에서 헤더 클릭으로 정렬이 동작하지 않음
+- **원인**: Qt의 기본 동작으로 `setSortingEnabled(False)` 시 헤더 섹션 클릭 비활성화됨
+- **해결**: `hdr.setSectionsClickable(True)` 명시 추가 (MergeFileTree가 v1.0.3/1.0.4에서 적용한 패턴 복제)
+
+### 완료 — Phase 1: 부분 인코딩 실패 파일 대응
+
+- **배경**: 한국어 웹소설 수집 파일 등에서 **일부 바이트가 strict 디코딩 불가능**한 케이스 발견
+  - 메모장에선 정상 표시되지만 Python의 폴백 루프 8개 모두 `UnicodeDecodeError`로 실패
+  - 증상 1: Bulk Fixer에서 조용히 미리보기 비어있음
+  - 증상 2: Text Fixer에서 "인코딩 오류" 다이얼로그 후 파일 로드 실패
+  - 증상 3: 일괄 교정 시 해당 파일 실패 처리
+
+- **공통 헬퍼 `safe_read_text_with_report`** 신규 추가 (`L3912`)
+  - strict 폴백 8개 실패 시 `errors='replace'`로 최종 재시도
+  - 깨진 바이트는 U+FFFD (`�`)로 대체 (Python 기본값, 유니코드 표준)
+  - 반환 튜플: `(text, used_enc, mode, replace_count)` (Phase 2 확장 대비 구조)
+
+- **3곳에 헬퍼 적용**:
+  - `BulkFixerPanel._on_file_selected` 미리보기 (`L9593`)
+  - `BulkFixerWorker.run` 일괄 교정 (`L9053`)
+  - `TextFixerPanel.load_file` 파일 로드 (`L7962`)
+
+- **Text Fixer replace 모드 시 경고 다이얼로그 추가**
+  - `tf_warn_partial_enc` 번역 키 5개 언어
+  - 파일명 / 사용 인코딩 / 대체된 문자 수 표시
+  - 상태바에도 `⚠` 아이콘으로 표시
+
+- **회귀 안전망**: strict 폴백 8개는 그대로 유지, 정상 파일 로직 변경 없음
+
+### 완료 — Phase 2-a: 인코딩 리포트 기능 + 티어드 자동 처리
+
+- **설계 철학 (확정)**: Text Fixer와 Bulk Fixer의 처리 철학을 분리 (§설계 결정 기록 참조)
+  - Text Fixer = **사용자 동의 기반** — 단일 파일 집중, 다이얼로그만
+  - Bulk Fixer = **사후 투명성 기반** — 대량 자동 처리, 리포트 파일 생성
+
+- **신규 상수/헬퍼/함수**:
+  - `MAX_TRACK_FAILURES = 5000` (`L3772`) — 실패 위치 추적 상한
+  - `_fns_track_error_handler` + `codecs.register_error('_fns_track', ...)` 모듈 로드 시 등록 (`L3783-3805`)
+  - `_decode_with_failure_tracking(raw, enc)` 헬퍼 (`L3808`) — 단일 O(N) 패스로 모든 실패 위치 수집
+  - `safe_read_text_with_report` 시그니처 확장: **4-tuple → 6-tuple** `(text, used_enc, mode, replace_count, failures, total_failures)` (`L3912`)
+  - `write_encoding_report(...)` 신규 함수 (`L3967`) — 리포트 파일 생성
+
+- **리포트 파일 사양**:
+  - 파일명 패턴: `{원본파일명}.encoding_report.txt`
+  - 저장 위치: `output_dir` 지정 시 해당 폴더, 없으면 원본 파일 폴더 폴백
+  - 인코딩: UTF-8 BOM 없음 (다른 에디터 호환)
+  - 구성: 헤더 / 실패 위치 리스트 (최대 5000개) / 요약 통계 / 티어별 권장 조치
+
+- **BulkFixerWorker 티어 분기** (`L8883`):
+  - `TIER1_THRESHOLD = 500`, `TIER2_THRESHOLD = 5000`
+  - **Tier 1** (1~500자 손상): 처리 + 리포트 생성, `warn` 카운트
+  - **Tier 2** (501~5000자): 처리 + 리포트 생성 (경고 수위), `warn` 카운트
+  - **Tier 3** (5001자+): **원본 보호 스킵** + 리포트만 생성, `skip` 카운트
+  - 정상(strict): `ok` / I/O 예외: `fail` 카운트
+
+- **시그널 확장**:
+  - `sig_file_done`: `bool` → `str` (카테고리 `'ok'/'warn'/'skip'/'fail'`)
+  - `sig_done`: `(ok, fail)` 2-param → `(ok, warn, skip, fail)` **4-param**
+
+- **BulkFixerPanel._on_done** (`L9688`):
+  - 4-카테고리 수신
+  - 비정상(warn/skip/fail) 하나라도 있을 때만 티어 브레이크다운 다이얼로그 표시 (전부 정상이면 기존 UX 유지 — 방해 없음)
+  - 출력 폴더 자동 열기 유지
+
+- **번역 키 5개 언어 (ko/en/ja/zh_cn/zh_tw)**:
+  - UI: `bulk_done_title`, `bulk_done_ok`, `bulk_done_warn`, `bulk_done_skip`, `bulk_done_fail`
+  - 리포트 템플릿 (15개): `report_header`, `report_file`, `report_path`, `report_size`, `report_enc`, `report_fail_count`, `report_action`, `report_action_processed`, `report_action_skipped`, `report_time`, `report_line_col`, `report_bytes`, `report_context`, `report_summary_title`, `report_total_failures`, `report_truncated`, `report_advice_title`
+  - 티어별 조치 문구 (3개): `report_advice_tier1`, `report_advice_tier2`, `report_advice_tier3`
+
+- **실측 기반 설계 이력** (상세는 `v1.0.6_Phase2_Completion_Record.md` §2.6 참조)
+  - Phase 2-a는 탁상 설계가 아닌 실측 데이터 기반 설계
+  - 진단 도구 → 전체 스캔 → 합성 검증의 3단계 방법론 적용
+  - 손상 임계값 500 → 50 조정으로 추가 28~29개 손상 파일 표면화
+  - `make_tier_test_data.py`의 경계값 합성 데이터(499/5000/5001)로 재현 가능한 검증 확보
+
+- **회귀 안전망**: Phase 1의 strict 폴백 8개·정상 파일 로직 모두 변경 없음, Text Fixer 경고 다이얼로그 유지
+
+### 완료 — Phase 2-b: 도움말 고지
+
+- **Text Fixer 도움말 섹션 추가** (`L13553-13556` 기준 영어, 5개 언어 전부)
+  - "Partially corrupted files" note: 손상된 파일도 열 수 있으며 `�`로 표시 + 상태바 `⚠` 아이콘 설명
+  - "detailed inspection of a single file" tip: Text Fixer가 단일 파일 집중 검토용임을 명시
+  - Tier 3 자동 스킵 안내 warn: 수만 개 손상 파일은 재다운로드 권장, Bulk Fixer가 자동 스킵한다는 안내
+
+- **Bulk Fixer 도움말 섹션 추가** (`L13569-13572`)
+  - "Automatic corruption tiering" note: Tier 1/2/3 각 조건과 동작 상세
+  - 리포트 파일명 형식 `{original_filename}.encoding_report.txt` 명시
+  - Tier 3 스킵된 파일은 Text Fixer에서 개별 검토하라는 warn — 두 도구 역할 분담 명시
+
+- **5개 언어 시각 검수 통과** (이전 세션 보고)
+
+### 완료 — 실기 QA 중 발견된 프리징 이슈 해결
+
+- **인코딩 실패 위치 추적 O(N×K) 프리징** (지침서 §4.4에서 예견된 성능 우려의 현실화)
+  - 증상: 약 27MB급 대용량 파일 + 수천 에러 시 UI 분 단위 프리징
+  - 수정 전: `while pos < len: raw[pos:].decode('strict')` — 매 반복 슬라이스 복사
+  - 수정 후: `codecs.register_error` 기반 커스텀 에러 핸들러 + 단일 `raw.decode()` 호출 → C 레벨 O(N) 패스
+  - 개선 폭: 분 단위 → 수백 ms (수백~수천 배)
+  - 코드 위치: `_decode_with_failure_tracking` (`L3808-3909`)
+
+- **Bulk Fixer 미리보기 대용량 파일 프리징**
+  - 증상: 50만 줄급 대용량 파일 선택 시 `_on_file_selected` 12초 이상 프리징
+  - 수정 전: `text.splitlines(keepends=True)[:80]` — 전체 27MB 파싱 후 50만 객체 생성, 80개만 사용
+  - 수정 후: `text[:32768].splitlines(keepends=True)[:80]` — 32KB만 처리
+  - 개선 폭: 연산량 약 800배 감소
+  - 코드 위치: `BulkFixerPanel._on_file_selected` (`L9608`)
+
+### 완료 — 진단 인프라 구축
+
+- **진단 트레이스 로그** — `🔵 [Trace]` 3단계 세분 트레이스 (safe_read / preview 추출 / setPlainText 각각 측정)
+  - `_on_file_selected` 내 6개 지점 (`L9583, 9596, 9600, 9610, 9615, 9619`)
+  - 전체 트레이스 16개 (보고 기반)
+
+- **디버그 스크립트 3종** (`docs/debug/`)
+  - `diagnose_ilsig.py` (4 KB) — 단일 파일 대상 5단계 벤치마크: 32KB 읽기 / chardet / UTF-8 strict 전체 / 8개 인코딩 폴백 / 미리보기 추출. 원격 디버깅용 (결과 복사 → 공유 구조)
+  - `scan_corrupted.py` (11 KB) — 전체 컬렉션 스캔, 임계값 50 기준 연속 깨짐 감지
+  - `make_tier_test_data.py` (13 KB) — 티어 경계값 합성 데이터 생성 (499/5000/5001 포함 7종), ASCII 영역에만 `\xFF` 주입해 정확히 N개 U+FFFD 보장, `RANDOM_SEED=42` 재현성
+
+### 완료 — 테스트 파일 Phase 2-a 통합
+
+- **`test_file_nexus.py`** v1.0.5 기준 3,998줄 → **4,340줄** (+342줄). 3번 세션 미뤄진 최우선 작업을 완료
+- **§추가O (Phase 2-a 인코딩 리포트 기능)** 신설 — 3개 테스트 클래스 22개 테스트
+  - `TestSafeReadTextWithReport` (5건) — 6-tuple 반환 구조 + 정상/replace/없는 파일/UTF-8 BOM 케이스
+  - `TestDecodeWithFailureTracking` (7건) — 위치 추적 알고리즘 (라인/컬럼, CRLF, MAX 상한 5000, context 공백 정규화, 잘못된 인코딩)
+  - `TestWriteEncodingReport` (10건) — 리포트 생성·파일명 패턴·폴더 폴백·티어별 문구·5개 언어 번역 키 누락·BOM 없음 검증
+
+- **§추가P (v1.0.6 버그 수정 회귀 방지)** 신설 — 2개 테스트 클래스 3개 테스트
+  - `TestBulkFixerPreviewLargeFile` (1건) — `text[:NNNNN].splitlines` 패턴 소스 검증 (수정 전 패턴 잔재 차단 포함)
+  - `TestPreviewExtractionPerformance` (2건) — 50만 줄 100ms 이내 + 32KB 상한 일관성 (Linux 환경 직접 재현 검증 시 **0.24ms** 측정)
+
+- **V103/V104 회귀 테스트 4건 A-2 확장** — Phase 2-a 헬퍼 추상화로 인한 사이드 이펙트 해결
+  - Phase 2-a 이후 `TextFixerPanel.load_file`·`BulkFixerWorker.run`·`BulkFixerPanel._on_file_selected` 3곳의 `alchemy_detect_encoding` 직접 호출이 `safe_read_text_with_report` 헬퍼 경유로 통합됨
+  - 결과: `test_alchemy_used_in_*` 3건 및 `test_alchemy_callers_unpack_tuple` 1건이 기존 문자열 매칭 기준으로 실패
+  - 해결 원칙: **"테스트 완화"가 아닌 "리팩토링 후 현실 반영"** — 기존 테스트의 본래 의도("이 3곳이 alchemy 기반 인코딩 감지를 사용하는가")는 헬퍼 경유로도 유지됨을 테스트 기준에 반영
+  - `test_alchemy_used_in_text_fixer/bulk_worker/bulk_preview`: 직접 호출 OR `safe_read_text_with_report` 헬퍼 경유 둘 다 허용
+  - `test_alchemy_callers_unpack_tuple`: 하한 6→4 조정 (정의 + 헬퍼 내부 + Text Converter + Text Merger = 4건이 Phase 2-a 이후 정상 수치). 튜플 언패킹 잔재 차단 로직은 유지
+
+- **TestV105RegressionModule 가드 누락 수정** (§5.1 범위 밖 발견사항)
+  - Linux + PySide6 불완전 Mock 환경에서 테스트 실행 시 6건 실패/오류로 표면화
+  - 원인: `@unittest.skipUnless(HAS_MODULE, ...)` 데코레이터 누락 — v1.0.5 시점의 **고립된 개별 실수**
+  - 전수 점검 결과 6개 `*RegressionModule` 클래스 중 이 1개만 가드 누락 (v0.10.0~v1.0.4 5개는 모두 정상)
+  - 해결: 기존 5개가 일관되게 사용하던 문구 `"FileNexusSuite 로드 실패 (PySide6 필요)"`를 그대로 복사 적용
+  - Windows + PySide6 정상 설치 환경에서는 `HAS_MODULE=True`라 증상이 드러나지 않았던 것으로 추정
+
+- **최종 검증 결과** (Linux + PySide6 Mock 환경):
+  - 총 527개 테스트 / **353 통과** / **0 실패** / **0 오류** / 174 스킵
+  - 환경 차이로 인한 174 스킵은 Windows 환경에서 `HAS_MODULE=True`로 전환되어 실행 및 통과 예상
+  - 작업 전 상태(351 통과 / 5 실패 / 3 오류) 대비 실패·오류 전량 해소
+
+### 진행 예정 — #7: Text Converter 구조 리팩토링
+
+- `TextConverterDropZone` 신규 추가 (현재 부재 확인됨)
+- `TextConverterFileList` 단순화 (Bulk Fixer 패턴 복제)
+- `TextConverterPanel._build` 레이아웃 재구성
+  - 왼쪽: 드롭존(상단 72px) + 상단 버튼 + 파일 목록 + 하단 조작 버튼
+  - 오른쪽: 모드별 옵션 + 출력 폴더 이동 + 변환/취소 버튼 + 진행바/상태 이동
+  - 하단 안내 박스 제거 (5개 언어 번역 키 정리)
+- 좌우 비율 5:4
+- 모드 전환(TXT↔EPUB) 시 드롭존 텍스트/아이콘 갱신
+
+### 진행 예정 — #8: Text Merger MD 출력
+
+- 출력 포맷 라디오 버튼 (.txt / .md)
+- 헤더 자동 추가 옵션 (체크박스, 헤더 레벨, 파일명 사용)
+- 5개 언어 번역
+
+### 진행 예정 — QA 체크리스트 v1.0.6
+
+- `QA_CHECKLIST_v1.0.5.md` 포맷 참고하여 `QA_CHECKLIST_v1.0.6.md` 신설 예정
+- Phase 2-a 티어 전수 / Phase 2-b 도움말 5개 언어 / 프리징 최적화 시나리오 포함
+
+### 진행 예정 — 디버그 스크립트 실기 파일명 정리
+
+- `docs/debug/diagnose_ilsig.py`: L2 docstring, L16 PATH 상수, L19 print 문구에 남은 초기 진단 대상 파일명 중립화. PATH는 `test_data/tier3_heavy.txt` 가데이터 경로로 치환 권장
+- `docs/debug/make_tier_test_data.py`: L18 주석 중립화
+- 원본 진단 대상 파일 삭제는 신용우님 재량
+
+### 설계 결정 기록 (향후 참조용)
+
+**Text Fixer vs Bulk Fixer 처리 철학 분리** — Phase 2-a 설계 논의 중 확정:
+
+| 구분 | Text Fixer | Bulk Fixer |
+|---|---|---|
+| 처리 단위 | 단일 파일 | 대량 파일 |
+| 사용자 존재 | 현장 상호작용 | 부재 (자동) |
+| 리스크 전이 | 사용자 동의 (B, 등대) | 사후 투명성 |
+| 경고 수단 | 다이얼로그 | 리포트 파일 |
+
+- **사전 스캔 설계안 폐기**: 36GB 규모 실제 시나리오 고려 시 비현실적
+- **심각 실패 스킵의 정당성**: 잘못된 인코딩 강제 처리는 원본보다 나쁜 결과 → 원본 보호가 우선
+- **두 도구 역할 분담**: Bulk에서 스킵된 파일 → Text Fixer에서 개별 검토 권장
+
+**지침서 대비 실제 구현 변경점** (Phase 2-a) — 상세는 `v1.0.6_Phase2_Completion_Record.md` §8 참조:
+
+- `sig_done` Signal 3-param → 4-param (`fail` 카테고리 보존)
+- `sig_file_done` `bool` → `str` 전체 전환 (카테고리 명확화)
+- 완료 다이얼로그 **조건부 표시** (전부 정상이면 생략 — 기존 UX 유지)
+- 번역 키 `bulk_done_fail` 추가로 4개
+- 위치 추적 알고리즘 근본 재설계 (O(N×K) → O(N), 실기 QA 중 현실화된 성능 이슈 대응)
+
+---
+
+### 완료 — #7 Text Converter 구조 리팩토링 ⭐ NEW (2026-04-21 오후)
+
+**배경**: Bulk Fixer 리팩토링 패턴을 Text Converter에도 복제하여 UI 일관성 확보. 하단 안내 박스 제거 + 레이아웃 5:4 재구성 + 드롭존 분리.
+
+- **신규 클래스 `TextConverterDropZone`** 추가 (`L4763`, 109줄)
+  - `BulkFixerDropZone` 복제 + `mode` 파라미터 (TXT/EPUB 전환 시 텍스트·아이콘 갱신)
+  - 폴더 드롭은 미지원 (EPUB 생성 시 폴더 구조 보존 이슈 방지)
+  - `files_dropped` 시그널 하나
+
+- **`TextConverterFileList` 재구성** (`L4872`):
+  - `InternalMove` → `DragDrop` 모드 (Qt 자동 소스 삭제 버그 회피)
+  - `setSectionsClickable(True)` 명시 (v1.0.6 기존 헤더 정렬 버그 수정 패턴)
+  - `startDrag` CopyAction 강제
+  - `paintEvent` 빈 상태 렌더링 제거
+
+- **`TextConverterPanel._build` 레이아웃 재구성**:
+  - 좌 `stretch=5` / 우 `stretch=4` 비율 (왼쪽 확대)
+  - 드롭존 상단 배치
+  - 출력 폴더·변환 버튼·진행바·상태 레이블 모두 오른쪽 이동
+  - 하단 안내 박스 제거
+
+- **번역 키 정리**:
+  - `conv_help` 5개 언어 제거 (하단 안내 박스 폐지)
+  - 기존 죽은 `conv_file_list` 5개 언어 제거 (옵션 A 선택)
+  - 새 `conv_file_list` 5개 언어 추가
+
+- **`_switch`에 `_drop_zone.set_mode()` 추가**, `retranslate`·`refresh_btn_styles`에 드롭존 갱신
+
+- **`MergeDragList` 데드 코드 제거** (57줄) — v1.0.3/1.0.4에서 `MergeFileTree`로 교체된 미사용 클래스. #7 작업과 동반 정리. (이전 인수인계 §7.1 "v1.0.7 후보" 해소)
+
+- **지시서**: `v1.0.6_TextConverter_Refactor_Work_Instruction.md` v4 확정 (381줄)
+
+- **실기 QA**: 9/9 전수 통과 (드롭존 양방향, 모드 전환, 내부 드래그, 헤더 클릭 정렬, 5:4 레이아웃, 5개 언어 회귀, 변환 E2E 양방향, toolTip 오염 회귀, 테마 전환 회귀 — IceCream Ebook Reader 외부 검증 포함)
+
+### 완료 — 설정 다이얼로그 번체 중국어 잔재 버그 수정 (v1.0.5부터 존재한 기존 버그)
+
+**배경**: 繁體 → 한국어 전환 시 단축키 리셋 버튼들에 `預設` / `重設` / `輸出資料夾` / `選擇資料夾` 등 번체 문자열 잔재. `SettingsDialog._retranslate_dialog`가 일부 위젯 텍스트 갱신을 누락한 것이 근본 원인.
+
+- **§2.1 A — `_apply_theme_now`에 `_retranslate_dialog()` 호출 추가** (1줄)
+  - 테마 카드 더블클릭 경로와 [적용] 버튼 경로의 일관성 확보
+
+- **§2.2 B — 위젯 self 저장 보완** (9개)
+  - `_sc_reset_btns` dict, `_sc_reset_all_btn` (단축키 리셋 버튼)
+  - `_lang_frame`, `_odir_btn`, `_odir_reset_btn` (일반 설정 위젯)
+  - `_ver_lbl` (사이드바 버전 라벨)
+  - 기타 self 저장 누락분
+
+- **§2.4 D — `_retranslate_dialog` 확장** (3블록)
+  - **D-1**: 단축키 리셋 버튼들 텍스트 갱신 (`btn_reset` / `btn_reset_all`)
+  - **D-2**: 일반 설정 출력 폴더 라벨/버튼 텍스트 갱신 (`settings_output_dir` / `conv_btn_pick` / `merge_path_reset`)
+  - **D-3**: 라이선스 페이지 타이틀 갱신 (`settings_nav_license`)
+
+- **§2.5 E — AppSuite 내 데드 코드 3개 메서드 74줄 완전 제거** ⭐
+  - `_page_language` (40줄) + `_on_lang_selected` (2줄) + `_retranslate_dialog` (32줄)
+  - 전수 grep 검증: 호출처 0건 + `_lang_radios` 초기화 없음으로 실행 시 `AttributeError` 확정
+  - MergeDragList와 동일 유형 리팩토링 잔재 (SettingsDialog가 별도 QDialog로 분리되기 전 잔재 복제본)
+  - `closeEvent`는 AppSuite의 정상 기능이므로 보존 (작업 중 패널 확인 + 종료 확인 팝업)
+
+- **지시서**: `v1.0.6_SettingsDialog_RefreshRetranslate_Work_Instruction.md` v2 확정 (359줄)
+
+- **실기 QA**: 繁體 → 한국어 전환 시 모든 탭(테마/일반 설정/단축키/라이선스) 잔재 해소 확인 (2026-04-21 오후)
+
+### 완료 — APP_VERSION 및 외부 메타 파일 v1.0.6 갱신
+
+- **`FileNexusSuite.py` L76**: `APP_VERSION = "1.0.5"` → `"1.0.6"`
+  - 11개 표시 위치 자동 반영 (HelpDialog 5개 언어 타이틀 / SettingsDialog 사이드바 / AppSuite 메인 헤더 등)
+
+- **`version_info.txt`**: `filevers`/`prodvers`/`FileVersion`/`ProductVersion` 4곳 `1.0.6.0`
+  - Windows 파일 속성 대화상자 실측 확인 완료 (2026-04-21 오후)
+
+- **`README.txt`**: 타이틀 v1.0.6
+
+- **`README.md`**: version 뱃지 1.0.6 + 한글 이름 "신용우" 제거
+  - L36 `[신용우(Hanrim)]` → `[Hanrim]`
+  - L280 `**신용우 Yongwoo Shin (Hanrim)**` → `**Yongwoo Shin (Hanrim)**`
+  - L38 영문 본문 및 L268 Copyright는 **공식 크레딧**으로 유지
+
+- **`build.bat`**: 버전 표기 없음 확인 (수정 불요)
+
+### 완료 — 자동 테스트 TestV106AppVersion 분리
+
+- **기존 `TestV105Regression.test_app_version_source_is_105`** 및 `TestV105RegressionModule.test_app_version_is_105` 제거
+- **§추가N 신설** — `TestV106AppVersion` + `TestV106AppVersionModule` 2개 클래스 (B-1 옵션)
+  - v1.0.5 기타 회귀 테스트 클래스들은 그대로 유지 (v1.0.5 당시 상태 메시지·인코딩 드롭다운 등 계속 지켜봄)
+- **실측**: 527/0/0/0 통과 (55 → **57 클래스**)
+- **라인 수**: `test_file_nexus.py` 4,342 → 4,370 (+28줄)
+
+### 작업 중 — v1.0.7 이월 항목
+
+#### ⏭ 설정 다이얼로그 라벨/프레임 color 잔재 버그 (v1.0.5부터 존재)
+
+**증상**: 테마 변경 [적용] 후 다른 탭 이동 시 **라이트→다크 방향에서만** 일부 위젯이 이전 테마 값으로 남음 (언어 프레임 배경, 타이틀 라벨 color, 출력 폴더 관련 위젯). 설정창 재오픈 시 정상 복귀.
+
+**2026-04-21 오후 세션 처리 경과**:
+- v1.0.5 빌드로 재현 확인 — v1.0.6에서 생긴 버그 아님
+- 4가지 접근 시도: `QTimer` 지연 / `unpolish/polish` / `QApplication` 전역 재적용 / `findChildren().update()` — **모두 실패**
+- 결국 **v1.0.5 원본 상태로 깨끗하게 원상복귀** + v1.0.7 이월 결정
+- 유지된 v1.0.6 수정은 §2.1 A / §2.2 B / §2.4 D / §2.5 E만 (번체 잔재 + 데드 코드 관련)
+
+**상세**: `Claude_Handover_FileNexusSuite_v1.0.6.md` §5.1 및 §7.8 참조 (재시도 금지 목록 포함).
+
+
 ## v1.0.5 (2026-04-18) — Text Merger 저장 인코딩 드롭다운 UI 사용성 개선
 
 ### 버그 수정 (릴리즈 QA 중 발견)

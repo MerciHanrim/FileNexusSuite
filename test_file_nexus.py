@@ -2473,8 +2473,10 @@ class TestBulkFixerFileIO(unittest.TestCase):
         content = "한국어 텍스트\n두 번째 줄"
         src = self._make_file('ko.txt', content, enc='utf-8-sig')
         # 감지 → 디코딩 → 교정 순으로 검증
-        from FileNexusSuite import alchemy_detect_encoding
-        detected = alchemy_detect_encoding(src)
+        # v1.0.6: from FileNexusSuite import 대신 _alchemy_detect_enc 사용 —
+        # FileNexusSuite 재import 시 Phase 2-a `_fns_track` 핸들러 재등록으로
+        # 위치 추적 collection이 오염되는 문제 방지 (§추가O 보호)
+        detected = _alchemy_detect_enc(src)
         # v1.0.4: 튜플 반환 호환 (이전 str / 신규 (str, float))
         enc = detected[0] if isinstance(detected, tuple) else detected
         self.assertEqual(enc, 'utf-8-sig')
@@ -2490,8 +2492,8 @@ class TestBulkFixerFileIO(unittest.TestCase):
         src = os.path.join(self.td, 'ko_utf16_le.txt')
         with open(src, 'wb') as f:
             f.write(b'\xff\xfe' + content.encode('utf-16-le'))
-        from FileNexusSuite import alchemy_detect_encoding
-        detected = alchemy_detect_encoding(src)
+        # v1.0.6: from FileNexusSuite import 제거 — Phase 2-a `_fns_track` 핸들러 재등록 방지
+        detected = _alchemy_detect_enc(src)
         # v1.0.4: 튜플 반환 호환
         enc = detected[0] if isinstance(detected, tuple) else detected
         self.assertEqual(enc, 'utf-16')
@@ -2507,8 +2509,8 @@ class TestBulkFixerFileIO(unittest.TestCase):
         src = os.path.join(self.td, 'ko_utf16_be.txt')
         with open(src, 'wb') as f:
             f.write(b'\xfe\xff' + content.encode('utf-16-be'))
-        from FileNexusSuite import alchemy_detect_encoding
-        detected = alchemy_detect_encoding(src)
+        # v1.0.6: from FileNexusSuite import 제거 — Phase 2-a `_fns_track` 핸들러 재등록 방지
+        detected = _alchemy_detect_enc(src)
         # v1.0.4: 튜플 반환 호환
         enc = detected[0] if isinstance(detected, tuple) else detected
         self.assertEqual(enc, 'utf-16')
@@ -3036,34 +3038,52 @@ class TestV103Regression(unittest.TestCase):
             "BulkFixerPanel._on_file_selected에 latin-1 폴백이 남아있음 (v1.0.2 버그)")
 
     def test_alchemy_used_in_text_fixer(self):
-        """TextFixerPanel.load_file이 alchemy_detect_encoding을 사용해야 함."""
+        """TextFixerPanel.load_file이 alchemy 기반 인코딩 감지를 사용해야 함.
+
+        v1.0.6 Phase 2-a부터 직접 호출 또는 safe_read_text_with_report 헬퍼 경유
+        (헬퍼 내부 L3935가 alchemy_detect_encoding을 호출) 둘 다 허용.
+        """
         m = re.search(
             r'def load_file\(self, path: str\):(.*?)(?=\n    def |\nclass )',
             self.src, re.DOTALL)
         self.assertIsNotNone(m)
         body = m.group(1)
-        self.assertIn('alchemy_detect_encoding', body,
-            "TextFixerPanel.load_file이 alchemy_detect_encoding을 사용하지 않음")
+        self.assertTrue(
+            'alchemy_detect_encoding' in body or 'safe_read_text_with_report' in body,
+            "TextFixerPanel.load_file이 alchemy 기반 인코딩 감지를 사용하지 않음 "
+            "(직접 호출 또는 safe_read_text_with_report 헬퍼 경유)")
 
     def test_alchemy_used_in_bulk_worker(self):
-        """BulkFixerWorker.run이 alchemy_detect_encoding을 사용해야 함."""
+        """BulkFixerWorker.run이 alchemy 기반 인코딩 감지를 사용해야 함.
+
+        v1.0.6 Phase 2-a부터 직접 호출 또는 safe_read_text_with_report 헬퍼 경유
+        (헬퍼 내부 L3935가 alchemy_detect_encoding을 호출) 둘 다 허용.
+        """
         m = re.search(
             r'class BulkFixerWorker.*?def run\(self\):(.*?)(?=\n    def |\nclass )',
             self.src, re.DOTALL)
         self.assertIsNotNone(m)
         body = m.group(1)
-        self.assertIn('alchemy_detect_encoding', body,
-            "BulkFixerWorker.run이 alchemy_detect_encoding을 사용하지 않음")
+        self.assertTrue(
+            'alchemy_detect_encoding' in body or 'safe_read_text_with_report' in body,
+            "BulkFixerWorker.run이 alchemy 기반 인코딩 감지를 사용하지 않음 "
+            "(직접 호출 또는 safe_read_text_with_report 헬퍼 경유)")
 
     def test_alchemy_used_in_bulk_preview(self):
-        """BulkFixerPanel._on_file_selected이 alchemy_detect_encoding을 사용해야 함."""
+        """BulkFixerPanel._on_file_selected이 alchemy 기반 인코딩 감지를 사용해야 함.
+
+        v1.0.6 Phase 2-a부터 직접 호출 또는 safe_read_text_with_report 헬퍼 경유
+        (헬퍼 내부 L3935가 alchemy_detect_encoding을 호출) 둘 다 허용.
+        """
         m = re.search(
             r'def _on_file_selected\(self, cur, _prev\):(.*?)(?=\n    def |\nclass )',
             self.src, re.DOTALL)
         self.assertIsNotNone(m)
         body = m.group(1)
-        self.assertIn('alchemy_detect_encoding', body,
-            "BulkFixerPanel._on_file_selected이 alchemy_detect_encoding을 사용하지 않음")
+        self.assertTrue(
+            'alchemy_detect_encoding' in body or 'safe_read_text_with_report' in body,
+            "BulkFixerPanel._on_file_selected이 alchemy 기반 인코딩 감지를 사용하지 않음 "
+            "(직접 호출 또는 safe_read_text_with_report 헬퍼 경유)")
 
     def test_cjk_encodings_listed(self):
         """3곳 모두 shift_jis/gbk/big5 폴백이 추가되어야 함 (5개 언어 지원 일치)."""
@@ -3174,11 +3194,18 @@ class TestV104Regression(unittest.TestCase):
 
     def test_alchemy_callers_unpack_tuple(self):
         """alchemy_detect_encoding의 모든 호출부가 튜플 언패킹을 사용해야 함.
-        v1.0.4: 시그니처 변경으로 (enc, conf) 또는 (enc, _) 형식으로 받아야 함."""
-        # 호출 전체 카운트 (정의 1건 제외)
+        v1.0.4: 시그니처 변경으로 (enc, conf) 또는 (enc, _) 형식으로 받아야 함.
+
+        v1.0.6 Phase 2-a: TextFixer / BulkWorker / BulkPreview 3곳의 직접 호출이
+        safe_read_text_with_report 헬퍼로 통합되어 호출 건수 감소 (6건 이상 → 4건).
+        정의 1건(L3676) + safe_read_text_with_report 내부 1건 + Text Converter +
+        Text Merger = 총 4건이 Phase 2-a 이후 정상 수치.
+        """
+        # 호출 전체 카운트 (정의 포함 — regex는 정의도 매칭)
         all_calls = re.findall(r'alchemy_detect_encoding\(', self.src)
-        self.assertGreaterEqual(len(all_calls), 6,
-            f"alchemy_detect_encoding 호출이 6건 미만: {len(all_calls)}")
+        self.assertGreaterEqual(len(all_calls), 4,
+            f"alchemy_detect_encoding 호출이 4건 미만: {len(all_calls)} "
+            f"(Phase 2-a 이후 정상 하한은 4 — 정의 + 헬퍼 + Converter + Merger)")
         # 단일 변수 할당 패턴(예: detected_enc = alchemy_detect_encoding(path)) 잔재 차단
         bad = re.findall(r'^\s*[a-z_]+ = alchemy_detect_encoding\(',
                          self.src, re.MULTILINE)
@@ -3569,23 +3596,15 @@ class TestV105Regression(unittest.TestCase):
         self.assertNotIn("'Shift-JIS (日語)'", zh_tw_block,
             "중국어 번체에서 '日語' 사용됨 (v1.0.4 tip과 불일치)")
 
-    # ── APP_VERSION 검증 ────────────────────────────────────────
-    def test_app_version_source_is_105(self):
-        """소스 상 APP_VERSION 문자열이 정확히 '1.0.5'이어야 한다."""
-        m = re.search(r'^APP_VERSION\s*=\s*[\"\']([^\"\']+)[\"\']',
-                      self.src, re.MULTILINE)
-        self.assertIsNotNone(m, "APP_VERSION 정의 없음")
-        self.assertEqual(m.group(1), '1.0.5',
-            f"APP_VERSION 소스값 불일치: {m.group(1)}")
+    # ── APP_VERSION 검증은 TestV106AppVersion으로 분리됨 (v1.0.6) ─────
 
 
+@unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
 class TestV105RegressionModule(unittest.TestCase):
-    """v1.0.5 모듈 로드 기반 회귀 테스트 — 런타임 동작 검증."""
+    """v1.0.5 모듈 로드 기반 회귀 테스트 — 런타임 동작 검증.
 
-    def test_app_version_is_105(self):
-        """APP_VERSION이 정확히 '1.0.5'이어야 한다."""
-        ver = _ns.get('APP_VERSION')
-        self.assertEqual(ver, '1.0.5', f"APP_VERSION 불일치: {ver}")
+    주의: APP_VERSION 검증은 TestV106AppVersionModule로 분리됨 (v1.0.6)
+    """
 
     def test_translations_have_all_enc_keys(self):
         """5개 언어 각각에 9개 merge_enc_* 키가 실제 값으로 존재해야 한다."""
@@ -3939,6 +3958,359 @@ class TestV105TranslationNoDuplicates(unittest.TestCase):
         # 완전 동일은 어려우니 5개 이내 차이까지 허용 (일부 언어 미번역 키가 남을 수 있음)
         self.assertLessEqual(max_count - min_count, 5,
             f"언어별 키 수 차이 과다 (허용 ≤5): {counts}")
+
+
+# ════════════════════════════════════════════════════════════════════════
+# §추가N  APP_VERSION 검증 (v1.0.6)
+# ════════════════════════════════════════════════════════════════════════
+# 버전업 시점에 APP_VERSION 상수가 정확히 갱신됐는지 검증.
+# 기존 TestV105Regression.test_app_version_source_is_105 및
+# TestV105RegressionModule.test_app_version_is_105에서 이월된 검증 로직을
+# v1.0.6 전용 클래스로 분리. v1.0.5 회귀 테스트 클래스는 v1.0.5 당시의
+# 다른 회귀 항목(상태 메시지·인코딩 드롭다운 등)을 계속 지켜봄.
+
+
+class TestV106AppVersion(unittest.TestCase):
+    """v1.0.6 — APP_VERSION 소스값 검증 (소스 파싱 기반, PySide6 불필요)."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            cls.src = f.read()
+
+    def test_app_version_source_is_106(self):
+        """소스 상 APP_VERSION 문자열이 정확히 '1.0.6'이어야 한다."""
+        m = re.search(r'^APP_VERSION\s*=\s*[\"\']([^\"\']+)[\"\']',
+                      self.src, re.MULTILINE)
+        self.assertIsNotNone(m, "APP_VERSION 정의 없음")
+        self.assertEqual(m.group(1), '1.0.6',
+            f"APP_VERSION 소스값 불일치: {m.group(1)}")
+
+
+@unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
+class TestV106AppVersionModule(unittest.TestCase):
+    """v1.0.6 모듈 로드 기반 APP_VERSION 검증 — 런타임 값 검증."""
+
+    def test_app_version_is_106(self):
+        """APP_VERSION이 정확히 '1.0.6'이어야 한다."""
+        ver = _ns.get('APP_VERSION')
+        self.assertEqual(ver, '1.0.6', f"APP_VERSION 불일치: {ver}")
+
+
+# ════════════════════════════════════════════════════════════════════════
+# §추가O  Phase 2-a 인코딩 리포트 기능 (v1.0.6)
+# ════════════════════════════════════════════════════════════════════════
+
+_safe_read_text = _ns.get('safe_read_text_with_report') if HAS_MODULE else None
+_decode_tracking = _ns.get('_decode_with_failure_tracking') if HAS_MODULE else None
+_write_report = _ns.get('write_encoding_report') if HAS_MODULE else None
+
+
+@unittest.skipUnless(HAS_MODULE and _safe_read_text,
+                     "FileNexusSuite 로드 실패 또는 safe_read_text_with_report 없음")
+class TestSafeReadTextWithReport(unittest.TestCase):
+    """v1.0.6 Phase 2-a: safe_read_text_with_report — 6-tuple 반환 구조."""
+
+    def setUp(self):
+        self.td = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.td, ignore_errors=True)
+
+    def _write_bytes(self, name, raw):
+        p = os.path.join(self.td, name)
+        with open(p, 'wb') as f:
+            f.write(raw)
+        return p
+
+    def test_returns_6_tuple(self):
+        """반환이 정확히 6-tuple이어야 함 (v1.0.5→v1.0.6 확장)."""
+        p = self._write_bytes('t.txt', 'hello'.encode('utf-8'))
+        result = _safe_read_text(p)
+        self.assertEqual(len(result), 6,
+            f"Phase 2-a 이후 6-tuple이어야 함 (현재 {len(result)})")
+
+    def test_strict_success_returns_empty_failures(self):
+        """정상 파일 → strict 모드 + failures=[] + total=0."""
+        p = self._write_bytes('ok.txt', '정상 한국어'.encode('utf-8'))
+        text, enc, mode, rc, failures, total = _safe_read_text(p)
+        self.assertEqual(mode, 'strict')
+        self.assertEqual(failures, [])
+        self.assertEqual(total, 0)
+        self.assertEqual(rc, 0)
+
+    def test_replace_mode_returns_failures(self):
+        """부분 손상 파일 → replace 모드 + failures 리스트 채워짐."""
+        raw = 'abc'.encode('utf-8') + b'\xFF' + 'def'.encode('utf-8')
+        p = self._write_bytes('bad.txt', raw)
+        text, enc, mode, rc, failures, total = _safe_read_text(p)
+        self.assertEqual(mode, 'replace')
+        self.assertEqual(total, 1)
+        self.assertEqual(len(failures), 1)
+        f = failures[0]
+        self.assertIn('byte_pos', f)
+        self.assertIn('bad_bytes_hex', f)
+        self.assertIn('line', f)
+        self.assertIn('col', f)
+        self.assertIn('context', f)
+
+    def test_nonexistent_file_returns_none(self):
+        """존재하지 않는 파일 → None 반환 (회귀 방지)."""
+        result = _safe_read_text('/definitely/nonexistent/path.txt')
+        self.assertIsNone(result[0])
+
+    def test_utf8_bom_strict(self):
+        """UTF-8-BOM 파일 → strict 성공."""
+        p = self._write_bytes('bom.txt', '\ufeffBOM 테스트'.encode('utf-8'))
+        _, enc, mode, _, _, _ = _safe_read_text(p)
+        self.assertEqual(mode, 'strict')
+
+
+@unittest.skipUnless(HAS_MODULE and _decode_tracking,
+                     "FileNexusSuite 로드 실패 또는 _decode_with_failure_tracking 없음")
+class TestDecodeWithFailureTracking(unittest.TestCase):
+    """v1.0.6 Phase 2-a: 위치 추적 디코더 단위 테스트."""
+
+    def test_normal_utf8(self):
+        """정상 UTF-8 → failures=[], total=0."""
+        raw = '안녕하세요'.encode('utf-8')
+        text, failures, total = _decode_tracking(raw, 'utf-8')
+        self.assertEqual(text, '안녕하세요')
+        self.assertEqual(failures, [])
+        self.assertEqual(total, 0)
+
+    def test_single_bad_byte(self):
+        """1개 오류 → failures 길이 1, bad_bytes_hex 정확."""
+        raw = 'abc'.encode('utf-8') + b'\xFF' + 'def'.encode('utf-8')
+        text, failures, total = _decode_tracking(raw, 'utf-8')
+        self.assertEqual(total, 1)
+        self.assertEqual(len(failures), 1)
+        self.assertEqual(failures[0]['bad_bytes_hex'], '0xFF')
+
+    def test_line_tracking(self):
+        """여러 줄에 걸친 오류 → line/col 정확."""
+        raw = (b'line 1 ok\n' +
+               b'line 2 ' + b'\xFF' + b'\n' +
+               b'line 3 ok\n' +
+               b'line 4 ' + b'\xFE' + b'\n')
+        text, failures, total = _decode_tracking(raw, 'utf-8')
+        self.assertEqual(total, 2)
+        self.assertEqual(failures[0]['line'], 2)
+        self.assertEqual(failures[1]['line'], 4)
+
+    def test_crlf_line_counting(self):
+        """CRLF 파일에서도 \\n 카운트로 라인 번호 정확."""
+        raw = (b'line 1\r\nline 2\r\nerror ' + b'\xFF' + b'\r\n')
+        text, failures, total = _decode_tracking(raw, 'utf-8')
+        self.assertEqual(total, 1)
+        self.assertEqual(failures[0]['line'], 3)
+
+    def test_max_tracking_cap(self):
+        """MAX_TRACK_FAILURES=5000 초과 시 failures는 5000으로 제한, total은 실제 수."""
+        MAX = _ns.get('MAX_TRACK_FAILURES', 5000)
+        raw = b'\xFF' * (MAX + 1000)
+        text, failures, total = _decode_tracking(raw, 'utf-8')
+        self.assertEqual(total, MAX + 1000)
+        self.assertEqual(len(failures), MAX)
+
+    def test_context_normalizes_whitespace(self):
+        """context 내 줄바꿈/탭이 공백으로 정규화되어야 함 (가독성)."""
+        raw = b'line1\n\tbad ' + b'\xFF' + b'\tmore\n'
+        text, failures, total = _decode_tracking(raw, 'utf-8')
+        ctx = failures[0]['context']
+        self.assertNotIn('\n', ctx)
+        self.assertNotIn('\t', ctx)
+        self.assertNotIn('\r', ctx)
+
+    def test_invalid_encoding_returns_none(self):
+        """존재하지 않는 인코딩 → text=None 반환 (예외 던지지 않음)."""
+        text, failures, total = _decode_tracking(b'hello', 'nonexistent-enc-xyz')
+        self.assertIsNone(text)
+
+
+@unittest.skipUnless(HAS_MODULE and _write_report,
+                     "FileNexusSuite 로드 실패 또는 write_encoding_report 없음")
+class TestWriteEncodingReport(unittest.TestCase):
+    """v1.0.6 Phase 2-a: 인코딩 리포트 생성 테스트."""
+
+    def setUp(self):
+        self.td = tempfile.mkdtemp()
+        # 최소 failures 리스트 (테스트용)
+        self.sample_failures = [
+            {'byte_pos': 10, 'bad_bytes_hex': '0xFF',
+             'line': 1, 'col': 5, 'context': 'test context'}
+        ]
+
+    def tearDown(self):
+        shutil.rmtree(self.td, ignore_errors=True)
+
+    def _orig_file(self):
+        p = os.path.join(self.td, 'original.txt')
+        with open(p, 'w', encoding='utf-8') as f:
+            f.write('test')
+        return p
+
+    def test_returns_none_when_no_failures(self):
+        """total_failures=0이면 None 반환 (리포트 생성 안 함)."""
+        rp = _write_report(self.td, self._orig_file(), 'utf-8', [], 0, 'processed', lang='ko')
+        self.assertIsNone(rp)
+
+    def test_creates_report_file(self):
+        """리포트 파일이 output_dir에 생성됨."""
+        rp = _write_report(self.td, self._orig_file(), 'utf-8',
+                           self.sample_failures, 1, 'processed', lang='ko')
+        self.assertIsNotNone(rp)
+        self.assertTrue(os.path.exists(rp))
+        self.assertTrue(rp.endswith('.encoding_report.txt'))
+
+    def test_report_filename_pattern(self):
+        """리포트 파일명은 {원본}.encoding_report.txt."""
+        p = self._orig_file()
+        rp = _write_report(self.td, p, 'utf-8',
+                           self.sample_failures, 1, 'processed', lang='ko')
+        expected = os.path.basename(p) + '.encoding_report.txt'
+        self.assertEqual(os.path.basename(rp), expected)
+
+    def test_fallback_to_original_dir(self):
+        """output_dir=None 시 원본 파일 폴더에 생성."""
+        p = self._orig_file()
+        rp = _write_report(None, p, 'utf-8',
+                           self.sample_failures, 1, 'processed', lang='ko')
+        self.assertEqual(os.path.dirname(rp), os.path.dirname(p))
+
+    def test_tier1_advice(self):
+        """Tier 1 (1~500 실패) → 한국어 Tier 1 조치 문구 포함."""
+        rp = _write_report(self.td, self._orig_file(), 'utf-8',
+                           self.sample_failures, 100, 'processed', lang='ko')
+        content = open(rp, encoding='utf-8').read()
+        self.assertIn('일부 문자가 손상', content)
+
+    def test_tier2_advice(self):
+        """Tier 2 (501~5000) → 한국어 Tier 2 조치 문구 포함."""
+        rp = _write_report(self.td, self._orig_file(), 'utf-8',
+                           self.sample_failures, 1000, 'processed', lang='ko')
+        content = open(rp, encoding='utf-8').read()
+        self.assertIn('다수의 문자가 손상', content)
+
+    def test_tier3_skipped(self):
+        """Tier 3 (5001+) + skipped → 한국어 Tier 3 + 원본 보호 문구."""
+        rp = _write_report(self.td, self._orig_file(), 'utf-8',
+                           self.sample_failures, 6000, 'skipped', lang='ko')
+        content = open(rp, encoding='utf-8').read()
+        self.assertIn('처리 건너뜀', content)
+        self.assertIn('원본 보호', content)
+
+    def test_truncated_count_shown(self):
+        """total > len(failures)일 때 '추적 생략' 문구 + 개수 표시."""
+        # failures=1개, total=1000 → 999개 생략
+        rp = _write_report(self.td, self._orig_file(), 'utf-8',
+                           self.sample_failures, 1000, 'processed', lang='ko')
+        content = open(rp, encoding='utf-8').read()
+        self.assertIn('추적 생략', content)
+        self.assertIn('999', content)
+
+    def test_all_languages_no_untranslated_keys(self):
+        """5개 언어 모두에서 번역 키가 그대로 노출되면 안 됨."""
+        untranslated = ['report_header', 'report_file', 'report_path',
+                        'report_advice_title', 'report_advice_tier1']
+        for lang in ['ko', 'en', 'ja', 'zh_cn', 'zh_tw']:
+            rp = _write_report(self.td, self._orig_file(), 'utf-8',
+                               self.sample_failures, 100, 'processed', lang=lang)
+            content = open(rp, encoding='utf-8').read()
+            for key in untranslated:
+                self.assertNotIn(key, content,
+                    f"[{lang}] 번역 키 '{key}'가 그대로 노출됨")
+            os.remove(rp)
+
+    def test_report_is_utf8_without_bom(self):
+        """리포트 파일은 UTF-8 (BOM 없이) 저장되어야 함 (다른 에디터 호환)."""
+        rp = _write_report(self.td, self._orig_file(), 'utf-8',
+                           self.sample_failures, 1, 'processed', lang='ko')
+        with open(rp, 'rb') as f:
+            raw = f.read()
+        # BOM 없음 확인
+        self.assertFalse(raw.startswith(b'\xef\xbb\xbf'), 'BOM이 붙어있음')
+        # UTF-8로 해독 가능
+        raw.decode('utf-8')  # 예외 던지지 않아야
+
+
+# ════════════════════════════════════════════════════════════════════════
+# §추가P  v1.0.6 버그 수정 회귀 방지 — Bulk Fixer 미리보기 프리징
+# ════════════════════════════════════════════════════════════════════════
+# 50만 줄급 대용량 파일에서 _on_file_selected가 12초 이상 프리징하던 버그
+# (Phase 2-a 실기 QA 중 발견, 회귀 방지 목적)
+
+@unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패")
+class TestBulkFixerPreviewLargeFile(unittest.TestCase):
+    """v1.0.6: Bulk Fixer 미리보기가 대용량 파일에서도 빠르게 동작해야 함.
+
+    수정 전: text.splitlines(keepends=True)[:80]
+            → 27MB 전체 파싱 후 50만 객체 생성, 80개만 사용 (O(N) 낭비)
+    수정 후: text[:32768].splitlines(keepends=True)[:80]
+            → 파일 크기와 무관하게 32KB만 처리
+    """
+
+    def test_preview_extraction_logic_uses_head_slice(self):
+        """소스에 text[:NNNNN].splitlines 패턴이 있어야 함 (회귀 방지)."""
+        with open(_MAIN_PY, 'r', encoding='utf-8') as f:
+            src = f.read()
+        # _on_file_selected 본체 추출 (BulkFixerPanel 내)
+        # 정규식: def _on_file_selected ... setPlainText(preview)
+        m = re.search(
+            r'def _on_file_selected\(self, cur, _prev\):(.*?)(?=\n    def |\nclass )',
+            src, re.DOTALL)
+        self.assertIsNotNone(m, '_on_file_selected 메서드를 찾을 수 없음')
+        body = m.group(1)
+        # 수정된 패턴 존재 확인: text[:NNNNN].splitlines
+        self.assertRegex(body, r'text\[:\d+\]\.splitlines',
+            '미리보기 헤드 슬라이스 패턴(text[:NNNNN].splitlines) 누락 — v1.0.6 수정 회귀 의심')
+        # 전체 splitlines 직접 호출(수정 전 패턴) 없어야 함
+        # 정확한 매칭: text.splitlines 앞에 [:가 없는 경우
+        self.assertNotRegex(body, r'(?<!\])text\.splitlines',
+            '수정 전 패턴(text.splitlines 전체 호출)이 남아있음 — v1.0.6 수정 회귀')
+
+
+@unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패")
+class TestPreviewExtractionPerformance(unittest.TestCase):
+    """v1.0.6: 미리보기 추출 로직의 성능 특성 검증 (순수 함수 단위).
+
+    _on_file_selected 내부의 preview 추출 로직을 분리 검증.
+    실제 Qt 위젯 없이 Python 레벨에서 동등 로직을 재현하여
+    파일 크기와 무관하게 일정 시간에 끝나는지 확인.
+    """
+
+    def _extract_preview_fixed(self, text):
+        """v1.0.6 수정 후 방식 복제."""
+        return ''.join(text[:32768].splitlines(keepends=True)[:80])
+
+    def test_large_file_preview_under_100ms(self):
+        """50만 줄 시뮬레이션에서 미리보기 추출이 100ms 이내."""
+        # 한국어 웹소설 스타일: 평균 40자 줄 × 50만 줄
+        line = '이것은 한국어 웹소설의 한 줄입니다. 적당한 길이의 문장입니다.\n'
+        text = line * 500000  # 약 20MB, 50만 줄
+        t0 = time.perf_counter()
+        preview = self._extract_preview_fixed(text)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        self.assertLess(elapsed_ms, 100,
+            f'50만 줄 파일 미리보기 추출이 100ms 초과: {elapsed_ms:.1f}ms '
+            f'(v1.0.6 버그 회귀 의심 — text[:32768].splitlines 확인 필요)')
+        # 결과도 올바른지 확인 (80줄)
+        self.assertLessEqual(len(preview.splitlines()), 80)
+
+    def test_preview_size_consistent_across_file_sizes(self):
+        """파일 크기와 무관하게 미리보기 크기가 일정 (32KB 상한)."""
+        short_text = '짧은 파일입니다.\n' * 100  # 작은 파일
+        huge_text = '큰 파일의 한 줄입니다.\n' * 1000000  # 매우 큰 파일
+
+        preview_short = self._extract_preview_fixed(short_text)
+        preview_huge = self._extract_preview_fixed(huge_text)
+
+        # 작은 파일은 전체가 미리보기로 나오고, 큰 파일은 80줄만
+        # 두 경우 모두 32KB 이하여야 함
+        self.assertLessEqual(len(preview_short.encode('utf-8')), 32768)
+        self.assertLessEqual(len(preview_huge.encode('utf-8')), 32768)
+        # 80줄 제한 확인
+        self.assertLessEqual(len(preview_huge.splitlines()), 80)
 
 
 # ════════════════════════════════════════════════════════════════════════

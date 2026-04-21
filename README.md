@@ -8,7 +8,7 @@
 
 <br>
 
-![version](https://img.shields.io/badge/version-1.0.5-CC785C?style=flat-square)
+![version](https://img.shields.io/badge/version-1.0.6-CC785C?style=flat-square)
 ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/PySide6-Qt_6-41CD52?style=flat-square&logo=qt&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
@@ -33,7 +33,7 @@ File Nexus Suite는 일상적인 파일 작업을 하나의 데스크톱 애플�
 
 ### 개발 방식 · Development Approach
 
-본 프로젝트는 **AI 페어 프로그래밍(Claude)으로 개발**되었습니다. [신용우(Hanrim)](https://github.com/MerciHanrim)이 기획·UX 설계·기능 명세·품질 관리를 담당하고, 코드 작성은 AI와 협업하여 진행했습니다. 전체 소스 코드는 본 저장소에 공개되어 있어 자유롭게 검토·학습할 수 있습니다.
+본 프로젝트는 **AI 페어 프로그래밍(Claude)으로 개발**되었습니다. [Hanrim](https://github.com/MerciHanrim)이 기획·UX 설계·기능 명세·품질 관리를 담당하고, 코드 작성은 AI와 협업하여 진행했습니다. 전체 소스 코드는 본 저장소에 공개되어 있어 자유롭게 검토·학습할 수 있습니다.
 
 > This project was developed with **AI pair programming (Claude)**. Planning, UX design, feature specification, and quality management were done by Yongwoo Shin (Hanrim), with code written in collaboration with AI. The full source code is published in this repository for open review and study.
 
@@ -277,7 +277,7 @@ Issues, feedback, and feature requests are welcome in any of the 5 supported lan
 
 ## 제작자 · Author
 
-**신용우 Yongwoo Shin (Hanrim)** — [@MerciHanrim](https://github.com/MerciHanrim)
+**Yongwoo Shin (Hanrim)** — [@MerciHanrim](https://github.com/MerciHanrim)
 
 제품 기획 · UX 설계 · 품질 관리 · AI 디렉팅 · 릴리즈 관리
 

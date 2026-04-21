@@ -49,6 +49,12 @@ try:
 except ImportError:
     XLSX_AVAILABLE = False
 
+try:
+    import hwpx as _hwpx
+    HWPX_AVAILABLE = True
+except ImportError:
+    HWPX_AVAILABLE = False
+
 # ── PySide6 ────────────────────────────────────
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -67,7 +73,7 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle
 # ═══════════════════════════════════════════════
 # 앱 버전
 # ═══════════════════════════════════════════════
-APP_VERSION = "1.0.5"
+APP_VERSION = "1.0.6"
 
 # ═══════════════════════════════════════════════
 # 절전 방지 유틸리티 (Windows 전용, 타 OS 무해 처리)
@@ -890,7 +896,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_open_explorer': '탐색기에서 열기',
         'conv_sub_txt2epub': 'TXT → EPUB',
         'conv_sub_epub2txt': 'EPUB → TXT',
-        'conv_file_list': '📄  파일 목록',
         'conv_out_folder': '// 출력 폴더',
         'conv_out_ph': '비워두면 입력 파일 위치에 저장',
         'conv_btn_pick': '폴더 지정',
@@ -912,8 +917,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'conv_ch1': '빈 줄 3개 이상 기준',
         'conv_ch2': '전체를 한 챕터로',
         'conv_status_start': '파일을 추가하고 변환을 시작하세요.',
-        'conv_help': '📌 <b>TXT → EPUB</b><br>txt 파일을 epub 전자책으로 변환합니다.<br><br>📌 <b>EPUB → TXT</b><br>epub 전자책을 txt '
-                     '텍스트로 변환합니다.<br><br>💡 출력 폴더 미지정 시 원본 파일과 같은 위치에 저장됩니다.',
+        'conv_file_list': '// 파일 목록',
         'tag_sub_remove': '태그 제거',
         'tag_sub_add': '태그 추가',
         'tag_sub_depad': '앞자리 0 제거',
@@ -1078,7 +1082,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'rename_explorer_warn': '⚠  탐색기에서 대상 폴더가 열려있으면 액세스 오류가 발생할 수 있습니다.\n이름 변경 전 탐색기 창을 닫거나 다른 위치로 이동해 주세요.',
         'rename_no_subfolders': '하위 폴더가 없습니다.',
         'rename_no_files':   '파일이 없습니다.',
-        'merge_no_support':  '폴더에서 지원 파일을 찾을 수 없습니다.\n지원: txt · md · csv · docx · pdf · xlsx 등',
+        'merge_no_support':  '폴더에서 지원 파일을 찾을 수 없습니다.\n지원: txt · md · csv · docx · pdf · xlsx · hwpx 등',
+        'merge_hwp_legacy_title': 'HWP(구형) 파일은 지원되지 않습니다',
+        'merge_hwp_legacy_msg':   '구형 HWP 파일({n}개)이 감지되어 추가되지 않았습니다.\n\n한컴 한글에서 <b>다른 이름으로 저장 → HWPX</b>로 변환 후 다시 시도해주세요.\n\nText Merger는 HWPX(KS X 6101 OWPML 표준) 형식만 지원합니다.',
         'merge_no_files':   '병합할 파일이 없습니다.',
         'sc_tab_merger': 'Text Merger 탭 전환',
         'sc_tab_converter': 'Text Converter 탭 전환',
@@ -1184,6 +1190,8 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_enc_gbk':       'GBK (중국어 간체)',
         'merge_enc_big5':      'Big5 (중국어 번체)',
         'merge_enc_hint':      '확실하지 않으면 UTF-8을 선택하세요',
+        'merge_enc_recommend': '💡 추천: {enc}',
+        'merge_enc_recommend_apply': '적용',
         'merge_low_conf_hint':  'ℹ chardet 원본 신뢰도가 낮게 표시되어도 인코딩 결과는 정확할 수 있습니다 (특히 CJK 인코딩).',
         'tag_file_count':    '파일 {n}개',
         'sc_none':           '없음',
@@ -1196,6 +1204,46 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tf_err_nofile':   '파일을 찾을 수 없습니다',
         'tf_err_perm':     '파일을 읽을 권한이 없습니다',
         'tf_err_enc':      '지원하는 인코딩으로 파일을 읽을 수 없습니다',
+        'tf_warn_partial_enc': '⚠ 일부 문자의 인코딩이 손상되어 있습니다.\n\n파일: {fname}\n사용 인코딩: {enc}\n대체된 문자 수: {n}개\n\n파일은 로드되었으나 손상된 위치에 대체 문자(�)가 표시됩니다.\n원본 파일이 손상되지 않았는지 확인해주세요.',
+        # v1.0.6 Phase 2-a: Bulk Fixer 완료 다이얼로그 (4-카테고리 브레이크다운)
+        'bulk_done_title':   '교정 완료',
+        'bulk_done_ok':      '정상 처리: {n}개',
+        'bulk_done_warn':    '주의 처리: {n}개 (인코딩 리포트 생성됨)',
+        'bulk_done_skip':    '스킵됨: {n}개 (Text Fixer에서 검토 권장)',
+        'bulk_done_fail':    '실패: {n}개 (디버그 로그 확인)',
+        'bulk_status_skip':  '스킵',
+        # v1.0.6 Phase 2-a: 인코딩 리포트 템플릿 (파일로 저장되는 텍스트)
+        'report_header':          'File Nexus Suite — 인코딩 변환 리포트',
+        'report_file':            '파일',
+        'report_path':            '경로',
+        'report_size':            '파일 크기',
+        'report_enc':             '감지 인코딩',
+        'report_fail_count':      '인코딩 실패 수',
+        'report_action':          '처리 결과',
+        'report_action_processed':'교정 완료',
+        'report_action_skipped':  '처리 건너뜀 (원본 보호)',
+        'report_time':            '리포트 생성 시각',
+        'report_line_col':        'Line {line}, Column {col}',
+        'report_bytes':           '원본 바이트',
+        'report_context':         '주변 텍스트',
+        'report_summary_title':   '요약 통계',
+        'report_total_failures':  '총 실패 문자 수',
+        'report_truncated':       '추적 생략 (상세 기록은 최대 5,000개까지)',
+        'report_advice_title':    '권장 조치',
+        'report_advice_tier1':    ('파일은 정상적으로 교정되었으나 일부 문자가 손상되어 있습니다.\n'
+                                  '해당 라인을 메모장 또는 전용 텍스트 에디터로 확인하시고,\n'
+                                  '필요 시 원본 출처에서 재다운로드를 권장합니다.'),
+        'report_advice_tier2':    ('파일은 교정되었으나 다수의 문자가 손상되어 있습니다.\n'
+                                  '교정된 결과물의 품질이 저하되었을 수 있으므로 반드시 검토하세요.\n'
+                                  '원본 파일의 상태를 우선적으로 확인하시기 바랍니다.'),
+        'report_advice_tier3':    ('이 파일은 위에 표시된 "감지 인코딩"으로 5,000개 이상의\n'
+                                  '디코딩 실패가 발생했습니다.\n'
+                                  '이는 파일의 실제 인코딩이 감지된 것과 다를 가능성이 매우 높다는\n'
+                                  '뜻입니다. 잘못된 인코딩으로 강제 처리 시 결과물이 원본보다\n'
+                                  '손상될 수 있어, 원본 보호를 위해 자동 제외되었습니다.\n\n'
+                                  '권장 조치:\n'
+                                  '- Text Fixer에서 이 파일을 개별 검토하세요.\n'
+                                  '- 원본 파일이 다른 인코딩(UTF-8, Shift-JIS 등)일 가능성을 확인하세요.'),
         'tf_err_fix':      '오류가 발생했습니다',
         'tf_err_save':     '저장할 수 없습니다',
         'tf_dlg_nofile':   '파일 없음',
@@ -1285,7 +1333,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_open_explorer': 'Open in Explorer',
         'conv_sub_txt2epub': 'TXT → EPUB',
         'conv_sub_epub2txt': 'EPUB → TXT',
-        'conv_file_list': '📄  File List',
         'conv_out_folder': '// Output Folder',
         'conv_out_ph': 'Blank = save next to source file',
         'conv_btn_pick': 'Select Folder',
@@ -1307,8 +1354,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'conv_ch1': 'By 3+ blank lines',
         'conv_ch2': 'Entire file as one chapter',
         'conv_status_start': 'Add files and start conversion.',
-        'conv_help': '📌 <b>TXT → EPUB</b><br>Convert txt to epub e-book.<br><br>📌 <b>EPUB → TXT</b><br>Convert epub '
-                     'e-book to txt.<br><br>💡 If no output folder is set, saves next to source file.',
+        'conv_file_list': '// File List',
         'tag_sub_remove': 'Remove Tag',
         'tag_sub_add': 'Add Tag',
         'tag_sub_depad': 'Remove Leading Zeros',
@@ -1474,7 +1520,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'rename_explorer_warn': '⚠  If the target folder is open in Explorer, an access error may occur.\nPlease close Explorer or navigate away before renaming.',
         'rename_no_subfolders': 'No subfolders found.',
         'rename_no_files':   'No files found.',
-        'merge_no_support':  'No supported files found in folder.\nSupported: txt · md · csv · docx · pdf · xlsx, etc.',
+        'merge_no_support':  'No supported files found in folder.\nSupported: txt · md · csv · docx · pdf · xlsx · hwpx, etc.',
+        'merge_hwp_legacy_title': 'HWP (legacy) files are not supported',
+        'merge_hwp_legacy_msg':   '{n} legacy HWP file(s) detected and skipped.\n\nPlease open the file in Hancom Office and use <b>Save As → HWPX</b>, then try again.\n\nText Merger only supports the HWPX format (KS X 6101 OWPML standard).',
         'merge_no_files':   'No files to merge.',
         'sc_tab_merger': 'Switch to Text Merger',
         'sc_tab_converter': 'Switch to Text Converter',
@@ -1580,6 +1628,8 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_enc_gbk':       'GBK (Simplified Chinese)',
         'merge_enc_big5':      'Big5 (Traditional Chinese)',
         'merge_enc_hint':      'If unsure, select UTF-8',
+        'merge_enc_recommend': '💡 Recommended: {enc}',
+        'merge_enc_recommend_apply': 'Apply',
         'merge_low_conf_hint':  'ℹ Even if the chardet raw confidence is low, the detected encoding may still be accurate (especially for CJK encodings).',
         'tag_file_count':    '{n} file(s)',
         'sc_none':           'None',
@@ -1592,6 +1642,46 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tf_err_nofile':   'File not found',
         'tf_err_perm':     'No read permission',
         'tf_err_enc':      'Cannot read file with supported encodings',
+        'tf_warn_partial_enc': '⚠ Some characters have corrupted encoding.\n\nFile: {fname}\nUsed encoding: {enc}\nReplaced characters: {n}\n\nThe file was loaded, but replacement characters (�) will appear at corrupted positions.\nPlease check if the original file is intact.',
+        # v1.0.6 Phase 2-a: Bulk Fixer completion dialog (4-category breakdown)
+        'bulk_done_title':   'Correction Complete',
+        'bulk_done_ok':      'Normally processed: {n}',
+        'bulk_done_warn':    'Processed with warnings: {n} (encoding report generated)',
+        'bulk_done_skip':    'Skipped: {n} (review in Text Fixer recommended)',
+        'bulk_done_fail':    'Failed: {n} (check debug log)',
+        'bulk_status_skip':  'Skipped',
+        # v1.0.6 Phase 2-a: Encoding report template (saved as text file)
+        'report_header':          'File Nexus Suite — Encoding Conversion Report',
+        'report_file':            'File',
+        'report_path':            'Path',
+        'report_size':            'File size',
+        'report_enc':             'Detected encoding',
+        'report_fail_count':      'Encoding failure count',
+        'report_action':          'Action taken',
+        'report_action_processed':'Corrected',
+        'report_action_skipped':  'Skipped (original preserved)',
+        'report_time':            'Report generated at',
+        'report_line_col':        'Line {line}, Column {col}',
+        'report_bytes':           'Original bytes',
+        'report_context':         'Surrounding text',
+        'report_summary_title':   'Summary',
+        'report_total_failures':  'Total failures',
+        'report_truncated':       'Omitted from tracking (details limited to 5,000 entries)',
+        'report_advice_title':    'Recommended action',
+        'report_advice_tier1':    ('The file was corrected successfully, but some characters are damaged.\n'
+                                  'Please review the affected lines in Notepad or a dedicated text editor,\n'
+                                  'and consider re-downloading from the original source if needed.'),
+        'report_advice_tier2':    ('The file was corrected, but many characters are damaged.\n'
+                                  'The corrected output quality may be degraded — please review it carefully.\n'
+                                  'Prioritize verifying the integrity of the original file.'),
+        'report_advice_tier3':    ('This file had more than 5,000 decoding failures with the encoding shown\n'
+                                  'above ("Detected encoding"). This strongly suggests that the file\'s\n'
+                                  'actual encoding differs from what was detected. Forcing an incorrect\n'
+                                  'encoding could damage the output more than the original file, so it has\n'
+                                  'been automatically excluded to protect the original.\n\n'
+                                  'Recommended action:\n'
+                                  '- Review this file individually in Text Fixer.\n'
+                                  '- Check if the file might be in a different encoding (UTF-8, Shift-JIS, etc.).'),
         'tf_err_fix':      'An error occurred',
         'tf_err_save':     'Cannot save',
         'tf_dlg_nofile':   'File Not Found',
@@ -1681,7 +1771,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_open_explorer': 'エクスプローラーで開く',
         'conv_sub_txt2epub': 'TXT → EPUB',
         'conv_sub_epub2txt': 'EPUB → TXT',
-        'conv_file_list': '📄  ファイル一覧',
         'conv_out_folder': '// 出力フォルダ',
         'conv_out_ph': '空欄 = 入力ファイルと同じ場所に保存',
         'conv_btn_pick': 'フォルダ指定',
@@ -1703,8 +1792,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'conv_ch1': '3行以上の空行基準',
         'conv_ch2': '全体を1章として',
         'conv_status_start': 'ファイルを追加して変換を開始してください。',
-        'conv_help': '📌 <b>TXT → EPUB</b><br>txtファイルをepub電子書籍に変換します。<br><br>📌 <b>EPUB → '
-                     'TXT</b><br>epub電子書籍をtxtテキストに変換します。<br><br>💡 出力フォルダ未指定の場合、元ファイルと同じ場所に保存されます。',
+        'conv_file_list': '// ファイルリスト',
         'tag_sub_remove': 'タグ削除',
         'tag_sub_add': 'タグ追加',
         'tag_sub_depad': '先頭0を削除',
@@ -1869,7 +1957,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'rename_explorer_warn': '⚠  対象フォルダがエクスプローラーで開かれている場合、アクセスエラーが発生することがあります。\n名前変更前にエクスプローラーを閉じるか、別の場所に移動してください。',
         'rename_no_subfolders': 'サブフォルダが見つかりません。',
         'rename_no_files':   'ファイルが見つかりません。',
-        'merge_no_support':  'フォルダにサポートファイルが見つかりません。\nサポート: txt · md · csv · docx · pdf · xlsx 等',
+        'merge_no_support':  'フォルダにサポートファイルが見つかりません。\nサポート: txt · md · csv · docx · pdf · xlsx · hwpx 等',
+        'merge_hwp_legacy_title': 'HWP (旧) ファイルはサポートされていません',
+        'merge_hwp_legacy_msg':   '{n} 個の旧 HWP ファイルが検出されたため追加されませんでした。\n\nハンコムオフィスで <b>名前を付けて保存 → HWPX</b> に変換してから再度お試しください。\n\nText Merger は HWPX (KS X 6101 OWPML 標準) 形式のみをサポートしています。',
         'merge_no_files':   '統合するファイルがありません。',
         'sc_tab_merger': 'Text Mergerに切替',
         'sc_tab_converter': 'Text Converterに切替',
@@ -1975,6 +2065,8 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_enc_gbk':       'GBK (簡体字中国語)',
         'merge_enc_big5':      'Big5 (繁体字中国語)',
         'merge_enc_hint':      'わからない場合は UTF-8 を選択してください',
+        'merge_enc_recommend': '💡 推奨: {enc}',
+        'merge_enc_recommend_apply': '適用',
         'merge_low_conf_hint':  'ℹ chardet の元の信頼度が低く表示されても、検出されたエンコードは正確な場合があります（特にCJKエンコード）。',
         'tag_file_count':    '{n}個のファイル',
         'sc_none':           'なし',
@@ -1987,6 +2079,47 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tf_err_nofile':   'ファイルが見つかりません',
         'tf_err_perm':     '読み取り権限がありません',
         'tf_err_enc':      'サポートされているエンコーディングでファイルを読めません',
+        'tf_warn_partial_enc': '⚠ 一部文字のエンコーディングが破損しています。\n\nファイル: {fname}\n使用エンコーディング: {enc}\n置換された文字数: {n} 文字\n\nファイルは読み込まれましたが、破損箇所には置換文字 (�) が表示されます。\n元のファイルが破損していないか確認してください。',
+        # v1.0.6 Phase 2-a: Bulk Fixer 完了ダイアログ (4分類)
+        'bulk_done_title':   '修正完了',
+        'bulk_done_ok':      '正常処理: {n}件',
+        'bulk_done_warn':    '注意処理: {n}件 (エンコーディングレポート生成済み)',
+        'bulk_done_skip':    'スキップ: {n}件 (Text Fixer での個別確認を推奨)',
+        'bulk_done_fail':    '失敗: {n}件 (デバッグログを確認)',
+        'bulk_status_skip':  'スキップ',
+        # v1.0.6 Phase 2-a: エンコーディングレポートテンプレート (テキストファイルとして保存)
+        'report_header':          'File Nexus Suite — エンコーディング変換レポート',
+        'report_file':            'ファイル',
+        'report_path':            'パス',
+        'report_size':            'ファイルサイズ',
+        'report_enc':             '検出エンコーディング',
+        'report_fail_count':      'エンコーディング失敗数',
+        'report_action':          '処理結果',
+        'report_action_processed':'修正完了',
+        'report_action_skipped':  '処理をスキップ (原本保護)',
+        'report_time':            'レポート生成時刻',
+        'report_line_col':        'Line {line}, Column {col}',
+        'report_bytes':           '元バイト',
+        'report_context':         '周囲のテキスト',
+        'report_summary_title':   '要約統計',
+        'report_total_failures':  '総失敗文字数',
+        'report_truncated':       '追跡省略 (詳細記録は最大5,000件まで)',
+        'report_advice_title':    '推奨対応',
+        'report_advice_tier1':    ('ファイルは正常に修正されましたが、一部の文字が破損しています。\n'
+                                  '該当行をメモ帳または専用テキストエディタで確認し、\n'
+                                  '必要に応じて元の出典から再ダウンロードすることをお勧めします。'),
+        'report_advice_tier2':    ('ファイルは修正されましたが、多数の文字が破損しています。\n'
+                                  '修正結果の品質が低下している可能性があるため、必ず確認してください。\n'
+                                  'まず元ファイルの状態を優先的に確認してください。'),
+        'report_advice_tier3':    ('このファイルは、上記「検出エンコーディング」で 5,000 件以上の\n'
+                                  'デコード失敗が発生しました。\n'
+                                  'これはファイルの実際のエンコーディングが検出されたものと異なる\n'
+                                  '可能性が非常に高いことを意味します。誤ったエンコーディングでの\n'
+                                  '強制処理は原本より悪い結果を生む可能性があるため、原本保護のため\n'
+                                  '自動的に除外されました。\n\n'
+                                  '推奨対応:\n'
+                                  '- Text Fixer でこのファイルを個別に確認してください。\n'
+                                  '- 元ファイルが他のエンコーディング (UTF-8、Shift-JIS など) である可能性を確認してください。'),
         'tf_err_fix':      'エラーが発生しました',
         'tf_err_save':     '保存できません',
         'tf_dlg_nofile':   'ファイルなし',
@@ -2076,7 +2209,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'merge_open_explorer': '在资源管理器中打开',
            'conv_sub_txt2epub': 'TXT → EPUB',
            'conv_sub_epub2txt': 'EPUB → TXT',
-           'conv_file_list': '📄  文件列表',
            'conv_out_folder': '// 输出文件夹',
            'conv_out_ph': '留空则保存到源文件位置',
            'conv_btn_pick': '选择文件夹',
@@ -2098,8 +2230,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'conv_ch1': '3行以上空行',
            'conv_ch2': '整体作为单章',
            'conv_status_start': '添加文件后开始转换。',
-           'conv_help': '📌 <b>TXT → EPUB</b><br>将txt文件转换为epub电子书。<br><br>📌 <b>EPUB → '
-                        'TXT</b><br>将epub电子书转换为txt文本。<br><br>💡 未指定输出文件夹时，保存到源文件所在位置。',
+           'conv_file_list': '// 文件列表',
            'tag_sub_remove': '删除标签',
            'tag_sub_add': '添加标签',
            'tag_sub_depad': '删除前导零',
@@ -2263,7 +2394,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'rename_explorer_warn': '⚠  若目标文件夹在资源管理器中处于打开状态，可能会出现访问错误。\n重命名前请关闭资源管理器或切换到其他位置。',
            'rename_no_subfolders': '没有找到子文件夹。',
            'rename_no_files':   '没有找到文件。',
-           'merge_no_support':  '文件夹中未找到支持的文件。\n支持: txt · md · csv · docx · pdf · xlsx 等',
+           'merge_no_support':  '文件夹中未找到支持的文件。\n支持: txt · md · csv · docx · pdf · xlsx · hwpx 等',
+           'merge_hwp_legacy_title': 'HWP (旧版) 文件不受支持',
+           'merge_hwp_legacy_msg':   '检测到 {n} 个旧版 HWP 文件，已跳过。\n\n请在韩文 Office 中使用 <b>另存为 → HWPX</b> 转换后再试。\n\nText Merger 仅支持 HWPX (KS X 6101 OWPML 标准) 格式。',
            'merge_no_files':   '没有要合并的文件。',
            'sc_tab_merger': '切换到 Text Merger',
            'sc_tab_converter': '切换到 Text Converter',
@@ -2353,6 +2486,46 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tf_err_nofile':   '找不到文件',
            'tf_err_perm':     '没有读取权限',
            'tf_err_enc':      '无法使用支持的编码读取文件',
+           'tf_warn_partial_enc': '⚠ 部分字符的编码已损坏。\n\n文件: {fname}\n使用编码: {enc}\n已替换字符数: {n} 个\n\n文件已加载，但损坏位置将显示替换字符 (�)。\n请确认原始文件未损坏。',
+           # v1.0.6 Phase 2-a: Bulk Fixer 完成对话框 (4分类)
+           'bulk_done_title':   '校正完成',
+           'bulk_done_ok':      '正常处理: {n}个',
+           'bulk_done_warn':    '注意处理: {n}个 (已生成编码报告)',
+           'bulk_done_skip':    '已跳过: {n}个 (建议在 Text Fixer 中单独审核)',
+           'bulk_done_fail':    '失败: {n}个 (请查看调试日志)',
+           'bulk_status_skip':  '已跳过',
+           # v1.0.6 Phase 2-a: 编码报告模板 (保存为文本文件)
+           'report_header':          'File Nexus Suite — 编码转换报告',
+           'report_file':            '文件',
+           'report_path':            '路径',
+           'report_size':            '文件大小',
+           'report_enc':             '检测编码',
+           'report_fail_count':      '编码失败数',
+           'report_action':          '处理结果',
+           'report_action_processed':'校正完成',
+           'report_action_skipped':  '跳过处理 (原文件已保护)',
+           'report_time':            '报告生成时间',
+           'report_line_col':        'Line {line}, Column {col}',
+           'report_bytes':           '原始字节',
+           'report_context':         '周围文本',
+           'report_summary_title':   '统计摘要',
+           'report_total_failures':  '失败字符总数',
+           'report_truncated':       '省略追踪 (详细记录上限 5,000 个)',
+           'report_advice_title':    '建议操作',
+           'report_advice_tier1':    ('文件已正常校正，但部分字符已损坏。\n'
+                                     '请在记事本或专用文本编辑器中确认相关行，\n'
+                                     '如有必要，建议从原始来源重新下载。'),
+           'report_advice_tier2':    ('文件已校正，但大量字符已损坏。\n'
+                                     '校正结果的质量可能已降低，请务必审查。\n'
+                                     '请优先确认原始文件的完整性。'),
+           'report_advice_tier3':    ('此文件在上述"检测编码"下发生了 5,000 个以上的\n'
+                                     '解码失败。\n'
+                                     '这强烈表明文件的实际编码与检测到的编码不同。\n'
+                                     '强制使用错误编码处理可能导致结果比原文件更损坏，\n'
+                                     '因此为保护原始文件，已自动跳过此文件。\n\n'
+                                     '建议操作:\n'
+                                     '- 在 Text Fixer 中单独审核此文件。\n'
+                                     '- 检查此文件是否可能使用其他编码 (UTF-8、Shift-JIS 等)。'),
            'tf_err_fix':      '发生错误',
            'tf_err_save':     '无法保存',
            'tf_dlg_nofile':   '文件不存在',
@@ -2435,6 +2608,8 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'merge_enc_gbk':       'GBK (简体中文)',
            'merge_enc_big5':      'Big5 (繁体中文)',
            'merge_enc_hint':      '不确定时请选择 UTF-8',
+           'merge_enc_recommend': '💡 推荐: {enc}',
+           'merge_enc_recommend_apply': '应用',
            'merge_low_conf_hint':  'ℹ chardet 原始置信度较低时，检测到的编码仍可能准确（尤其是 CJK 编码）。',
            'tag_file_count':    '{n}个文件',
            'sc_none':           '无',
@@ -2470,7 +2645,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'merge_open_explorer': '在檔案總管中開啟',
            'conv_sub_txt2epub': 'TXT → EPUB',
            'conv_sub_epub2txt': 'EPUB → TXT',
-           'conv_file_list': '📄  檔案清單',
            'conv_out_folder': '// 輸出資料夾',
            'conv_out_ph': '留空則儲存到來源檔案位置',
            'conv_btn_pick': '選擇資料夾',
@@ -2492,8 +2666,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'conv_ch1': '3行以上空行',
            'conv_ch2': '整體作為單章',
            'conv_status_start': '新增檔案後開始轉換。',
-           'conv_help': '📌 <b>TXT → EPUB</b><br>將txt檔案轉換為epub電子書。<br><br>📌 <b>EPUB → '
-                        'TXT</b><br>將epub電子書轉換為txt文字。<br><br>💡 未指定輸出資料夾時，儲存到來源檔案所在位置。',
+           'conv_file_list': '// 檔案列表',
            'tag_sub_remove': '移除標籤',
            'tag_sub_add': '新增標籤',
            'tag_sub_depad': '移除前導零',
@@ -2657,7 +2830,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'rename_explorer_warn': '⚠  若目標資料夾在檔案總管中處於開啟狀態，可能會發生存取錯誤。\n重新命名前請關閉檔案總管或切換至其他位置。',
            'rename_no_subfolders': '沒有找到子資料夾。',
            'rename_no_files':   '沒有找到檔案。',
-           'merge_no_support':  '資料夾中未找到支援的檔案。\n支援: txt · md · csv · docx · pdf · xlsx 等',
+           'merge_no_support':  '資料夾中未找到支援的檔案。\n支援: txt · md · csv · docx · pdf · xlsx · hwpx 等',
+           'merge_hwp_legacy_title': 'HWP (舊版) 檔案不受支援',
+           'merge_hwp_legacy_msg':   '偵測到 {n} 個舊版 HWP 檔案，已略過。\n\n請在韓文 Office 中使用 <b>另存新檔 → HWPX</b> 轉換後再試。\n\nText Merger 僅支援 HWPX (KS X 6101 OWPML 標準) 格式。',
            'merge_no_files':   '沒有要合併的檔案。',
            'sc_tab_merger': '切換到 Text Merger',
            'sc_tab_converter': '切換到 Text Converter',
@@ -2748,6 +2923,46 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tf_err_nofile':   '找不到檔案',
            'tf_err_perm':     '沒有讀取權限',
            'tf_err_enc':      '無法使用支援的編碼讀取檔案',
+           'tf_warn_partial_enc': '⚠ 部分字元的編碼已損壞。\n\n檔案: {fname}\n使用編碼: {enc}\n已替換字元數: {n} 個\n\n檔案已載入，但損壞位置將顯示替換字元 (�)。\n請確認原始檔案未損壞。',
+           # v1.0.6 Phase 2-a: Bulk Fixer 完成對話框 (4分類)
+           'bulk_done_title':   '校正完成',
+           'bulk_done_ok':      '正常處理: {n}個',
+           'bulk_done_warn':    '注意處理: {n}個 (已產生編碼報告)',
+           'bulk_done_skip':    '已略過: {n}個 (建議在 Text Fixer 中個別審核)',
+           'bulk_done_fail':    '失敗: {n}個 (請檢查除錯記錄)',
+           'bulk_status_skip':  '已略過',
+           # v1.0.6 Phase 2-a: 編碼報告範本 (儲存為文字檔案)
+           'report_header':          'File Nexus Suite — 編碼轉換報告',
+           'report_file':            '檔案',
+           'report_path':            '路徑',
+           'report_size':            '檔案大小',
+           'report_enc':             '偵測編碼',
+           'report_fail_count':      '編碼失敗數',
+           'report_action':          '處理結果',
+           'report_action_processed':'校正完成',
+           'report_action_skipped':  '略過處理 (原始檔案已保護)',
+           'report_time':            '報告產生時間',
+           'report_line_col':        'Line {line}, Column {col}',
+           'report_bytes':           '原始位元組',
+           'report_context':         '周圍文字',
+           'report_summary_title':   '統計摘要',
+           'report_total_failures':  '失敗字元總數',
+           'report_truncated':       '省略追蹤 (詳細記錄上限 5,000 個)',
+           'report_advice_title':    '建議操作',
+           'report_advice_tier1':    ('檔案已正常校正，但部分字元已損毀。\n'
+                                     '請在記事本或專用文字編輯器中確認相關行，\n'
+                                     '如有必要，建議從原始來源重新下載。'),
+           'report_advice_tier2':    ('檔案已校正，但大量字元已損毀。\n'
+                                     '校正結果的品質可能已降低，請務必審核。\n'
+                                     '請優先確認原始檔案的完整性。'),
+           'report_advice_tier3':    ('此檔案在上述「偵測編碼」下發生了 5,000 個以上的\n'
+                                     '解碼失敗。\n'
+                                     '這強烈顯示檔案的實際編碼與偵測到的編碼不同。\n'
+                                     '強制使用錯誤編碼處理可能導致結果比原始檔案更損毀，\n'
+                                     '因此為保護原始檔案，已自動略過此檔案。\n\n'
+                                     '建議操作:\n'
+                                     '- 在 Text Fixer 中個別審核此檔案。\n'
+                                     '- 檢查此檔案是否可能使用其他編碼 (UTF-8、Shift-JIS 等)。'),
            'tf_err_fix':      '發生錯誤',
            'tf_err_save':     '無法儲存',
            'tf_dlg_nofile':   '檔案不存在',
@@ -2782,6 +2997,8 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'merge_enc_gbk':       'GBK (簡體中文)',
            'merge_enc_big5':      'Big5 (繁體中文)',
            'merge_enc_hint':      '不確定時請選擇 UTF-8',
+           'merge_enc_recommend': '💡 推薦: {enc}',
+           'merge_enc_recommend_apply': '套用',
            'merge_low_conf_hint':  'ℹ chardet 原始信賴度較低時，偵測到的編碼仍可能準確（尤其是 CJK 編碼）。',
            'tag_file_count':    '{n}個檔案',
            'sc_none':           '無',
@@ -3068,6 +3285,8 @@ def _setup_crash_logger():
         _session_log_fp.write(f"OS        : {platform.platform()}\n")
         _session_log_fp.write(f"Python    : {sys.version.split()[0]}\n")
         _session_log_fp.write("=" * 70 + "\n\n")
+        # v1.0.6: 헤더 강제 flush — 강제 종료/데드락 시에도 "앱이 기동은 했음" 증거 보존
+        _session_log_fp.flush()
         # 세션 로그 오래된 것 정리 (크래시 로그만 남으므로 최근 5개 유지)
         s_logs = sorted(
             [os.path.join(_log_dir, f) for f in os.listdir(_log_dir)
@@ -3478,15 +3697,20 @@ def alchemy_detect_encoding(path):
                 # Shift-JIS 변형 → shift_jis로 정규화 (cp932/windows-31j는 Windows 확장)
                 if enc in ("shift_jis","shift-jis","cp932","windows-31j"): return ("shift_jis", conf)
                 return (enc, conf)
-        try: raw.decode("utf-8"); return ("utf-8", 0.0)
+        # v1.0.6: utf-8 strict 통과 시 0.7 부여 (이전 0.0). cp949/shift_jis 폴백과 동일한 논리.
+        # strict 통과는 손실 없이 디코딩 가능 보장 → 추천 임계 0.7 부합. 배지에 "70% UTF-8" 정직 표시.
+        try: raw.decode("utf-8"); return ("utf-8", 0.7)
         except UnicodeDecodeError: pass
         # v1.0.4: chardet이 CJK 파일을 잘못 감지(예: ASCII로 시작하는 Shift-JIS → cp1006 오판)해도
         # 구제 가능하도록 CJK 인코딩을 순차 strict 검증. cp949 → shift_jis → gbk → big5 순서.
         # (Shift-JIS 파일은 cp949 strict 디코딩 실패하므로 우선순위 무관)
+        # v1.0.6: strict 디코딩 통과 시 신뢰도 0.7 부여 (이전엔 0.0 → 자동 추천 알고리즘이 무시했음).
+        # strict 통과는 "해당 인코딩으로 손실 없이 디코딩 가능"이 수학적으로 보장된 상태이므로
+        # 추천 임계(0.7)에 부합. 단, chardet 검증은 거치지 못했으므로 0.9(초록)는 과장 — 0.7(노랑) 적정.
         for _fallback in ("cp949", "shift_jis", "gbk", "big5"):
             try:
                 raw.decode(_fallback)
-                return (_fallback, 0.0)
+                return (_fallback, 0.7)
             except UnicodeDecodeError: continue
         return ("cp949", 0.0)  # 최후의 폴백 (v1.0.3 동작 유지)
     except Exception: return ("utf-8", 0.0)
@@ -3532,6 +3756,383 @@ def alchemy_check_encoding_compat(text, codec):
     # 영향받는 총 글자 수 카운트 (전체 순회, 중복 포함)
     bad_total_count = sum(1 for ch in text if ch in bad_chars)
     return (True, len(bad_chars), bad_total_count, total_chars, samples)
+
+
+# v1.0.6 Phase 2-a: 실패 위치 추적 상한 (이후는 카운트만 집계)
+MAX_TRACK_FAILURES = 5000
+
+# v1.0.6 실기 QA 재최적화: 위치 추적용 thread-local 저장소 + 전역 에러 핸들러
+# (기존 O(N×K) 슬라이싱 방식 대신 codecs.register_error 활용한 단일 O(N) 패스)
+import codecs as _codecs_mod
+import bisect as _bisect_mod
+import threading as _threading_mod
+
+_decode_tracking_state = _threading_mod.local()
+
+
+def _fns_track_error_handler(e):
+    """FileNexusSuite 전용 에러 핸들러 — thread-local 상태에 실패 정보 수집.
+
+    codecs.register_error('_fns_track', ...)로 한 번만 등록.
+    _decode_with_failure_tracking 내에서 thread-local에 captured 리스트 세팅 후 호출.
+
+    Args:
+        e: UnicodeDecodeError — e.start/e.end/e.object 접근
+
+    Returns:
+        tuple[str, int]: (대체 문자열, 다음 디코딩 시작 위치)
+    """
+    captured = getattr(_decode_tracking_state, 'captured', None)
+    if captured is not None and len(captured) < MAX_TRACK_FAILURES:
+        captured.append({
+            'byte_pos': e.start,
+            'bad_bytes': bytes(e.object[e.start:e.end]),
+        })
+    return ('\ufffd', e.end)
+
+
+# 모듈 로드 시 한 번만 등록 (핸들러 누적 방지)
+_codecs_mod.register_error('_fns_track', _fns_track_error_handler)
+
+
+def _decode_with_failure_tracking(raw: bytes, enc: str) -> tuple:
+    """바이트 시퀀스를 디코딩하면서 각 UnicodeDecodeError 위치를 추적 (v1.0.6 Phase 2-a).
+
+    v1.0.6 재최적화 (실기 QA 중 O(N×K) 프리징 발견):
+        기존: `while pos < len: raw[pos:].decode('strict')` — 매 반복마다 슬라이스 복사 →
+              27MB 파일 + 수천 에러에서 UI 프리징 발생
+        변경: codecs.register_error 기반 커스텀 에러 핸들러 + 단일 raw.decode() 호출 →
+              C 레벨 단일 O(N) 패스
+
+    알고리즘:
+        1. thread-local에 captured 리스트 세팅
+        2. raw.decode(enc, errors='_fns_track') — 핸들러가 각 에러 시 captured에 수집
+        3. 디코딩된 text에서 \\ufffd 위치 검색 (str.find, C 레벨 O(N))
+        4. \\n 위치 인덱스 구축 (str.find 루프, C 레벨 O(N))
+        5. bisect로 라인/컬럼 O(log N) 조회
+
+    성능: 27MB + 수천 에러 시나리오 — 분 단위 → 수백 ms 이내 (수백~수천배 개선)
+
+    Args:
+        raw: 원시 바이트 시퀀스
+        enc: 시도할 인코딩 이름
+
+    Returns:
+        tuple[str | None, list, int]:
+            - text: 디코딩된 텍스트 (None이면 재앙적 실패)
+            - failures: 실패 위치 dict 리스트 (최대 MAX_TRACK_FAILURES개)
+                       각 dict: {byte_pos, bad_bytes_hex, line, col, context}
+            - total_failures: 실제 전체 실패 수 (MAX 초과분 포함)
+    """
+    # Thread-local captured 리스트 준비
+    captured = []
+    _decode_tracking_state.captured = captured
+
+    try:
+        try:
+            text = raw.decode(enc, errors='_fns_track')
+        except (LookupError, TypeError):
+            # 존재하지 않는 인코딩 등 — 재앙적 실패
+            return (None, [], 0)
+        except Exception:
+            # 예상치 못한 실패 → errors='replace'로 폴백 (위치 정보 손실)
+            try:
+                text = raw.decode(enc, errors='replace')
+                return (text, [], text.count('\ufffd'))
+            except Exception:
+                return (None, [], 0)
+    finally:
+        _decode_tracking_state.captured = None
+
+    # 전체 실패 수: 디코딩된 text의 \ufffd 개수 (C 레벨 빠른 카운트)
+    total_failures = text.count('\ufffd')
+
+    if total_failures == 0 or not captured:
+        return (text, [], total_failures)
+
+    # captured에 있는 각 에러의 char_pos(= text 내 \ufffd 위치) 찾기
+    # captured는 최대 MAX_TRACK_FAILURES개, text.find는 C 레벨이라 빠름
+    ufffd_positions = []
+    start = 0
+    for _ in range(len(captured)):
+        pos = text.find('\ufffd', start)
+        if pos < 0:
+            break
+        ufffd_positions.append(pos)
+        start = pos + 1
+
+    # 라인 번호 조회용 \n 위치 인덱스 구축 (한 번만, O(N))
+    nl_positions = []
+    start = 0
+    while True:
+        pos = text.find('\n', start)
+        if pos < 0:
+            break
+        nl_positions.append(pos)
+        start = pos + 1
+
+    # failures 리스트 조립 (각 항목 O(log N))
+    failures = []
+    for cap, cp in zip(captured, ufffd_positions):
+        # 라인/컬럼 — bisect로 빠른 조회
+        line_idx = _bisect_mod.bisect_left(nl_positions, cp)
+        line_num = line_idx + 1
+        if line_idx > 0:
+            col = cp - nl_positions[line_idx - 1]
+        else:
+            col = cp + 1
+
+        # 주변 텍스트: 앞 20자 + � + 뒤 20자 (제어문자는 공백으로 정규화)
+        ctx_start = max(0, cp - 20)
+        ctx_end = min(len(text), cp + 21)  # +1 for \ufffd itself, +20 for after
+        ctx = text[ctx_start:ctx_end]
+        ctx = ctx.replace('\r', ' ').replace('\n', ' ').replace('\t', ' ')
+
+        failures.append({
+            'byte_pos': cap['byte_pos'],
+            'bad_bytes_hex': ' '.join(f'0x{b:02X}' for b in cap['bad_bytes']),
+            'line': line_num,
+            'col': col,
+            'context': ctx,
+        })
+
+    return (text, failures, total_failures)
+
+
+def safe_read_text_with_report(path: str) -> tuple:
+    """파일을 안전하게 읽기 — strict 폴백 8개 실패 시 errors='replace'로 최종 재시도 (v1.0.6 신규).
+
+    메모장처럼 "부분적으로 깨진 파일"도 읽기 가능하게 만들어 미리보기/교정이 완전 실패하지 않도록 함.
+    깨진 바이트는 U+FFFD(Replacement Character, '�')로 대체됨 (Python errors='replace' 기본값).
+
+    v1.0.6 Phase 2-a: 실패 위치 추적 추가 — replace 모드 시 각 오류의 바이트/라인/컬럼 정보 수집.
+
+    Args:
+        path: 파일 경로
+
+    Returns:
+        tuple[str | None, str, str, int, list, int]:
+            - text: 읽어들인 텍스트 (None이면 파일 접근 자체 실패)
+            - used_enc: 실제 사용된 인코딩 이름
+            - read_mode: 'strict' (정상 strict 디코딩 성공) 또는 'replace' (errors='replace' 폴백)
+            - replace_count: replace 모드 시 U+FFFD 치환된 문자 수 (strict 성공 시 0)
+            - failures: replace 모드 시 실패 위치 리스트 (최대 MAX_TRACK_FAILURES개),
+                       각 항목 dict(byte_pos, bad_bytes_hex, line, col, context). strict 성공 시 빈 리스트.
+            - total_failures: replace 모드 시 실제 전체 실패 수 (MAX_TRACK_FAILURES 초과분 포함).
+                             strict 성공 시 0.
+    """
+    try:
+        detected_enc, _conf = alchemy_detect_encoding(path)
+    except Exception:
+        detected_enc = "utf-8"
+    # 1단계: strict 디코딩 폴백 8종 시도 (기존 로직 유지)
+    candidates = (detected_enc, 'utf-8-sig', 'utf-8', 'cp949', 'euc-kr',
+                  'shift_jis', 'gbk', 'big5')
+    for enc in candidates:
+        try:
+            with open(path, 'r', encoding=enc) as f:
+                return (f.read(), enc, 'strict', 0, [], 0)
+        except (UnicodeDecodeError, LookupError):
+            continue
+        except OSError:
+            # 파일 접근 불가 (권한/없음 등) — 더 시도해도 의미 없음
+            return (None, detected_enc, 'strict', 0, [], 0)
+    # 2단계: strict 전부 실패 → errors='replace'로 최종 재시도 + 위치 추적
+    # 감지 인코딩 우선, 그것도 아니면 cp949 (한글 환경 기본값)
+    replace_enc = detected_enc if detected_enc else 'cp949'
+    try:
+        with open(path, 'rb') as f:
+            raw = f.read()
+    except Exception:
+        return (None, replace_enc, 'replace', 0, [], 0)
+
+    text, failures, total_failures = _decode_with_failure_tracking(raw, replace_enc)
+    if text is None:
+        return (None, replace_enc, 'replace', 0, [], 0)
+
+    replace_count = text.count('\ufffd')
+    return (text, replace_enc, 'replace', replace_count, failures, total_failures)
+
+
+def write_encoding_report(
+    output_dir,
+    original_path: str,
+    used_enc: str,
+    failures: list,
+    total_failures: int,
+    action_taken: str,
+    lang: str = None,
+):
+    """인코딩 리포트 파일 생성 (v1.0.6 Phase 2-a).
+
+    Bulk Fixer에서 replace 모드로 처리된 파일의 사후 투명성 제공.
+    total_failures == 0이면 생성하지 않음 (정상 처리 파일).
+
+    티어별 권장 조치 분기:
+    - Tier 1 (1~500): 'processed' + report_advice_tier1 (일부 손상, 검토 권장)
+    - Tier 2 (501~5000): 'processed' + report_advice_tier2 (다수 손상, 원본 확인)
+    - Tier 3 (5001+): 'skipped' + report_advice_tier3 (원본 보호 위해 스킵, Text Fixer 권장)
+
+    Args:
+        output_dir: 리포트 저장 폴더. None 또는 유효하지 않으면 원본 파일 폴더 사용.
+        original_path: 원본 파일 경로 (리포트 메타데이터용)
+        used_enc: 디코딩에 사용된 인코딩 이름
+        failures: 실패 위치 dict 리스트 (최대 MAX_TRACK_FAILURES개)
+        total_failures: 실제 전체 실패 수
+        action_taken: 'processed' (Tier 1/2) 또는 'skipped' (Tier 3)
+        lang: 리포트 언어 코드 (None이면 현재 UI 언어)
+
+    Returns:
+        생성된 리포트 파일 경로. 실패 또는 total_failures==0이면 None.
+    """
+    if total_failures <= 0:
+        return None
+
+    # 저장 경로 결정: output_dir 있으면 그곳, 없으면 원본 파일 폴더
+    original_dir = os.path.dirname(original_path)
+    if output_dir and os.path.isdir(output_dir):
+        save_dir = output_dir
+    else:
+        save_dir = original_dir
+    fname = os.path.basename(original_path)
+    report_name = f"{fname}.encoding_report.txt"
+    report_path = os.path.join(save_dir, report_name)
+
+    # 현재 언어 (리포트 생성 시점 고정)
+    if lang is None:
+        lang = _current_lang
+
+    def _rt(key, **kwargs):
+        """리포트 전용 번역 — lang 파라미터 기반 (워커 스레드에서 _current_lang이 바뀌어도 고정)."""
+        s = (TRANSLATIONS.get(lang, TRANSLATIONS['ko']).get(key)
+             or TRANSLATIONS['ko'].get(key, key))
+        return s.format(**kwargs) if kwargs else s
+
+    try:
+        try:
+            file_size = os.path.getsize(original_path)
+        except OSError:
+            file_size = 0
+
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # 티어 분기
+        if action_taken == 'skipped':
+            tier_key = 'report_advice_tier3'
+        elif total_failures > 500:
+            tier_key = 'report_advice_tier2'
+        else:
+            tier_key = 'report_advice_tier1'
+
+        action_text = (_rt('report_action_skipped') if action_taken == 'skipped'
+                       else _rt('report_action_processed'))
+
+        sep = '=' * 68
+        lines = []
+        # 헤더
+        lines.append(sep)
+        lines.append(f'  {_rt("report_header")}')
+        lines.append(sep)
+        lines.append(f'{_rt("report_file")}: {fname}')
+        lines.append(f'{_rt("report_path")}: {original_path}')
+        lines.append(f'{_rt("report_size")}: {file_size:,} bytes')
+        lines.append(f'{_rt("report_enc")}: {used_enc.upper()}')
+        lines.append(f'{_rt("report_fail_count")}: {total_failures:,}')
+        lines.append(f'{_rt("report_action")}: {action_text}')
+        lines.append(f'{_rt("report_time")}: {now_str}')
+        lines.append('')
+
+        # 실패 위치 리스트 (최대 MAX_TRACK_FAILURES개)
+        for i, f in enumerate(failures, 1):
+            lines.append(f'[{i}] {_rt("report_line_col", line=f["line"], col=f["col"])}')
+            lines.append(f'    {_rt("report_bytes")}: {f["bad_bytes_hex"]}')
+            lines.append(f'    {_rt("report_context")}: "{f["context"]}"')
+            lines.append('')
+
+        # 요약 통계
+        lines.append(sep)
+        lines.append(f'  {_rt("report_summary_title")}')
+        lines.append(sep)
+        lines.append(f'{_rt("report_total_failures")}: {total_failures:,}')
+        truncated = total_failures - len(failures)
+        if truncated > 0:
+            lines.append(f'{_rt("report_truncated")}: {truncated:,}')
+        lines.append('')
+
+        # 권장 조치
+        lines.append(sep)
+        lines.append(f'  {_rt("report_advice_title")}')
+        lines.append(sep)
+        lines.append(_rt(tier_key))
+        lines.append('')
+
+        content = '\n'.join(lines)
+
+        # UTF-8 BOM 없이 저장 (다른 텍스트 에디터 호환)
+        with open(report_path, 'w', encoding='utf-8') as rf:
+            rf.write(content)
+
+        return report_path
+    except Exception as e:
+        _glog(f"[Bulk Fixer] 리포트 생성 실패: {fname}: {e}")
+        return None
+
+
+def merger_recommend_save_encoding(enc_map: dict, conf_map: dict) -> tuple:
+    """Text Merger의 감지된 파일 인코딩들을 분석해 안전한 저장 인코딩 추천 (v1.0.6 신규).
+
+    A1'' 정책 (신뢰도 임계 적용):
+    - 모든 텍스트 파일이 동일한 비유니코드 인코딩으로 감지되었고,
+      모든 파일의 신뢰도가 0.7 이상이면 → 그 인코딩 추천
+    - 그 외 모든 경우 → UTF-8 추천 (안전)
+    - docx/pdf/xlsx 같은 바이너리 마커는 무시 (텍스트 추출 결과는 평문)
+
+    잘못 감지된 케이스(신뢰도 < 0.7)에서는 UTF-8로 안전하게 폴백.
+    1번 원칙(정직성): "자신 없는 추천은 추천하지 않는다"
+
+    Args:
+        enc_map:  {파일경로: 인코딩명}     — TextMergerPanel.enc_map
+        conf_map: {파일경로: 신뢰도(0~1)}  — TextMergerPanel.enc_confidence
+
+    Returns:
+        tuple[str, str]: (드롭다운 userData 키, 사용자 표시 이름)
+            예: ("CP949", "CP949"), ("UTF-8", "UTF-8"), ("Shift-JIS", "Shift-JIS")
+    """
+    # 텍스트 파일만 필터링 (바이너리 마커 제외)
+    _BINARY_MARKERS = {"DOCX", "PDF", "XLSX"}
+    text_files = {
+        path: enc for path, enc in enc_map.items()
+        if enc.upper() not in _BINARY_MARKERS
+    }
+    # 텍스트 파일 0개면 → UTF-8 (기본 안전값)
+    if not text_files:
+        return ("UTF-8", "UTF-8")
+
+    # alchemy_detect_encoding이 정규화한 비유니코드 이름 → 드롭다운 userData 키 매핑
+    _RECOMMENDABLE = {
+        "cp949":     "CP949",
+        "euc-kr":    "EUC-KR",
+        "shift_jis": "Shift-JIS",
+        "gbk":       "GBK",
+        "big5":      "Big5",
+    }
+    # 모든 텍스트 파일이 같은 인코딩인지
+    enc_set = set(e.lower() for e in text_files.values())
+    if len(enc_set) != 1:
+        return ("UTF-8", "UTF-8")
+    only_enc = enc_set.pop()
+    if only_enc not in _RECOMMENDABLE:
+        return ("UTF-8", "UTF-8")  # UTF-8/UTF-16 등은 그대로 UTF-8
+
+    # A1'' 핵심: 모든 파일 신뢰도 ≥ 0.7
+    _MIN_CONF = 0.7
+    confs = [conf_map.get(p, 0.0) for p in text_files.keys()]
+    if any(c < _MIN_CONF for c in confs):
+        return ("UTF-8", "UTF-8")  # 신뢰도 부족 → 안전한 UTF-8
+
+    rec_key = _RECOMMENDABLE[only_enc]
+    return (rec_key, rec_key)
+
 
 def _de(s):
     s = s.replace("&amp;","&").replace("&lt;","<").replace("&gt;",">") \
@@ -4017,63 +4618,6 @@ class MergeDropZone(QLabel):
             self.files_dropped.emit(paths); e.acceptProposedAction()
         else: e.ignore()
 
-# ── Text Merger DragDrop List ──────────────────
-class MergeDragList(QListWidget):
-    files_dropped = Signal(list)
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAcceptDrops(True)
-        self.setDragDropMode(QListWidget.InternalMove)
-        self.setDefaultDropAction(Qt.DropAction.MoveAction)
-        self.setSelectionMode(QListWidget.ExtendedSelection)
-    def dragEnterEvent(self,e):
-        if e.mimeData().hasUrls(): e.acceptProposedAction()
-        else: super().dragEnterEvent(e)
-    def dragMoveEvent(self,e):
-        if e.mimeData().hasUrls(): e.acceptProposedAction()
-        else: super().dragMoveEvent(e)
-    def dropEvent(self,e):
-        if e.mimeData().hasUrls():
-            paths=[u.toLocalFile() for u in e.mimeData().urls() if u.isLocalFile()]
-            self.files_dropped.emit(paths); e.acceptProposedAction()
-        else: super().dropEvent(e)
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        if self.count() > 0: return          # 파일 있으면 기본 렌더링만
-
-        painter = QPainter(self.viewport())
-        painter.setRenderHint(QPainter.Antialiasing)
-        r = self.viewport().rect()
-        cx, cy = r.center().x(), r.center().y()
-
-        # ── 아이콘 (Batch Renamer 기준 26px HTML ≈ 22pt) ──
-        icon_font = QFont(painter.font())
-        icon_font.setPointSize(21)
-        try: icon_font.setFamilies(["Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji","Noto Emoji"])
-        except AttributeError: icon_font.setFamily("Segoe UI Emoji")
-        painter.setFont(icon_font)
-        painter.setPen(QColor(_T['BORDER']))
-        painter.drawText(QRect(cx - 30, cy - 54, 60, 38), Qt.AlignmentFlag.AlignCenter, "📋")
-
-        # ── 주 메시지 (13px HTML ≈ 10pt) ──────────────────
-        main_font = QFont(painter.font())
-        main_font.setPointSize(10); main_font.setBold(False)
-        painter.setFont(main_font)
-        painter.setPen(QColor(_T['MUTED']))
-        painter.drawText(QRect(cx - 200, cy - 10, 400, 22), Qt.AlignmentFlag.AlignCenter,
-                         _t("merge_drop"))
-
-        # ── 보조 메시지 (10px HTML ≈ 8pt) ─────────────────
-        sub_font = QFont(painter.font())
-        sub_font.setPointSize(10)
-        painter.setFont(sub_font)
-        painter.setPen(QColor(_T['TEXT']))
-        painter.drawText(QRect(cx - 200, cy + 20, 400, 22), Qt.AlignmentFlag.AlignCenter,
-                         "txt · md · csv · docx · pdf · xlsx · json · xml " + _t("merge_ext_supported"))
-        painter.end()
-
-
 class MergeFileTree(QTreeWidget):
     """Text Merger 전용 QTreeWidget — 외부 파일 드롭 + 내부 순서 드래그 지원."""
     files_dropped = Signal(list)
@@ -4158,10 +4702,124 @@ class MergeFileTree(QTreeWidget):
         else:
             e.ignore()
 
+# ── Text Converter DropZone (v1.0.6 §5.2 #7 신규) ───
+class TextConverterDropZone(QLabel):
+    """Text Converter 전용 드래그 앤 드롭 존 (v1.0.6 #7 신규).
+
+    BulkFixerDropZone 패턴 복제하되 Text Converter 고유 요구사항 반영:
+    - mode에 따라 .txt(txt2epub) / .epub(epub2txt) 동적 허용
+    - 폴더 드롭 미지원 (Text Converter는 _btn_add_folder 없는 기존 정책 유지)
+    - 모드 전환 시 텍스트/아이콘 즉시 갱신
+    """
+    files_dropped = Signal(list)   # mode에 맞는 확장자 파일 목록
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._mode = "txt2epub"
+        self.setObjectName("tcDropZone")
+        self.setAcceptDrops(True)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.setMinimumHeight(110)
+        self.setTextFormat(Qt.TextFormat.RichText)
+        self.set_idle()
+
+    def set_mode(self, mode: str):
+        """모드 전환 — 드롭존 텍스트/아이콘 즉시 갱신."""
+        self._mode = mode
+        self.set_idle()
+
+    def _current_icon(self):
+        return "📚" if self._mode == "epub2txt" else "📄"
+
+    def _current_main_key(self):
+        return 'conv_drop_epub' if self._mode == "epub2txt" else 'conv_drop_txt'
+
+    def _current_fmt_key(self):
+        return 'conv_drop_epub_fmt' if self._mode == "epub2txt" else 'conv_drop_txt_fmt'
+
+    def set_idle(self):
+        t = _T
+        self.setStyleSheet(
+            f"QLabel#tcDropZone{{border:1.5px dashed {t['BORDER']};"
+            f"border-radius:10px;background:{t['SURFACE']};padding:14px;"
+            f"color:{t['TEXT']};}}")
+        self.setText(
+            f"<div style='text-align:center;'>"
+            f"<div style='font-size:28px;line-height:1;font-family:{_EMOJI_FONT_FAMILY};'>"
+            f"{self._current_icon()}</div>"
+            f"<div style='color:{t['MUTED']};font-size:13px;margin-top:8px;'>"
+            f"{_t(self._current_main_key())}</div>"
+            f"<div style='color:{t['DISABLED']};font-size:13px;margin-top:4px;'>"
+            f"{_t(self._current_fmt_key())}</div>"
+            f"</div>")
+
+    def set_hover(self):
+        t = _T
+        self.setStyleSheet(
+            f"QLabel#tcDropZone{{border:2px dashed {t['ACCENT']};"
+            f"border-radius:10px;background:{_accent_alpha(0.07)};padding:14px;}}")
+        self.setText(
+            f"<div style='text-align:center;'>"
+            f"<div style='font-size:28px;line-height:1;font-family:{_EMOJI_FONT_FAMILY};'>"
+            f"{self._current_icon()}</div>"
+            f"<div style='color:{t['ACCENT']};font-size:13px;margin-top:8px;'>"
+            f"{_t('tf_drop_hover')}</div>"
+            f"</div>")
+
+    def refresh_style(self):
+        self.set_idle()
+
+    def _has_valid(self, mime):
+        """mode에 맞는 확장자 파일이 하나라도 있는지 확인. 폴더는 모두 거부."""
+        if not mime.hasUrls(): return False
+        ext = ".epub" if self._mode == "epub2txt" else ".txt"
+        for u in mime.urls():
+            if not u.isLocalFile(): continue
+            p = u.toLocalFile()
+            if os.path.isdir(p): continue  # 폴더는 허용 안 함
+            if p.lower().endswith(ext): return True
+        return False
+
+    def dragEnterEvent(self, e):
+        if self._has_valid(e.mimeData()):
+            self.set_hover(); e.acceptProposedAction()
+        else:
+            e.ignore()
+
+    def dragMoveEvent(self, e):
+        if self._has_valid(e.mimeData()): e.acceptProposedAction()
+        else: e.ignore()
+
+    def dragLeaveEvent(self, e):
+        self.set_idle()
+
+    def dropEvent(self, e):
+        self.set_idle()
+        ext = ".epub" if self._mode == "epub2txt" else ".txt"
+        valid_files = []
+        for url in e.mimeData().urls():
+            if not url.isLocalFile(): continue
+            p = url.toLocalFile()
+            if os.path.isdir(p): continue  # 폴더 무시 (미지원)
+            if p.lower().endswith(ext):
+                valid_files.append(p)
+        if valid_files:
+            self.files_dropped.emit(valid_files)
+            e.acceptProposedAction()
+        else:
+            e.ignore()
+
+
 # ── Text Converter FileList ─────────────────────
 class TextConverterFileList(QTreeWidget):
-    """Text Converter 전용 파일 목록 — 파일명|경로 2컬럼, 헤더 클릭 정렬."""
+    """Text Converter 전용 파일 목록 — 파일명|경로 2컬럼, 헤더 클릭 정렬.
+
+    v1.0.6 #7: InternalMove → DragDrop 모드로 전환. 외부 드롭은 TextConverterDropZone이 담당.
+    이 위젯은 내부 재정렬 전용. BulkFixerFileList 패턴 복제.
+    """
     files_changed = Signal(int)
+    order_changed = Signal()  # v1.0.6 #7: 드래그 재정렬 완료 시그널
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -4173,15 +4831,21 @@ class TextConverterFileList(QTreeWidget):
         self.setUniformRowHeights(True)
         self.setAlternatingRowColors(True)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.setDragDropMode(QAbstractItemView.InternalMove)
+        # v1.0.6 #7: DragDrop 모드 (InternalMove + e.ignore() 조합의 Qt 자동 삭제 버그 회피)
+        self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
-        self.setAcceptDrops(True); self.setDropIndicatorShown(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+        self.setDragEnabled(True)
         self.setSortingEnabled(False)
         hdr = self.header()
         hdr.setSectionResizeMode(0, QHeaderView.Stretch)
         hdr.setSectionResizeMode(1, QHeaderView.Interactive)
         self.setColumnWidth(1, 180)
         hdr.setSortIndicatorShown(True)
+        # v1.0.6 #7: setSortingEnabled(False) 시 헤더 클릭이 비활성화되는 Qt 동작 대응
+        # — BulkFixerFileList에서 검증된 패턴 복제
+        hdr.setSectionsClickable(True)
         hdr.sectionClicked.connect(self._on_header_clicked)
 
     def _on_header_clicked(self, col):
@@ -4195,9 +4859,13 @@ class TextConverterFileList(QTreeWidget):
         self._files.sort(key=natural_sort_key, reverse=not ascending)
         self._rebuild()
 
+    # v1.0.6: 순수 파일 경로 저장용 UserRole (toolTip 오염 방지 — MergeEncodingDelegate와 동일 정책)
+    _PATH_ROLE = Qt.ItemDataRole.UserRole + 4
+
     def _make_item(self, path):
         item = QTreeWidgetItem([os.path.basename(path), os.path.dirname(path)])
         item.setToolTip(0, path); item.setToolTip(1, path)
+        item.setData(0, self._PATH_ROLE, path)  # v1.0.6: 순수 경로
         return item
 
     def _rebuild(self):
@@ -4251,71 +4919,69 @@ class TextConverterFileList(QTreeWidget):
         else: super().keyPressEvent(e)
 
     def _sync(self):
-        self._files = [self.topLevelItem(i).toolTip(0)
+        # v1.0.6: _PATH_ROLE 우선 조회, 구버전 호환 폴백
+        def _p(it):
+            v = it.data(0, self._PATH_ROLE)
+            return v if v else it.toolTip(0)
+        self._files = [_p(self.topLevelItem(i))
                        for i in range(self.topLevelItemCount())]
 
+    def startDrag(self, supported_actions):
+        """v1.0.6 #7: CopyAction 강제 — Qt의 MoveAction 자동 소스 삭제 차단.
+        실제 이동은 dropEvent에서 수동 처리. (BulkFixerFileList 패턴)"""
+        super().startDrag(Qt.DropAction.CopyAction)
+
     def dragEnterEvent(self, e):
-        if e.mimeData().hasUrls(): e.acceptProposedAction()
-        else: super().dragEnterEvent(e)
+        # v1.0.6 #7: 내부 재정렬만 허용 (외부 드롭은 TextConverterDropZone이 처리)
+        if e.source() is self: e.acceptProposedAction()
+        else: e.ignore()
 
     def dragMoveEvent(self, e):
-        if e.mimeData().hasUrls(): e.acceptProposedAction()
-        else: super().dragMoveEvent(e)
+        if e.source() is self: e.acceptProposedAction()
+        else: e.ignore()
 
     def dropEvent(self, e):
-        if e.mimeData().hasUrls():
-            paths = [u.toLocalFile() for u in e.mimeData().urls()]
-            self.add_files(paths); e.acceptProposedAction()
-        elif e.source() is self:
-            # QTreeWidget InternalMove 버그 우회 — 수동 이동 처리
-            target = self.itemAt(e.pos())
-            dragged = self.selectedItems()
-            if not dragged or target is None or target in dragged:
-                e.ignore(); return
-            target_row = self.indexOfTopLevelItem(target)
-            drop_above = e.pos().y() < self.visualItemRect(target).center().y()
+        """v1.0.6 #7: 수동 내부 재정렬 (BulkFixerFileList 패턴 복제)."""
+        if e.source() is not self:
+            e.ignore(); return
+        dragged = self.selectedItems()
+        if not dragged:
+            e.accept(); return
+        target = self.itemAt(e.pos())
+        if target is None:
+            # 빈 영역에 드롭 → 맨 끝으로 이동
             src_rows = sorted([self.indexOfTopLevelItem(i) for i in dragged], reverse=True)
             saved = []
             for row in src_rows:
                 saved.insert(0, self.takeTopLevelItem(row))
-                if row < target_row:
-                    target_row -= 1
-            insert_row = target_row if drop_above else target_row + 1
-            for i, item in enumerate(saved):
-                self.insertTopLevelItem(insert_row + i, item)
+            for item in saved:
+                self.addTopLevelItem(item)
             self.selectionModel().clearSelection()
-            for i in range(len(saved)):
-                t = self.topLevelItem(insert_row + i)
-                if t: t.setSelected(True)
-            self._sync()
+            for item in saved: item.setSelected(True)
             e.acceptProposedAction()
-        else:
-            e.ignore()
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        if self.topLevelItemCount() > 0: return
-        is_epub = (self._mode == "epub2txt")
-        icon     = "📚" if is_epub else "📄"
-        main_msg = _t("conv_drop_epub") if is_epub else _t("conv_drop_txt")
-        sub_msg  = _t("conv_drop_epub_fmt") if is_epub else _t("conv_drop_txt_fmt")
-        painter = QPainter(self.viewport())
-        painter.setRenderHint(QPainter.Antialiasing)
-        r = self.viewport().rect()
-        cx = r.center().x(); cy = r.center().y()
-        icon_font = QFont(painter.font()); icon_font.setPointSize(21)
-        try: icon_font.setFamilies(["Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji","Noto Emoji"])
-        except AttributeError: icon_font.setFamily("Segoe UI Emoji")
-        painter.setFont(icon_font); painter.setPen(QColor(_T['BORDER']))
-        painter.drawText(QRect(cx - 30, cy - 54, 60, 38), Qt.AlignmentFlag.AlignCenter, icon)
-        main_font = QFont(painter.font())
-        main_font.setPointSize(10); main_font.setBold(False)
-        painter.setFont(main_font); painter.setPen(QColor(_T['MUTED']))
-        painter.drawText(QRect(cx - 200, cy - 10, 400, 22), Qt.AlignmentFlag.AlignCenter, main_msg)
-        sub_font = QFont(painter.font()); sub_font.setPointSize(9)
-        painter.setFont(sub_font); painter.setPen(QColor(_T['DISABLED']))
-        painter.drawText(QRect(cx - 200, cy + 20, 400, 22), Qt.AlignmentFlag.AlignCenter, sub_msg)
-        painter.end()
+            self._sync()
+            self.order_changed.emit()
+            return
+        if target in dragged:
+            e.accept(); return  # 자기 자신에 드롭 — 무시
+        target_row = self.indexOfTopLevelItem(target)
+        drop_above = e.pos().y() < self.visualItemRect(target).center().y()
+        src_rows = sorted([self.indexOfTopLevelItem(i) for i in dragged], reverse=True)
+        saved = []
+        for row in src_rows:
+            saved.insert(0, self.takeTopLevelItem(row))
+            if row < target_row:
+                target_row -= 1
+        insert_row = target_row if drop_above else target_row + 1
+        for i, item in enumerate(saved):
+            self.insertTopLevelItem(insert_row + i, item)
+        self.selectionModel().clearSelection()
+        for i in range(len(saved)):
+            t = self.topLevelItem(insert_row + i)
+            if t: t.setSelected(True)
+        e.acceptProposedAction()
+        self._sync()
+        self.order_changed.emit()
 
 # ── Text Converter Worker ───────────────────────
 class ConvertWorker(QThread):
@@ -5454,99 +6120,68 @@ class TextConverterPanel(QWidget):
         body_lay.setContentsMargins(16, 14, 16, 14)
         body_lay.setSpacing(16)
 
-        # ── 왼쪽: 파일 목록 + 출력 폴더 ─────────
+        # ── 왼쪽: 드롭존 + 파일 목록 + 조작 버튼 (v1.0.6 #7) ──
         left = QWidget()
         left_lay = QVBoxLayout(left)
         left_lay.setContentsMargins(0, 0, 0, 0)
         left_lay.setSpacing(10)
 
-        # 파일 목록 — GroupBox 제거, 직접 배치
+        # v1.0.6 #7: 드롭존 (상단) — 외부 파일 드롭 전용, mode 기반 동적 전환
+        self._drop_zone = TextConverterDropZone()
+        self._drop_zone.files_dropped.connect(self._on_files_dropped)
+        left_lay.addWidget(self._drop_zone)
+
+        # 파일 목록 타이틀 (BulkFixer 패턴)
+        self._lbl_file_list = QLabel(_t('conv_file_list'))
+        self._lbl_file_list.setObjectName("grp_title_lbl")
+        left_lay.addWidget(self._lbl_file_list)
+
+        # _flist 먼저 생성 — 상·하단 버튼의 connect()가 참조하기 때문
         self._flist = TextConverterFileList()
-        self._flist.setMinimumHeight(120)
+        self._flist.setMinimumHeight(200)
         self._lbl_cnt = QLabel(""); self._lbl_cnt.setObjectName("count_lbl")
         self._flist.files_changed.connect(lambda n: self._lbl_cnt.setText(_t("conv_file_count", n=n)))
+
+        # 상단 버튼 행: 파일 추가 / 전체 삭제 (BulkFixer 패턴)
+        top_row = QHBoxLayout(); top_row.setSpacing(6)
+        self._btn_add = QPushButton(_t('btn_add_file'))
+        self._btn_add.setObjectName("btn_primary")
+        self._btn_add.setIcon(_svg_icon('document', 'white')); self._btn_add.setIconSize(QSize(20,20))
+        self._btn_add.clicked.connect(self._add_files)
+        self._btn_clr = QPushButton(_t('btn_del_all'))
+        self._btn_clr.setIcon(_svg_icon('trash', ACCENT)); self._btn_clr.setIconSize(QSize(20,20))
+        self._btn_clr.clicked.connect(self._flist.clear_files)
+        for btn in [self._btn_add, self._btn_clr]:
+            btn.setFixedHeight(36)
+        top_row.addWidget(self._btn_add)
+        top_row.addStretch()
+        top_row.addWidget(self._btn_clr)
+        left_lay.addLayout(top_row)
+
+        # 파일 리스트 — 레이아웃에 추가 (QTreeWidget 헤더 클릭으로 정렬)
         left_lay.addWidget(self._flist, 1)
 
-        # 파일 버튼 행 — GroupBox 밖, Batch Renamer 스타일
-        frow = QHBoxLayout(); frow.setSpacing(6)
-        self._btn_add = QPushButton(_t('btn_add_file')); self._btn_add.setObjectName("btn_primary"); self._btn_add.clicked.connect(self._add_files)
-        self._btn_add.setIcon(_svg_icon('document', 'white')); self._btn_add.setIconSize(QSize(20,20))
-        self._btn_del = QPushButton(_t('btn_del_sel')); self._btn_del.clicked.connect(self._flist.remove_selected)
+        # 하단 버튼 행: 선택 삭제 / 위 / 아래 / 카운트 (BulkFixer 패턴)
+        bot_row = QHBoxLayout(); bot_row.setSpacing(6)
+        self._btn_del = QPushButton(_t('btn_del_sel'))
         self._btn_del.setIcon(_svg_icon('trash', ACCENT)); self._btn_del.setIconSize(QSize(20,20))
-        self._btn_clr = QPushButton(_t('btn_del_all')); self._btn_clr.clicked.connect(self._flist.clear_files)
-        self._btn_clr.setIcon(_svg_icon('trash', ACCENT)); self._btn_clr.setIconSize(QSize(20,20))
-        self._btn_up  = QPushButton(_t('btn_up')); self._btn_up.clicked.connect(lambda: self._flist.move_selection(-1))
+        self._btn_del.clicked.connect(self._flist.remove_selected)
+        self._btn_up = QPushButton(_t('btn_up'))
         self._btn_up.setIcon(_svg_icon('arrow_up', ACCENT)); self._btn_up.setIconSize(QSize(16,16))
-        self._btn_dn  = QPushButton(_t('btn_down')); self._btn_dn.clicked.connect(lambda: self._flist.move_selection(1))
+        self._btn_up.clicked.connect(lambda: self._flist.move_selection(-1))
+        self._btn_dn = QPushButton(_t('btn_down'))
         self._btn_dn.setIcon(_svg_icon('arrow_down', ACCENT)); self._btn_dn.setIconSize(QSize(16,16))
-        for btn in [self._btn_add, self._btn_del, self._btn_clr, self._btn_up, self._btn_dn]:
+        self._btn_dn.clicked.connect(lambda: self._flist.move_selection(1))
+        for btn in [self._btn_del, self._btn_up, self._btn_dn]:
             btn.setFixedHeight(36)
-        frow.addWidget(self._btn_add); frow.addWidget(self._btn_del); frow.addWidget(self._btn_clr)
-        frow.addWidget(self._btn_up); frow.addWidget(self._btn_dn)
-        frow.addStretch(); frow.addWidget(self._lbl_cnt)
-        left_lay.addLayout(frow)
+        bot_row.addWidget(self._btn_del)
+        bot_row.addWidget(self._btn_up)
+        bot_row.addWidget(self._btn_dn)
+        bot_row.addStretch()
+        bot_row.addWidget(self._lbl_cnt)
+        left_lay.addLayout(bot_row)
 
-        # 출력 폴더
-        out_gb = QGroupBox(_t("conv_out_folder")); self._out_gb=out_gb
-        out_inner = QVBoxLayout(out_gb)
-        out_inner.setContentsMargins(10, 6, 10, 8)
-        out_inner.setSpacing(6)
-        orow = QHBoxLayout(); orow.setSpacing(6)
-        self._edit_odir = QLineEdit()
-        self._edit_odir.setPlaceholderText(_t("conv_out_ph"))
-        self._edit_odir.setFixedHeight(36)
-        self._btn_brw = QPushButton(_t("conv_btn_pick")); self._btn_brw.setObjectName("btn_primary"); self._btn_brw.setFixedHeight(36); self._btn_brw.clicked.connect(self._browse_out)
-        self._btn_brw.setIcon(_svg_icon('folder', 'white')); self._btn_brw.setIconSize(QSize(20,20))
-        self._btn_opn = QPushButton(""); self._btn_opn.setFixedSize(36, 36); self._btn_opn.setToolTip(_t("open_folder_tooltip")); self._btn_opn.clicked.connect(self._open_out_dir)
-        self._btn_opn.setIcon(_svg_icon('folder_open', ACCENT)); self._btn_opn.setIconSize(QSize(20,20))
-        orow.addWidget(self._edit_odir, 1); orow.addWidget(self._btn_brw); orow.addWidget(self._btn_opn)
-        out_inner.addLayout(orow)
-        left_lay.addWidget(out_gb)
-
-        # 변환 버튼 + 진행바 (왼쪽 하단)
-        self._btn_convert = QPushButton(_t("conv_btn_start")); self._btn_convert.setObjectName("btn_merge")
-        self._btn_convert.setObjectName("btn_merge")
-        self._btn_convert.setIcon(_svg_icon('refresh', 'white')); self._btn_convert.setIconSize(QSize(22,22))
-        self._btn_convert.setFixedHeight(44)
-        self._btn_convert.clicked.connect(self._start)
-        left_lay.addWidget(self._btn_convert)
-
-        self._btn_undo = QPushButton(_t('btn_undo')); self._btn_undo.setObjectName("btn_undo")
-        self._btn_undo.setFixedHeight(44); self._btn_undo.setEnabled(False)
-        self._btn_undo.clicked.connect(self._undo)
-        left_lay.addWidget(self._btn_undo)
-
-        self._progress = QProgressBar()
-        self._progress.setRange(0, 100); self._progress.setValue(0)
-        self._progress.setFixedHeight(8); self._progress.setTextVisible(False)
-        self._progress.setVisible(False)
-        left_lay.addWidget(self._progress)
-
-        # 현재 파일 진행 바
-        self._file_progress = QProgressBar()
-        self._file_progress.setRange(0, 100); self._file_progress.setValue(0)
-        self._file_progress.setFixedHeight(5); self._file_progress.setTextVisible(False)
-        self._file_progress.setVisible(False)
-        self._file_progress.setStyleSheet(
-            f"QProgressBar{{border:none;background:{BORDER};border-radius:2px;}}"
-            f"QProgressBar::chunk{{background:{ACCENT};border-radius:2px;opacity:0.7;}}")
-        left_lay.addWidget(self._file_progress)
-
-        self._lbl_file_progress = QLabel("")
-        self._lbl_file_progress.setStyleSheet(
-            f"font-size:11px;color:{MUTED};"
-            f"font-family:'Consolas','Courier New','Menlo',monospace;")
-        self._lbl_file_progress.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._lbl_file_progress.setFixedHeight(16)
-        self._lbl_file_progress.setVisible(False)
-        left_lay.addWidget(self._lbl_file_progress)
-
-        self._lbl_status = QLabel(_t("conv_status_start"))
-        self._lbl_status.setStyleSheet("font-size:13px;")
-        self._lbl_status.setWordWrap(True)
-        left_lay.addWidget(self._lbl_status)
-
-        body_lay.addWidget(left, stretch=3)
+        body_lay.addWidget(left, stretch=5)
 
         # ── 오른쪽: 모드별 옵션 ─────────────────
         right = QWidget()
@@ -5641,16 +6276,70 @@ class TextConverterPanel(QWidget):
             f"QComboBox:focus::down-arrow{{image:{_combo_arrow_url(ACCENT)};}}")
         right_lay.addWidget(self._c_txt_meta)
 
-        # 도움말
-        help_box = QLabel(_t('conv_help'))
-        self._help_box=help_box
-        help_box.setObjectName("hint_box")
-        help_box.setTextFormat(Qt.TextFormat.RichText)
-        help_box.setWordWrap(True)
-        right_lay.addWidget(help_box)
+        # 출력 폴더 (v1.0.6 #7: 왼쪽 → 오른쪽 이동)
+        out_gb = QGroupBox(_t("conv_out_folder")); self._out_gb=out_gb
+        out_inner = QVBoxLayout(out_gb)
+        out_inner.setContentsMargins(10, 6, 10, 8)
+        out_inner.setSpacing(6)
+        orow = QHBoxLayout(); orow.setSpacing(6)
+        self._edit_odir = QLineEdit()
+        self._edit_odir.setPlaceholderText(_t("conv_out_ph"))
+        self._edit_odir.setFixedHeight(36)
+        self._btn_brw = QPushButton(_t("conv_btn_pick")); self._btn_brw.setObjectName("btn_primary"); self._btn_brw.setFixedHeight(36); self._btn_brw.clicked.connect(self._browse_out)
+        self._btn_brw.setIcon(_svg_icon('folder', 'white')); self._btn_brw.setIconSize(QSize(20,20))
+        self._btn_opn = QPushButton(""); self._btn_opn.setFixedSize(36, 36); self._btn_opn.setToolTip(_t("open_folder_tooltip")); self._btn_opn.clicked.connect(self._open_out_dir)
+        self._btn_opn.setIcon(_svg_icon('folder_open', ACCENT)); self._btn_opn.setIconSize(QSize(20,20))
+        orow.addWidget(self._edit_odir, 1); orow.addWidget(self._btn_brw); orow.addWidget(self._btn_opn)
+        out_inner.addLayout(orow)
+        right_lay.addWidget(out_gb)
+
+        # 변환 / 실행 취소 버튼 (v1.0.6 #7: 왼쪽 → 오른쪽 이동, 세로 2줄 유지)
+        self._btn_convert = QPushButton(_t("conv_btn_start")); self._btn_convert.setObjectName("btn_merge")
+        self._btn_convert.setIcon(_svg_icon('refresh', 'white')); self._btn_convert.setIconSize(QSize(22,22))
+        self._btn_convert.setFixedHeight(44)
+        self._btn_convert.clicked.connect(self._start)
+        right_lay.addWidget(self._btn_convert)
+
+        self._btn_undo = QPushButton(_t('btn_undo')); self._btn_undo.setObjectName("btn_undo")
+        self._btn_undo.setFixedHeight(44); self._btn_undo.setEnabled(False)
+        self._btn_undo.clicked.connect(self._undo)
+        right_lay.addWidget(self._btn_undo)
+
+        # 진행바 (v1.0.6 #7: 왼쪽 → 오른쪽 이동)
+        self._progress = QProgressBar()
+        self._progress.setRange(0, 100); self._progress.setValue(0)
+        self._progress.setFixedHeight(8); self._progress.setTextVisible(False)
+        self._progress.setVisible(False)
+        right_lay.addWidget(self._progress)
+
+        # 현재 파일 진행 바
+        self._file_progress = QProgressBar()
+        self._file_progress.setRange(0, 100); self._file_progress.setValue(0)
+        self._file_progress.setFixedHeight(5); self._file_progress.setTextVisible(False)
+        self._file_progress.setVisible(False)
+        self._file_progress.setStyleSheet(
+            f"QProgressBar{{border:none;background:{BORDER};border-radius:2px;}}"
+            f"QProgressBar::chunk{{background:{ACCENT};border-radius:2px;opacity:0.7;}}")
+        right_lay.addWidget(self._file_progress)
+
+        self._lbl_file_progress = QLabel("")
+        self._lbl_file_progress.setStyleSheet(
+            f"font-size:11px;color:{MUTED};"
+            f"font-family:'Consolas','Courier New','Menlo',monospace;")
+        self._lbl_file_progress.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._lbl_file_progress.setFixedHeight(16)
+        self._lbl_file_progress.setVisible(False)
+        right_lay.addWidget(self._lbl_file_progress)
+
+        # 상태 라벨 (v1.0.6 #7: 왼쪽 → 오른쪽 이동)
+        self._lbl_status = QLabel(_t("conv_status_start"))
+        self._lbl_status.setStyleSheet("font-size:13px;")
+        self._lbl_status.setWordWrap(True)
+        right_lay.addWidget(self._lbl_status)
+
         right_lay.addStretch()
 
-        body_lay.addWidget(right, stretch=3)
+        body_lay.addWidget(right, stretch=4)
         root.addWidget(body, stretch=1)
         self._switch("txt2epub")
 
@@ -5670,12 +6359,25 @@ class TextConverterPanel(QWidget):
         self._c_epub_opts.setVisible(mode=="epub2txt")
         self._c_txt_meta.setVisible(mode=="txt2epub")
         self._flist.set_mode(mode)
+        # v1.0.6 #7: 드롭존 텍스트/아이콘 모드 전환 즉시 갱신
+        if hasattr(self, '_drop_zone'):
+            self._drop_zone.set_mode(mode)
 
     def _add_files(self):
         ext="EPUB (*.epub)" if self._mode=="epub2txt" else "TXT (*.txt)"
         paths,_=QFileDialog.getOpenFileNames(self,_t('btn_add_file'),self._edit_odir.text() or str(Path.home()),ext)
         def warn(names): _dlg_warn(self, _t('dlg_warning'), f"{_t('conv_unsupported')}:\n"+"\n".join(names))
         self._flist.add_files(paths,warn_fn=warn)
+
+    def _on_files_dropped(self, paths: list):
+        """v1.0.6 #7: TextConverterDropZone에서 파일 드롭 시 호출.
+
+        드롭존이 mode 기반으로 1차 필터링(잘못된 확장자는 거부)하지만,
+        방어적으로 _add_files의 warn 로직을 재사용하여 안전하게 처리.
+        """
+        if not paths: return
+        def warn(names): _dlg_warn(self, _t('dlg_warning'), f"{_t('conv_unsupported')}:\n"+"\n".join(names))
+        self._flist.add_files(paths, warn_fn=warn)
 
     def _browse_out(self):
         start = self._edit_odir.text() or _CFG.get('output_dir', str(_OUTPUT_DIR))
@@ -5861,10 +6563,14 @@ class TextConverterPanel(QWidget):
             self._lbl_file_progress.setStyleSheet(
                 f"font-size:11px;color:{MUTED};"
                 f"font-family:'Consolas','Courier New','Menlo',monospace;")
+        # v1.0.6 #7: 드롭존 테마 전환 대응
+        if hasattr(self, '_drop_zone'):
+            self._drop_zone.refresh_style()
 
     def retranslate(self):
         self._flist.setHeaderLabels([_t('tag_col_filename'), _t('tag_col_path')])
-        self._flist.viewport().update()  # 드래그존 빈 상태 텍스트 갱신
+        # v1.0.6 #7: paintEvent 제거로 viewport().update() 불필요 (드롭존이 텍스트 전담)
+        self._lbl_file_list.setText(_t('conv_file_list'))
         for val, btn in self._tab_btns.items():
             btn.setText(_t('conv_sub_' + val))
         self._out_gb.setTitle(_t('conv_out_folder'))
@@ -5895,7 +6601,9 @@ class TextConverterPanel(QWidget):
         self._combo_ch.clear()
         self._combo_ch.addItems([_t('conv_ch0'), _t('conv_ch1'), _t('conv_ch2')])
         self._combo_ch.setCurrentIndex(ci)
-        self._help_box.setText(_t('conv_help'))
+        # v1.0.6 #7: 드롭존 텍스트/아이콘 현지어로 재갱신 (_help_box 제거와 함께 conv_help 참조 제거)
+        if hasattr(self, '_drop_zone'):
+            self._drop_zone.set_mode(self._mode)
         if self._lbl_status.text() in _all_translations_of('conv_status_start'):
             self._lbl_status.setText(_t('conv_status_start'))
 
@@ -6584,6 +7292,8 @@ class MergeEncodingDelegate(QStyledItemDelegate):
         'gbk': '#F1C40F', 'gb18030': '#F1C40F', 'gb2312': '#F1C40F',
         'big5': '#00BCD4',
         'docx': '#2980B9', 'pdf': '#E74C3C', 'xlsx': '#27AE60',
+        # v1.0.6: HWPX 추가 (한컴오피스 KS X 6101 OWPML)
+        'hwpx': '#9B59B6',
     }
     _ENC_LABEL = {
         'utf-8': 'UTF-8', 'utf-8-sig': 'UTF-8 BOM', 'ascii': 'ASCII',
@@ -6594,10 +7304,15 @@ class MergeEncodingDelegate(QStyledItemDelegate):
         'gbk': 'GBK', 'gb18030': 'GBK', 'gb2312': 'GBK',
         'big5': 'Big5',
         'docx': 'DOCX', 'pdf': 'PDF', 'xlsx': 'XLSX',
+        # v1.0.6: HWPX 추가
+        'hwpx': 'HWPX',
     }
     _BADGE_ROLE  = Qt.ItemDataRole.UserRole + 1   # enc string
     _CONF_ROLE   = Qt.ItemDataRole.UserRole + 2   # confidence float 0-1
     _LINES_ROLE  = Qt.ItemDataRole.UserRole + 3   # line count int
+    # v1.0.6: 순수 파일 경로 저장 (툴팁 오염 방지). v1.0.4 툴팁에 안내문이 덧붙여지면서
+    # toolTip(0)을 파일 경로로 쓰던 코드들이 매칭 실패하던 버그 해결.
+    _PATH_ROLE   = Qt.ItemDataRole.UserRole + 4   # full file path (unmodified)
 
     def paint(self, painter: QPainter, option, index):
         painter.save()
@@ -6615,7 +7330,7 @@ class MergeEncodingDelegate(QStyledItemDelegate):
         enc_key = enc_raw.lower()
         color   = self._ENC_COLOR.get(enc_key, '#9B59B6')
         label   = self._ENC_LABEL.get(enc_key, enc_raw.upper()[:9])
-        is_bin  = enc_key in ('docx', 'pdf', 'xlsx')
+        is_bin  = enc_key in ('docx', 'pdf', 'xlsx', 'hwpx')
 
         r      = option.rect
         pad    = 10
@@ -7328,22 +8043,34 @@ class TextFixerPanel(QWidget):
             _dlg_warn(self, _t('tf_dlg_noperm'), f"{_t('tf_err_perm')}:\n{path}"); return
         # v1.0.3: alchemy_detect_encoding으로 BOM/UTF-16/CJK 인코딩 감지
         # v1.0.4: alchemy가 (enc, conf) 튜플 반환 — 신뢰도는 사용 안 함
-        detected_enc, _ = alchemy_detect_encoding(path)
-        for enc in (detected_enc, 'utf-8-sig', 'utf-8', 'cp949', 'euc-kr',
-                    'shift_jis', 'gbk', 'big5'):
-            try:
-                with open(path, 'r', encoding=enc) as f: text = f.read()
-                self._input_edit.setPlainText(text)
-                self._input_edit.verticalScrollBar().setValue(0)
-                self._start_keep_top()  # 대용량 파일 비동기 레이아웃 스크롤 방지
-                self._loaded_path = path   # 저장 시 원본 경로 참조용
-                fname = os.path.basename(path)
-                self._lbl_status.setText(f'📂  {fname}  ({enc.upper()})')
-                _glog(f"[Text Fixer] 파일 로드: {fname} ({enc})")
-                return
-            except (UnicodeDecodeError, LookupError): continue
-            except OSError as e: _dlg_error(self, _t('tf_dlg_ioerr'), str(e)); return
-        _dlg_error(self, _t('tf_dlg_encerr'), f"{_t('tf_err_enc')}:\n{path}")
+        # v1.0.6: safe_read_text_with_report 헬퍼 사용 —
+        # strict 폴백 8개 실패 시 errors='replace'로 최종 재시도 (파일 로드 항상 성공)
+        # v1.0.6 Phase 2-a: 헬퍼 반환이 6-tuple로 확장됨 — Text Fixer는 다이얼로그만 쓰므로
+        # failures/total_failures는 무시 (단일 파일 B 방식: 사용자 동의 기반)
+        try:
+            text, used_enc, read_mode, replace_count, _failures, _total_failures = \
+                safe_read_text_with_report(path)
+        except OSError as e:
+            _dlg_error(self, _t('tf_dlg_ioerr'), str(e)); return
+        if text is None:
+            _dlg_error(self, _t('tf_dlg_encerr'), f"{_t('tf_err_enc')}:\n{path}"); return
+        self._input_edit.setPlainText(text)
+        self._input_edit.verticalScrollBar().setValue(0)
+        self._start_keep_top()  # 대용량 파일 비동기 레이아웃 스크롤 방지
+        self._loaded_path = path   # 저장 시 원본 경로 참조용
+        fname = os.path.basename(path)
+        if read_mode == 'replace':
+            # v1.0.6: 부분 인코딩 실패 — 사용자에게 경고 + 상태바에 표시
+            self._lbl_status.setText(
+                f'⚠  {fname}  ({used_enc.upper()}, {replace_count}자 대체)')
+            _glog(f"⚠ [Text Fixer] 부분 인코딩 실패: {fname} "
+                  f"({used_enc}, {replace_count}자 대체)")
+            _dlg_warn(self, _t('tf_dlg_encerr'),
+                      _t('tf_warn_partial_enc', fname=fname, enc=used_enc.upper(),
+                         n=replace_count))
+        else:
+            self._lbl_status.setText(f'📂  {fname}  ({used_enc.upper()})')
+            _glog(f"[Text Fixer] 파일 로드: {fname} ({used_enc})")
 
     def _start_keep_top(self, edits=None):
         """대용량 문서 비동기 레이아웃 중 스크롤이 밀리는 것을 방지.
@@ -7899,9 +8626,112 @@ class TextFixerPanel(QWidget):
 # ═══════════════════════════════════════════════
 # 탭 6: Bulk Fixer — 파일 목록 위젯
 # ═══════════════════════════════════════════════
+class BulkFixerDropZone(QLabel):
+    """Bulk Fixer 전용 드래그 앤 드롭 존 (v1.0.6 신규).
+
+    파일/폴더 드롭 전용 영역 — 파일 목록과 구조적으로 분리하여
+    InternalMove 모드 + 외부 드롭 공존 시 발생하던 Qt 동작 충돌 해결.
+    MergeDropZone(Text Merger) + TextFixerDropZone(Text Fixer) 패턴 융합.
+    """
+    files_dropped  = Signal(list)   # .txt 파일 목록
+    folder_dropped = Signal(str)    # 폴더 경로 1개
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("bulkDropZone")
+        self.setAcceptDrops(True)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.setMinimumHeight(110)
+        self.setTextFormat(Qt.TextFormat.RichText)
+        self.set_idle()
+
+    def set_idle(self):
+        t = _T
+        self.setStyleSheet(
+            f"QLabel#bulkDropZone{{border:1.5px dashed {t['BORDER']};"
+            f"border-radius:10px;background:{t['SURFACE']};padding:14px;"
+            f"color:{t['TEXT']};}}")
+        self.setText(
+            f"<div style='text-align:center;'>"
+            f"<div style='font-size:28px;line-height:1;font-family:{_EMOJI_FONT_FAMILY};'>📄</div>"
+            f"<div style='color:{t['MUTED']};font-size:13px;margin-top:8px;'>"
+            f"{_t('bulk_drop_txt')}</div>"
+            f"<div style='color:{t['DISABLED']};font-size:13px;margin-top:4px;'>"
+            f"{_t('bulk_drop_fmt')}</div>"
+            f"</div>")
+
+    def set_hover(self):
+        t = _T
+        self.setStyleSheet(
+            f"QLabel#bulkDropZone{{border:2px dashed {t['ACCENT']};"
+            f"border-radius:10px;background:{_accent_alpha(0.07)};padding:14px;}}")
+        self.setText(
+            f"<div style='text-align:center;'>"
+            f"<div style='font-size:28px;line-height:1;font-family:{_EMOJI_FONT_FAMILY};'>📄</div>"
+            f"<div style='color:{t['ACCENT']};font-size:13px;margin-top:8px;'>"
+            f"{_t('tf_drop_hover')}</div>"
+            f"</div>")
+
+    def refresh_style(self):
+        self.set_idle()
+
+    def _has_valid(self, mime):
+        """.txt 파일 또는 폴더(내부에 .txt 포함 가능)가 있는지 확인."""
+        if not mime.hasUrls(): return False
+        for u in mime.urls():
+            if not u.isLocalFile(): continue
+            p = u.toLocalFile()
+            if os.path.isdir(p): return True
+            if p.lower().endswith('.txt'): return True
+        return False
+
+    def dragEnterEvent(self, e):
+        if self._has_valid(e.mimeData()):
+            self.set_hover(); e.acceptProposedAction()
+        else:
+            e.ignore()
+
+    def dragMoveEvent(self, e):
+        if self._has_valid(e.mimeData()): e.acceptProposedAction()
+        else: e.ignore()
+
+    def dragLeaveEvent(self, e):
+        self.set_idle()
+
+    def dropEvent(self, e):
+        _glog(f"🔵 [Trace] BulkFixerDropZone.dropEvent 진입 (urls={len(e.mimeData().urls())})")
+        self.set_idle()
+        txt_files = []
+        folders = []
+        for url in e.mimeData().urls():
+            if not url.isLocalFile(): continue
+            p = url.toLocalFile()
+            if os.path.isdir(p):
+                folders.append(p)
+            elif p.lower().endswith('.txt'):
+                txt_files.append(p)
+        # 폴더가 있으면 첫 폴더를 폴더 시그널로 보냄 (패널에서 재귀 탐색)
+        # .txt 파일은 별도 시그널
+        if folders:
+            self.folder_dropped.emit(folders[0])
+        if txt_files:
+            self.files_dropped.emit(txt_files)
+        if folders or txt_files:
+            e.acceptProposedAction()
+        else:
+            e.ignore()
+        _glog(f"🔵 [Trace] BulkFixerDropZone.dropEvent 종료 (txt={len(txt_files)}, folders={len(folders)})")
+
+
 class BulkFixerFileList(QTreeWidget):
-    """TXT 전용 다중 파일 목록 위젯 — 2컬럼 (파일명 | 경로)."""
+    """TXT 전용 다중 파일 목록 위젯 — 2컬럼 (파일명 | 경로).
+
+    v1.0.6: InternalMove → DragDrop 모드로 전환. 외부 드롭은 BulkFixerDropZone이 담당.
+    이 위젯은 내부 재정렬 전용. MergeFileTree(Text Merger) 패턴 복제.
+    """
     files_changed = Signal(int)
+    order_changed = Signal()  # v1.0.6: 드래그 재정렬 완료 시그널
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -7913,10 +8743,12 @@ class BulkFixerFileList(QTreeWidget):
         self.setUniformRowHeights(True)
         self.setAlternatingRowColors(True)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.setDragDropMode(QAbstractItemView.InternalMove)
+        # v1.0.6: DragDrop 모드 (InternalMove + e.ignore() 조합의 Qt 자동 삭제 버그 회피)
+        self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.setAcceptDrops(True)
         self.setDropIndicatorShown(True)
+        self.setDragEnabled(True)
         self.setSortingEnabled(False)
         hdr = self.header()
         hdr.setSectionResizeMode(0, QHeaderView.Stretch)
@@ -7924,6 +8756,9 @@ class BulkFixerFileList(QTreeWidget):
         self.setColumnWidth(1, 180)
         hdr.setSortIndicatorShown(True)
         hdr.setSortIndicator(0, Qt.SortOrder.AscendingOrder)
+        # v1.0.6: setSortingEnabled(False) 시 헤더 클릭이 비활성화되는 Qt 동작 대응
+        # — MergeFileTree에서 v1.0.4에 적용한 패턴 복제
+        hdr.setSectionsClickable(True)
         hdr.sectionClicked.connect(self._on_header_clicked)
 
     def _on_header_clicked(self, col):
@@ -7933,10 +8768,14 @@ class BulkFixerFileList(QTreeWidget):
             self.header().setSortIndicator(0, order)
             self.sort_files(self._sort_asc)
 
+    # v1.0.6: 순수 파일 경로 저장용 UserRole (toolTip 오염 방지)
+    _PATH_ROLE = Qt.ItemDataRole.UserRole + 4
+
     def _make_item(self, path):
         item = QTreeWidgetItem([os.path.basename(path), os.path.dirname(path)])
         item.setToolTip(0, path)
         item.setToolTip(1, path)
+        item.setData(0, self._PATH_ROLE, path)  # v1.0.6: 순수 경로
         return item
 
     def add_files(self, paths):
@@ -7990,58 +8829,75 @@ class BulkFixerFileList(QTreeWidget):
             self.addTopLevelItem(self._make_item(p))
 
     def _sync(self):
-        self._files = [self.topLevelItem(i).toolTip(0)
+        # v1.0.6: _PATH_ROLE 우선 조회, 구버전 호환 폴백
+        def _p(it):
+            v = it.data(0, self._PATH_ROLE)
+            return v if v else it.toolTip(0)
+        self._files = [_p(self.topLevelItem(i))
                        for i in range(self.topLevelItemCount())]
 
     def keyPressEvent(self, e):
         if e.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace): self.remove_selected()
         else: super().keyPressEvent(e)
 
+    def startDrag(self, supported_actions):
+        """v1.0.6: CopyAction 강제 — Qt의 MoveAction 자동 소스 삭제 차단.
+        실제 이동은 dropEvent에서 수동 처리. (MergeFileTree 패턴)"""
+        super().startDrag(Qt.DropAction.CopyAction)
+
     def dragEnterEvent(self, e):
-        if e.mimeData().hasUrls(): e.acceptProposedAction()
-        else: super().dragEnterEvent(e)
+        # 내부 재정렬만 허용 (외부 드롭은 BulkFixerDropZone이 처리)
+        if e.source() is self: e.acceptProposedAction()
+        else: e.ignore()
 
     def dragMoveEvent(self, e):
-        if e.mimeData().hasUrls(): e.acceptProposedAction()
-        else: super().dragMoveEvent(e)
+        if e.source() is self: e.acceptProposedAction()
+        else: e.ignore()
 
     def dropEvent(self, e):
-        if e.mimeData().hasUrls():
-            paths = [u.toLocalFile() for u in e.mimeData().urls()]
-            # 폴더가 포함된 경우 재귀 탐색하여 .txt 파일 수집
-            resolved = []
-            for p in paths:
-                if os.path.isdir(p):
-                    for root, _, files in os.walk(p):
-                        for f in files:
-                            if f.lower().endswith('.txt'):
-                                resolved.append(os.path.join(root, f))
-                else:
-                    resolved.append(p)
-            self.add_files(resolved); e.acceptProposedAction()
-        else:
-            super().dropEvent(e)
-            self._sync()  # 내부 드래그 후 순서 동기화
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        if self.topLevelItemCount() > 0: return
-        painter = QPainter(self.viewport())
-        painter.setRenderHint(QPainter.Antialiasing)
-        r = self.viewport().rect()
-        cx = r.center().x(); cy = r.center().y()
-        icon_font = QFont(painter.font()); icon_font.setPointSize(21)
-        try: icon_font.setFamilies(["Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji","Noto Emoji"])
-        except AttributeError: icon_font.setFamily("Segoe UI Emoji")
-        painter.setFont(icon_font); painter.setPen(QColor(_T['BORDER']))
-        painter.drawText(QRect(cx - 30, cy - 54, 60, 38), Qt.AlignmentFlag.AlignCenter, "📄")
-        main_font = QFont(painter.font()); main_font.setPointSize(10)
-        painter.setFont(main_font); painter.setPen(QColor(_T['MUTED']))
-        painter.drawText(QRect(cx - 220, cy - 10, 440, 22), Qt.AlignmentFlag.AlignCenter, _t('bulk_drop_txt'))
-        sub_font = QFont(painter.font()); sub_font.setPointSize(9)
-        painter.setFont(sub_font); painter.setPen(QColor(_T['DISABLED']))
-        painter.drawText(QRect(cx - 220, cy + 20, 440, 22), Qt.AlignmentFlag.AlignCenter, _t('bulk_drop_fmt'))
-        painter.end()
+        """v1.0.6: 수동 내부 재정렬 (MergeFileTree 패턴 복제)."""
+        _glog(f"🔵 [Trace] BulkFixerFileList.dropEvent 진입 (source_is_self={e.source() is self})")
+        if e.source() is not self:
+            e.ignore(); return
+        dragged = self.selectedItems()
+        if not dragged:
+            e.accept(); return
+        target = self.itemAt(e.pos())
+        if target is None:
+            # 빈 영역에 드롭 → 맨 끝으로 이동
+            src_rows = sorted([self.indexOfTopLevelItem(i) for i in dragged], reverse=True)
+            saved = []
+            for row in src_rows:
+                saved.insert(0, self.takeTopLevelItem(row))
+            for item in saved:
+                self.addTopLevelItem(item)
+            self.selectionModel().clearSelection()
+            for item in saved: item.setSelected(True)
+            e.acceptProposedAction()
+            self._sync()
+            self.order_changed.emit()
+            return
+        if target in dragged:
+            e.accept(); return  # 자기 자신에 드롭 — 무시
+        target_row = self.indexOfTopLevelItem(target)
+        drop_above = e.pos().y() < self.visualItemRect(target).center().y()
+        src_rows = sorted([self.indexOfTopLevelItem(i) for i in dragged], reverse=True)
+        saved = []
+        for row in src_rows:
+            saved.insert(0, self.takeTopLevelItem(row))
+            if row < target_row:
+                target_row -= 1
+        insert_row = target_row if drop_above else target_row + 1
+        for i, item in enumerate(saved):
+            self.insertTopLevelItem(insert_row + i, item)
+        self.selectionModel().clearSelection()
+        for i in range(len(saved)):
+            t = self.topLevelItem(insert_row + i)
+            if t: t.setSelected(True)
+        e.acceptProposedAction()
+        self._sync()
+        self.order_changed.emit()
+        _glog(f"🔵 [Trace] BulkFixerFileList.dropEvent 종료 (moved={len(saved)})")
 
 
 # ═══════════════════════════════════════════════
@@ -8115,10 +8971,17 @@ class FolderScanWorker(QThread):
 
 class BulkFixerWorker(QThread):
     """다중 TXT 파일 일괄 교정 워커."""
+    # v1.0.6 Phase 2-a: 인코딩 티어 처리 임계값
+    TIER1_THRESHOLD = 500    # 1~500개 실패: Tier 1 (처리 + 리포트)
+    TIER2_THRESHOLD = 5000   # 501~5000개: Tier 2 (처리 + 리포트, 경고 수위)
+                             # 5001개 이상: Tier 3 (스킵 + 리포트)
+
     sig_progress      = Signal(int)
     sig_file_progress = Signal(int, str)
-    sig_file_done     = Signal(str, bool)
-    sig_done          = Signal(int, int)
+    # v1.0.6 Phase 2-a: sig_file_done bool → str 카테고리 ('ok'/'warn'/'skip'/'fail')
+    sig_file_done     = Signal(str, str)
+    # v1.0.6 Phase 2-a: sig_done (ok, fail) → (ok, warn, skip, fail) 4-param
+    sig_done          = Signal(int, int, int, int)
     sig_error         = Signal(str)
 
     def __init__(self, files, out_dir,
@@ -8260,7 +9123,10 @@ class BulkFixerWorker(QThread):
 
     def run(self):
         _prevent_sleep()
-        total = len(self.files); ok = 0; fail = 0
+        total = len(self.files)
+        # v1.0.6 Phase 2-a: 4단계 카운터 (ok: strict 정상 / warn: 인코딩 Tier 1/2 처리
+        # / skip: 인코딩 Tier 3 원본 보호 스킵 / fail: I/O 등 예외)
+        ok = 0; warn = 0; skip = 0; fail = 0
         try:
             for idx, path in enumerate(self.files):
                 if self._abort: break
@@ -8268,17 +9134,60 @@ class BulkFixerWorker(QThread):
                 self.sig_progress.emit(int(idx / total * 100))
                 self.sig_file_progress.emit(0, fname)
                 try:
-                    # 읽기 — v1.0.3: alchemy_detect_encoding으로 BOM/UTF-16/CJK 인코딩 감지
+                    # v1.0.3: alchemy_detect_encoding으로 BOM/UTF-16/CJK 인코딩 감지
                     # v1.0.4: alchemy가 (enc, conf) 튜플 반환 — 신뢰도는 사용 안 함
-                    text = None
-                    detected_enc, _ = alchemy_detect_encoding(path)
-                    for enc in (detected_enc, 'utf-8-sig', 'utf-8', 'cp949', 'euc-kr',
-                                'shift_jis', 'gbk', 'big5'):
-                        try:
-                            with open(path, 'r', encoding=enc) as f: text = f.read()
-                            break
-                        except (UnicodeDecodeError, LookupError): continue
+                    # v1.0.6: safe_read_text_with_report 헬퍼 사용 —
+                    # strict 폴백 전부 실패 시 errors='replace'로 최종 재시도
+                    # v1.0.6 Phase 2-a: 6-tuple 반환 — 실패 위치 추적 + 티어 분기
+                    text, used_enc, read_mode, replace_count, failures, total_failures = \
+                        safe_read_text_with_report(path)
                     if text is None: raise OSError(_t('tf_err_enc'))
+
+                    # 저장 경로 사전 계산 (리포트 위치는 교정 결과물과 같은 폴더)
+                    save_path = self._make_save_path(path)
+                    save_dir = os.path.dirname(save_path)
+
+                    # v1.0.6 Phase 2-a: replace 모드일 때만 티어 분기
+                    # Tier 1 (1~500): 처리 + 리포트
+                    # Tier 2 (501~5000): 처리 + 리포트 (경고 수위)
+                    # Tier 3 (5001+): 원본 보호 위해 스킵 + 리포트
+                    if read_mode == 'replace':
+                        if total_failures > self.TIER2_THRESHOLD:
+                            # Tier 3: 스킵 — 교정하지 않고 리포트만 생성 (원본 무손상)
+                            report_path = write_encoding_report(
+                                output_dir=save_dir,
+                                original_path=path,
+                                used_enc=used_enc,
+                                failures=failures,
+                                total_failures=total_failures,
+                                action_taken='skipped',
+                            )
+                            report_info = (f", 리포트: {os.path.basename(report_path)}"
+                                           if report_path else "")
+                            _glog(f"❌ [Bulk Fixer] Tier 3 스킵 (인코딩 판정 오류 의심): "
+                                  f"{fname} ({used_enc}, {total_failures:,}자 실패{report_info})")
+                            self.sig_file_progress.emit(100, fname)
+                            skip += 1
+                            self.sig_file_done.emit(path, 'skip')
+                            continue  # 다음 파일로 — 원본 보호
+                        else:
+                            # Tier 1 or 2: 교정 진행 + 리포트 생성
+                            report_path = write_encoding_report(
+                                output_dir=save_dir,
+                                original_path=path,
+                                used_enc=used_enc,
+                                failures=failures,
+                                total_failures=total_failures,
+                                action_taken='processed',
+                            )
+                            report_info = (f", 리포트: {os.path.basename(report_path)}"
+                                           if report_path else "")
+                            tier_label = ("Tier 2" if total_failures > self.TIER1_THRESHOLD
+                                          else "Tier 1")
+                            _glog(f"⚠ [Bulk Fixer] {tier_label} 부분 인코딩 실패: {fname} "
+                                  f"({used_enc}, {total_failures:,}자 실패{report_info})")
+                            # warn 카운트는 저장 성공 후 증가 (정상 교정 흐름 공유)
+
                     self.sig_file_progress.emit(20, fname)
                     # 교정 — 줄 수 기반으로 33%~80% 사이 중간 진행률 emit
                     lines = text.split('\n')
@@ -8292,16 +9201,24 @@ class BulkFixerWorker(QThread):
                     fixed, _, _ = self._fix_text(text, _progress_cb, chunk)
                     self.sig_file_progress.emit(85, fname)
                     # 저장
-                    save_path = self._make_save_path(path)
                     with open(save_path, 'w', encoding='utf-8') as f: f.write(fixed)
                     self.sig_file_progress.emit(100, fname)
-                    ok += 1; self.sig_file_done.emit(path, True)
+
+                    # v1.0.6 Phase 2-a: read_mode에 따라 카운트 분류
+                    # (replace 모드 Tier 3은 위에서 continue로 건너뜀)
+                    if read_mode == 'replace':
+                        warn += 1
+                        self.sig_file_done.emit(path, 'warn')
+                    else:
+                        ok += 1
+                        self.sig_file_done.emit(path, 'ok')
                 except Exception as e:
                     self.sig_file_progress.emit(0, fname)
-                    fail += 1; self.sig_file_done.emit(path, False)
-                    _glog(f'[Bulk Fixer] 오류 {os.path.basename(path)}: {e}')
+                    fail += 1
+                    self.sig_file_done.emit(path, 'fail')
+                    _glog(f'[Bulk Fixer] 오류 {fname}: {e}')
             self.sig_progress.emit(100)
-            self.sig_done.emit(ok, fail)
+            self.sig_done.emit(ok, warn, skip, fail)
         except Exception as e:
             self.sig_error.emit(str(e))
         finally:
@@ -8336,6 +9253,12 @@ class BulkFixerPanel(QWidget):
         left = QWidget()
         left_lay = QVBoxLayout(left)
         left_lay.setContentsMargins(0, 0, 0, 0); left_lay.setSpacing(10)
+
+        # v1.0.6: 드롭존 (상단) — 외부 파일/폴더 드롭 전용, 항상 표시
+        self._drop_zone = BulkFixerDropZone()
+        self._drop_zone.files_dropped.connect(self._on_files_dropped)
+        self._drop_zone.folder_dropped.connect(self._on_folder_dropped)
+        left_lay.addWidget(self._drop_zone)
 
         # 파일 목록 타이틀
         self._lbl_file_list = QLabel(_t('bulk_file_list'))
@@ -8634,6 +9557,35 @@ class BulkFixerPanel(QWidget):
     def _set_save_mode(self, mode):
         pass  # 저장 방식 고정 ([Fixed] 태그) — 하위 호환용 더미
 
+    # v1.0.6: 드롭존에서 받은 파일/폴더 처리 ──────────
+    def _on_files_dropped(self, paths: list):
+        """BulkFixerDropZone에서 .txt 파일 드롭 시 호출."""
+        _glog(f"🔵 [Trace] _on_files_dropped 진입 (n={len(paths) if paths else 0})")
+        if paths: self._flist.add_files(paths)
+        _glog(f"🔵 [Trace] _on_files_dropped 종료")
+
+    def _on_folder_dropped(self, folder: str):
+        """BulkFixerDropZone에서 폴더 드롭 시 호출 — 기존 _add_folder 스캔 로직 재사용."""
+        _glog(f"🔵 [Trace] _on_folder_dropped 진입 (folder={folder!r})")
+        if not folder or not os.path.isdir(folder): return
+        if self._scan_worker and self._scan_worker.isRunning():
+            try:
+                self._scan_worker.sig_progress.disconnect()
+                self._scan_worker.sig_found.disconnect()
+                self._scan_worker.sig_done.disconnect()
+                self._scan_worker.sig_error.disconnect()
+            except Exception: pass
+            self._scan_worker.abort(); self._scan_worker.wait(1000)
+        self._set_scan_ui(True)
+        self._scan_worker = FolderScanWorker(folder, exts={'.txt'}, recursive=True)
+        self._scan_worker.sig_progress.connect(self._scan_bar.setValue)
+        self._scan_worker.sig_found.connect(
+            lambda n: self._scan_lbl.setText(_t('bulk_scanning', n=n)))
+        self._scan_worker.sig_done.connect(self._on_scan_done)
+        self._scan_worker.sig_error.connect(self._on_scan_error)
+        self._scan_worker.start()
+        _glog(f"🔵 [Trace] _on_folder_dropped 종료 (스캔 워커 시작됨)")
+
     def _add_files(self):
         paths, _ = QFileDialog.getOpenFileNames(
             self, _t('btn_add_file'), '', 'Text Files (*.txt);;All Files (*)')
@@ -8670,6 +9622,9 @@ class BulkFixerPanel(QWidget):
         for btn in (self._btn_add, self._btn_add_folder, self._btn_clr,
                     self._btn_del, self._btn_up, self._btn_dn):
             btn.setEnabled(not scanning)
+        # v1.0.6: 스캔 중에는 드롭존도 비활성화 (추가 드롭 방지)
+        if hasattr(self, '_drop_zone'):
+            self._drop_zone.setEnabled(not scanning)
         if scanning:
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         else:
@@ -8705,23 +9660,53 @@ class BulkFixerPanel(QWidget):
         if d: self._edit_odir.setText(d)
 
     def _on_file_selected(self, cur, _prev):
-        if not cur: self._preview_edit.clear(); return
-        path = cur.toolTip(0)
-        try:
-            # v1.0.3: alchemy_detect_encoding으로 BOM/UTF-16/CJK 인코딩 감지
-            # v1.0.4: alchemy가 (enc, conf) 튜플 반환 — 신뢰도는 사용 안 함
-            detected_enc, _ = alchemy_detect_encoding(path)
-            for enc in (detected_enc, 'utf-8-sig', 'utf-8', 'cp949', 'euc-kr',
-                        'shift_jis', 'gbk', 'big5'):
-                try:
-                    with open(path, 'r', encoding=enc) as f:
-                        preview = ''.join(f.readlines()[:80])
-                    self._preview_edit.setPlainText(preview)
-                    return
-                except (UnicodeDecodeError, LookupError): continue
-        except Exception:
-            pass
-        self._preview_edit.setPlainText('')
+        import time
+        _t0 = time.perf_counter()
+        if not cur:
+            self._preview_edit.clear()
+            _glog(f"🔵 [Trace] _on_file_selected 종료 (no-cur, {(time.perf_counter()-_t0)*1000:.1f}ms)")
+            return
+        # v1.0.6: _PATH_ROLE 우선 조회, 구버전 호환 폴백
+        path = cur.data(0, BulkFixerFileList._PATH_ROLE) or cur.toolTip(0)
+        fname = os.path.basename(path) if path else '?'
+        _glog(f"🔵 [Trace] _on_file_selected 진입 ({fname})")
+        if not path or not os.path.exists(path):
+            self._preview_edit.setPlainText('')
+            _glog(f"🔵 [Trace] _on_file_selected 종료 (path 없음, {(time.perf_counter()-_t0)*1000:.1f}ms)")
+            return
+        # v1.0.6: safe_read_text_with_report 헬퍼 사용
+        # — strict 폴백 8개 실패 시 errors='replace'로 최종 재시도 (미리보기 항상 표시)
+        # v1.0.6 Phase 2-a: 헬퍼 반환이 6-tuple로 확장됨 — 미리보기는 리포트 필요 없으므로 무시
+        # v1.0.6 진단: 3단계 세분 트레이스 — safe_read / preview 추출 / setPlainText 각각 측정
+        _t_s0 = time.perf_counter()
+        text, used_enc, mode, replace_count, _failures, _total_failures = \
+            safe_read_text_with_report(path)
+        _t_s1 = time.perf_counter()
+        _glog(f"🔵 [Trace]   → safe_read 완료 ({(_t_s1-_t_s0)*1000:.1f}ms, "
+              f"mode={mode}, text_len={len(text) if text else 0:,})")
+        if text is None:
+            self._preview_edit.setPlainText('')
+            _glog(f"🔵 [Trace] _on_file_selected 종료 (text=None, {(time.perf_counter()-_t0)*1000:.1f}ms)")
+            return
+        # 미리보기는 첫 80줄만 (성능)
+        # v1.0.6 Phase 2-a: 50만 줄급 대용량 파일 프리징 대응 —
+        # 27MB 문자열 전체를 splitlines하면 50만 개 객체 생성 후 80개만 사용 → 심각한 낭비
+        # 앞부분 32KB만 자른 뒤 splitlines → 80줄 확보 충분, 연산량 800배 감소
+        # (Bulk Fixer 미리보기는 "파일 맞나 + 인코딩 정상인가" 확인용 — 세밀 검토는 Text Fixer 담당)
+        _t_p0 = time.perf_counter()
+        preview = ''.join(text[:32768].splitlines(keepends=True)[:80])
+        _t_p1 = time.perf_counter()
+        _glog(f"🔵 [Trace]   → preview 추출 완료 ({(_t_p1-_t_p0)*1000:.1f}ms, "
+              f"preview_len={len(preview):,})")
+        _t_r0 = time.perf_counter()
+        self._preview_edit.setPlainText(preview)
+        _t_r1 = time.perf_counter()
+        _glog(f"🔵 [Trace]   → setPlainText 완료 ({(_t_r1-_t_r0)*1000:.1f}ms)")
+        if mode == 'replace':
+            _glog(f"⚠ [Bulk Fixer] 미리보기: 부분 인코딩 실패 — "
+                  f"{os.path.basename(path)} ({used_enc}, {replace_count}자 대체)")
+        _glog(f"🔵 [Trace] _on_file_selected 종료 ({fname}, mode={mode}, "
+              f"{(time.perf_counter()-_t0)*1000:.1f}ms)")
 
     # ── 실행 / 중단 ────────────────────────────
     def _start(self):
@@ -8789,16 +9774,36 @@ class BulkFixerPanel(QWidget):
         if self._worker: self._worker.abort()
         self._btn_abort.setEnabled(False)
 
-    def _on_done(self, ok, fail):
+    def _on_done(self, ok, warn, skip, fail):
+        """v1.0.6 Phase 2-a: 4-카테고리 카운트 수신.
+        - ok: strict 정상 처리
+        - warn: 인코딩 Tier 1/2 처리 + 리포트 생성됨
+        - skip: 인코딩 Tier 3 원본 보호 스킵 + 리포트 생성됨
+        - fail: I/O 등 예외로 처리 실패
+        """
         self._progress_bar.setVisible(False)
         self._lbl_total_progress.setVisible(False)
         self._file_progress_bar.setVisible(False)
         self._lbl_file_progress.setVisible(False)
         self._btn_run.setEnabled(True); self._btn_abort.setEnabled(False)
-        msg = _t('bulk_status_done', n=ok)
+
+        # 상태 라벨: 저장된 파일 수(ok+warn)와 비정상 카운트
+        processed = ok + warn
+        msg = _t('bulk_status_done', n=processed)
+        if skip: msg += f'  {_t("bulk_status_skip")} ×{skip}'
         if fail: msg += f'  {_t("dlg_done_err")} ×{fail}'
         self._lbl_status.setText(msg)
-        _glog(f'[Bulk Fixer] 완료 — 성공 {ok}, 실패 {fail}')
+        _glog(f'[Bulk Fixer] 완료 — 정상 {ok}, 주의 {warn}, 스킵 {skip}, 실패 {fail}')
+
+        # v1.0.6 Phase 2-a: 비정상 카운트(warn/skip/fail)가 하나라도 있으면
+        # 티어 브레이크다운 다이얼로그 표시. 전부 ok면 다이얼로그 생략 (기존 UX 유지).
+        if warn > 0 or skip > 0 or fail > 0:
+            msg_lines = [_t('bulk_done_ok', n=ok)]
+            if warn > 0: msg_lines.append(_t('bulk_done_warn', n=warn))
+            if skip > 0: msg_lines.append(_t('bulk_done_skip', n=skip))
+            if fail > 0: msg_lines.append(_t('bulk_done_fail', n=fail))
+            _dlg_info(self, _t('bulk_done_title'), '\n'.join(msg_lines))
+
         # 저장 완료 후 출력 폴더 자동 열기
         out_dir = self._edit_odir.text().strip() or None
         if not out_dir:
@@ -8831,6 +9836,8 @@ class BulkFixerPanel(QWidget):
             self._set_scan_ui(False)
     def retranslate(self):
         self._lbl_file_list.setText(_t('bulk_file_list'))
+        # v1.0.6: 드롭존 텍스트 재번역
+        if hasattr(self, '_drop_zone'): self._drop_zone.refresh_style()
         self._btn_add.setText(_t('btn_add_file'))
         if hasattr(self, '_btn_add_folder'): self._btn_add_folder.setText(_t('btn_add_folder'))
         self._btn_del.setText(_t('btn_del_sel'))
@@ -8912,6 +9919,8 @@ class BulkFixerPanel(QWidget):
             self._combo_lang_mode.setCurrentIndex(d.get('lang_mode_idx', 0))
 
     def refresh_btn_styles(self):
+        # v1.0.6: 테마 변경 시 드롭존 스타일 재적용
+        if hasattr(self, '_drop_zone'): self._drop_zone.refresh_style()
         secondary_ss = (f"QPushButton{{background:{SURFACE};border:1.5px solid {BTN_BORDER_H};"
                         f"color:{TEXT};border-radius:8px;padding:5px 12px;}}"
                         f"QPushButton:hover{{background:{SRF2};border-color:{ACCENT};}}"
@@ -8987,7 +9996,7 @@ class TextMergeWorker(QThread):
                 try:
                     text = self._extract(
                         path,
-                        enc=read_enc if ext not in (".docx", ".pdf", ".xlsx") else "utf-8"
+                        enc=read_enc if ext not in (".docx", ".pdf", ".xlsx", ".hwpx") else "utf-8"
                     )
                     if self.use_sep:
                         sep = f"{'─'*60}\n▶ {os.path.basename(path)}\n{'─'*60}"
@@ -9008,7 +10017,7 @@ class TextMergeWorker(QThread):
 
 
 class TextMergerPanel(QWidget):
-    SUPPORTED_EXT={".txt",".md",".csv",".log",".json",".xml",".html",".py",".docx",".pdf",".xlsx"}
+    SUPPORTED_EXT={".txt",".md",".csv",".log",".json",".xml",".html",".py",".docx",".pdf",".xlsx",".hwpx"}
     # v1.0.5: 저장 인코딩 드롭다운 (내부 키, i18n 키) 매핑
     # — 내부 키는 codec 매핑/설정 저장에 사용되는 기존 값 (v1.0.4까지 currentText였음)
     # — i18n 키는 각 언어별로 표시 라벨을 가져올 때 사용 (예: 'UTF-8 (추천)' 스타일 확장 포인트)
@@ -9161,11 +10170,31 @@ class TextMergerPanel(QWidget):
             f"QComboBox:focus::down-arrow{{image:{_combo_arrow_url(ACCENT)};}}")
         sg.addLayout(enc_row)
 
-        # v1.0.5: 저장 인코딩 한 줄 도움말 (비프로그래머 가이드)
+        # v1.0.6: 저장 인코딩 자동 추천 행 (라벨 + 적용 버튼)
+        # - 파일 0개: 기존 hint 표시 ("확실하지 않으면 UTF-8 선택")
+        # - 파일 1개 이상: "💡 추천: XXX" + [적용] 버튼 표시
+        rec_row = QHBoxLayout(); rec_row.setSpacing(6); rec_row.setContentsMargins(2, 0, 0, 0)
+        # v1.0.5 변수명 유지 (_lbl_enc_hint) → 의미 확장: hint OR 추천 라벨
         self._lbl_enc_hint = QLabel(_t('merge_enc_hint'))
-        self._lbl_enc_hint.setStyleSheet(f"color:{MUTED};font-size:11px;padding-left:2px;")
+        self._lbl_enc_hint.setStyleSheet(f"color:{MUTED};font-size:11px;")
         self._lbl_enc_hint.setWordWrap(True)
-        sg.addWidget(self._lbl_enc_hint)
+        rec_row.addWidget(self._lbl_enc_hint, stretch=1)
+        # v1.0.6 신규: 추천 적용 버튼 (파일 0개일 땐 숨김)
+        self._btn_enc_recommend_apply = QPushButton(_t('merge_enc_recommend_apply'))
+        self._btn_enc_recommend_apply.setCursor(Qt.PointingHandCursor)
+        self._btn_enc_recommend_apply.setFixedHeight(22)
+        self._btn_enc_recommend_apply.setStyleSheet(
+            f"QPushButton{{background:{ACCENT};color:white;border:none;"
+            f"border-radius:4px;padding:2px 10px;font-size:11px;font-weight:600;}}"
+            f"QPushButton:hover{{background:{INPUT_H};}}"
+            f"QPushButton:disabled{{background:{DISABLED};color:{MUTED};}}")
+        self._btn_enc_recommend_apply.clicked.connect(self._apply_enc_recommendation)
+        self._btn_enc_recommend_apply.setVisible(False)  # 초기엔 파일 0개 → 숨김
+        rec_row.addWidget(self._btn_enc_recommend_apply)
+        sg.addLayout(rec_row)
+
+        # v1.0.6: 현재 추천된 인코딩 키 캐시 (적용 버튼이 참조)
+        self._current_recommendation = None
 
         self._lbl_path_label=QLabel(_t("merge_save_path")); self._lbl_path_label.setObjectName("field_lbl"); sg.addWidget(self._lbl_path_label)
         self._lbl_save_path = QLabel(_t("merge_path_none"))
@@ -9233,6 +10262,10 @@ class TextMergerPanel(QWidget):
                 lines.append(f"[{sheet.title}]")
                 for row in sheet.iter_rows(values_only=True): lines.append("\t".join("" if v is None else str(v) for v in row))
             return "\n".join(lines)
+        elif ext==".hwpx":
+            # v1.0.6: HWPX (KS X 6101 OWPML) 평문 텍스트 추출
+            if not HWPX_AVAILABLE: raise ImportError("python-hwpx 라이브러리가 필요합니다.\npip install python-hwpx")
+            with _hwpx.HwpxDocument.open(path) as doc: return doc.export_text()
         else:
             with open(path,"r",encoding=enc,errors="replace") as f: return f.read()
 
@@ -9246,11 +10279,11 @@ class TextMergerPanel(QWidget):
             f"<div style='text-align:center;'>"
             f"<div style='font-size:24px;'>📋</div>"
             f"<div style='color:{t['MUTED']};font-size:13px;margin-top:4px;'>{_t('merge_drop')}</div>"
-            f"<div style='color:{t['DISABLED']};font-size:13px;margin-top:4px;'>txt · md · csv · docx · pdf · xlsx {_t('merge_ext_supported')}</div>"
+            f"<div style='color:{t['DISABLED']};font-size:13px;margin-top:4px;'>txt · md · csv · docx · pdf · xlsx · hwpx {_t('merge_ext_supported')}</div>"
             f"</div>")
 
     def _add_files_dialog(self):
-        files,_=QFileDialog.getOpenFileNames(self,_t('btn_add_file'),"","Supported Files (*.txt *.md *.csv *.log *.json *.xml *.html *.py *.docx *.pdf *.xlsx);;All Files (*)")
+        files,_=QFileDialog.getOpenFileNames(self,_t('btn_add_file'),"","Supported Files (*.txt *.md *.csv *.log *.json *.xml *.html *.py *.docx *.pdf *.xlsx *.hwpx);;All Files (*)")
         self._add_file_paths(files)
 
     def _add_folder_dialog(self):
@@ -9319,27 +10352,33 @@ class TextMergerPanel(QWidget):
         self._scan_worker.start()
 
     def _add_file_paths(self,paths):
-        added=0; expanded=[]
+        added=0; expanded=[]; hwp_legacy_count=0  # v1.0.6: 구형 HWP 카운트
         for path in paths:
             if not path: continue
             if os.path.isdir(path):
                 for root, _, files in os.walk(path):
                     for fname in sorted(files):
-                        if os.path.splitext(fname)[1].lower() in self.SUPPORTED_EXT:
+                        fext = os.path.splitext(fname)[1].lower()
+                        if fext in self.SUPPORTED_EXT:
                             expanded.append(os.path.join(root, fname))
+                        elif fext == ".hwp":  # v1.0.6: 폴더 내 구형 HWP 감지
+                            hwp_legacy_count += 1
             else:
                 expanded.append(path)
+                # v1.0.6: 직접 추가된 .hwp 파일 카운트 (SUPPORTED_EXT 체크 전)
+                if os.path.splitext(path)[1].lower() == ".hwp":
+                    hwp_legacy_count += 1
         for path in expanded:
             if not os.path.isfile(path): continue
             if os.path.splitext(path)[1].lower() not in self.SUPPORTED_EXT: continue
             if path in self.file_list: continue
             ext=os.path.splitext(path)[1].lower()
-            if ext in (".docx",".pdf",".xlsx"):
+            if ext in (".docx",".pdf",".xlsx",".hwpx"):
                 enc=ext[1:].upper(); conf=1.0
             else:
                 enc, conf = alchemy_detect_encoding(path)
             self.enc_map[path]=enc; self.enc_confidence[path]=conf; self.file_list.append(path)
-            if ext in (".docx",".pdf",".xlsx"): self.line_cache[path]=0
+            if ext in (".docx",".pdf",".xlsx",".hwpx"): self.line_cache[path]=0
             else:
                 try:
                     with open(path,"r",encoding=enc,errors="replace") as _f: self.line_cache[path]=sum(1 for _ in _f)
@@ -9348,25 +10387,37 @@ class TextMergerPanel(QWidget):
             item=QTreeWidgetItem([os.path.basename(path), os.path.dirname(path)])
             # v1.0.4: 신뢰도 90% 미만이면 툴팁에 chardet 안내 추가 (텍스트 파일만)
             tip = path
-            if ext not in (".docx",".pdf",".xlsx") and 0 < conf < 0.90:
+            if ext not in (".docx",".pdf",".xlsx",".hwpx") and 0 < conf < 0.90:
                 tip = f"{path}\n\n{_t('merge_low_conf_hint')}"
             item.setToolTip(0, tip)
             item.setData(0, MergeEncodingDelegate._BADGE_ROLE, enc)
             item.setData(0, MergeEncodingDelegate._CONF_ROLE,  conf)
             item.setData(0, MergeEncodingDelegate._LINES_ROLE, lines)
+            item.setData(0, MergeEncodingDelegate._PATH_ROLE,  path)  # v1.0.6: 순수 경로
             self._tree.addTopLevelItem(item); added+=1
         if added:
             self._update_stats(); self._lbl_status.setText(_t('merge_status_add', n=added))
+            self._refresh_recommendation()  # v1.0.6: 추천 갱신
             _glog(f"📋 [Text Merger] 파일 {added}개 추가 (전체 {len(self.file_list)}개)")
+        # v1.0.6: 구형 HWP 파일이 있으면 통합 안내 다이얼로그 1번 (HWPX 변환 유도)
+        if hwp_legacy_count > 0:
+            _glog(f"⚠ [Text Merger] 구형 HWP 파일 {hwp_legacy_count}개 무시됨 — HWPX 변환 안내 표시")
+            _dlg_warn(self, _t('merge_hwp_legacy_title'),
+                      _t('merge_hwp_legacy_msg', n=hwp_legacy_count), rich_text=True)
 
     def _delete_selected(self):
         items=self._tree.selectedItems()
         if not items: return
         for item in items:
-            path=item.toolTip(0); self.enc_map.pop(path,None); self.line_cache.pop(path,None)
+            # v1.0.6: 툴팁 대신 _PATH_ROLE에서 순수 경로 조회 (저신뢰도 파일의 툴팁 오염 버그 해결)
+            path = item.data(0, MergeEncodingDelegate._PATH_ROLE)
+            if not path:  # 폴백: _PATH_ROLE이 없는 경우 (구버전 경로, 방어적 처리)
+                path = item.toolTip(0).split("\n\n", 1)[0]
+            self.enc_map.pop(path,None); self.enc_confidence.pop(path,None); self.line_cache.pop(path,None)
             idx=self._tree.indexOfTopLevelItem(item); self._tree.takeTopLevelItem(idx)
             if path in self.file_list: self.file_list.remove(path)
         self._update_stats(); self._lbl_status.setText(_t('merge_status_del', n=len(items)))
+        self._refresh_recommendation()  # v1.0.6: 추천 갱신
 
     def _delete_all(self):
         if not self.file_list: return
@@ -9374,6 +10425,7 @@ class TextMergerPanel(QWidget):
             self._tree.clear(); self.file_list.clear(); self.enc_map.clear()
             self.enc_confidence.clear(); self.line_cache.clear()
             self._update_stats(); self._lbl_status.setText(_t('merge_status_clr'))
+            self._refresh_recommendation()  # v1.0.6: 추천 갱신 (파일 0개 → hint 표시로 복귀)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Delete: self._delete_selected()
@@ -9407,7 +10459,11 @@ class TextMergerPanel(QWidget):
         item=self._tree.takeTopLevelItem(i); self._tree.insertTopLevelItem(j, item)
 
     def _sync_after_drag(self):
-        new_list = [self._tree.topLevelItem(i).toolTip(0)
+        # v1.0.6: 툴팁 대신 _PATH_ROLE 사용 (저신뢰도 파일의 툴팁 오염 버그 해결)
+        def _get_path(it):
+            p = it.data(0, MergeEncodingDelegate._PATH_ROLE)
+            return p if p else it.toolTip(0).split("\n\n", 1)[0]
+        new_list = [_get_path(self._tree.topLevelItem(i))
                     for i in range(self._tree.topLevelItemCount())]
         self.file_list = new_list
         self._update_stats()
@@ -9421,13 +10477,19 @@ class TextMergerPanel(QWidget):
         self._tree.clear()
         for path in self.file_list:
             item = QTreeWidgetItem([os.path.basename(path), os.path.dirname(path)])
-            item.setToolTip(0, path)
             enc = self.enc_map.get(path, 'utf-8')
             conf = self.enc_confidence.get(path, 0.0)
             lines = self.line_cache.get(path, 0)
+            # v1.0.6: 신뢰도 낮은 텍스트 파일은 툴팁에 안내문 추가 (파일 추가 시와 동일 로직)
+            ext = os.path.splitext(path)[1].lower()
+            tip = path
+            if ext not in (".docx",".pdf",".xlsx",".hwpx") and 0 < conf < 0.90:
+                tip = f"{path}\n\n{_t('merge_low_conf_hint')}"
+            item.setToolTip(0, tip)
             item.setData(0, MergeEncodingDelegate._BADGE_ROLE, enc)
             item.setData(0, MergeEncodingDelegate._CONF_ROLE, conf)
             item.setData(0, MergeEncodingDelegate._LINES_ROLE, lines)
+            item.setData(0, MergeEncodingDelegate._PATH_ROLE, path)  # v1.0.6: 순수 경로
             self._tree.addTopLevelItem(item)
         self._update_stats()
 
@@ -9443,6 +10505,29 @@ class TextMergerPanel(QWidget):
 
     def _clear_save_path(self):
         self.save_dir=""; self._lbl_save_path.setText(_t('merge_path_none')); self._lbl_status.setText(_t('merge_path_reset_done'))
+
+    # v1.0.6: 자동 추천 기능 ─────────────────────────────────
+    def _refresh_recommendation(self):
+        """파일 추가/제거/언어전환 시 자동 추천 갱신 (A1'' 정책)."""
+        if not self.file_list:
+            # 파일 0개: 기존 hint 표시 (v1.0.5 동작 유지) + 적용 버튼 숨김
+            self._lbl_enc_hint.setText(_t('merge_enc_hint'))
+            self._btn_enc_recommend_apply.setVisible(False)
+            self._current_recommendation = None
+            return
+        rec_key, rec_label = merger_recommend_save_encoding(
+            self.enc_map, self.enc_confidence)
+        self._current_recommendation = rec_key
+        self._lbl_enc_hint.setText(_t('merge_enc_recommend', enc=rec_label))
+        self._btn_enc_recommend_apply.setVisible(True)
+
+    def _apply_enc_recommendation(self):
+        """추천 인코딩을 드롭다운에 적용 (v1.0.6 신규)."""
+        if not self._current_recommendation: return
+        idx = self._combo_enc.findData(self._current_recommendation)
+        if idx >= 0:
+            self._combo_enc.setCurrentIndex(idx)
+            _glog(f"💡 [Text Merger] 추천 인코딩 적용: {self._current_recommendation}")
 
     def _merge_files(self):
         if not self.file_list: _dlg_warn(self, _t('dlg_warning'), _t('merge_no_files')); return
@@ -9660,8 +10745,11 @@ class TextMergerPanel(QWidget):
         # v1.0.5: 콤보박스 아이템 표시 라벨 갱신 (userData는 보존)
         for _i, (_enc_key, _i18n_key) in enumerate(self._ENC_ITEMS):
             self._combo_enc.setItemText(_i, _t(_i18n_key))
-        # v1.0.5: 저장 인코딩 한 줄 도움말 갱신
-        if hasattr(self, '_lbl_enc_hint'): self._lbl_enc_hint.setText(_t('merge_enc_hint'))
+        # v1.0.6: 저장 인코딩 라벨 + 추천 적용 버튼 갱신 (언어 전환 시)
+        # _refresh_recommendation()이 파일 0개 → hint, 파일 1개 이상 → 추천 라벨 자동 처리
+        if hasattr(self, '_btn_enc_recommend_apply'):
+            self._btn_enc_recommend_apply.setText(_t('merge_enc_recommend_apply'))
+        if hasattr(self, '_lbl_enc_hint'): self._refresh_recommendation()
         self._lbl_path_label.setText(_t('merge_save_path'))
         if not self.save_dir: self._lbl_save_path.setText(_t('merge_path_none'))
         self._btn_browse.setText(_t('merge_path_pick'))
@@ -9865,9 +10953,9 @@ def _dlg_info(parent, title: str, msg: str):
     root.addLayout(br); dlg.exec()
 
 
-def _dlg_warn(parent, title: str, msg: str):
-    """경고 다이얼로그 (확인 버튼)."""
-    dlg, root = _build_dlg(parent, title or "경고", msg, "warn")
+def _dlg_warn(parent, title: str, msg: str, rich_text: bool = False):
+    """경고 다이얼로그 (확인 버튼). v1.0.6: rich_text 파라미터 추가 (기본 False)."""
+    dlg, root = _build_dlg(parent, title or "경고", msg, "warn", rich_text=rich_text)
     br = QHBoxLayout(); br.addStretch()
     ok = QPushButton(_t('dlg_ok')); ok.setStyleSheet(_btn_style(True))
     ok.clicked.connect(dlg.accept); br.addWidget(ok)
@@ -11743,7 +12831,7 @@ class HelpDialog(QDialog):
                             else:
                                 pb=_fmix('#808080',SURFACE,0.88); pf=MUTED; pd=_fmix('#808080',SURFACE,0.65)
                             pills.append(f'<span style="display:inline-block;background:{pb};border:1px solid {pd};border-radius:4px;padding:2px 9px;font-size:12px;font-weight:700;font-family:monospace;color:{pf};">{label}</span>')
-                        p.append(f'<div style="margin:0 0 10px 6px;"><div style="font-size:12px;color:{MUTED};margin-bottom:9px;"><span style="color:{ACCENT};font-size:10px;">●</span> 기본 지원 &nbsp;&nbsp;<span style="color:{MUTED};font-size:10px;">●</span> 라이브러리 설치 필요 <span style="font-size:11px;">(python-docx · pdfplumber · openpyxl)</span></div>{" ".join(pills)}</div>')
+                        p.append(f'<div style="margin:0 0 10px 6px;"><div style="font-size:12px;color:{MUTED};margin-bottom:9px;"><span style="color:{ACCENT};font-size:10px;">●</span> 기본 지원 &nbsp;&nbsp;<span style="color:{MUTED};font-size:10px;">●</span> 라이브러리 설치 필요 <span style="font-size:11px;">(python-docx · pdfplumber · openpyxl · python-hwpx)</span></div>{" ".join(pills)}</div>')
                     elif kind=='sub':
                         p.append(f'<div style="margin:-3px 0 8px 26px;color:{MUTED};font-size:13px;line-height:1.7;">{item[1]}</div>')
                     elif kind=='note':
@@ -11908,6 +12996,7 @@ class SettingsDialog(QDialog):
         # 버전 표기 — 사이드바 하단
         ver_lbl = QLabel(f"v{APP_VERSION}")
         ver_lbl.setStyleSheet(f"color:{MUTED};font-size:11px;padding-left:6px;padding-bottom:4px;")
+        self._ver_lbl = ver_lbl  # v1.0.6: 테마 전환 시 갱신용 self 저장
         sl.addWidget(ver_lbl)
         root.addWidget(sb)
 
@@ -12010,6 +13099,7 @@ class SettingsDialog(QDialog):
         for n, card in self._cards.items(): card.set_selected(n == name)
         self.theme_applied.emit(name)
         self._refresh_theme()
+        self._retranslate_dialog()  # v1.0.6 §2.1 A: _apply_now와 일관성
         self._show_status(f"✅  '{self._CARD_CFG[name]['label']}' {_t('settings_applied')}")
 
     def _show_status(self, msg: str, ms: int = 2500):
@@ -12161,6 +13251,22 @@ class SettingsDialog(QDialog):
         if hasattr(self, '_lang_page_title'):
             self._lang_page_title.setText(_t('settings_lang_title'))
             self._lang_page_desc.setText(_t('settings_lang_desc'))
+        # v1.0.6: 단축키 리셋 버튼들 텍스트 갱신 (D-1)
+        if hasattr(self, '_sc_reset_btns'):
+            for btn in self._sc_reset_btns.values():
+                btn.setText(_t("btn_reset"))
+        if hasattr(self, '_sc_reset_all_btn'):
+            self._sc_reset_all_btn.setText(_t("btn_reset_all"))
+        # v1.0.6: 일반 설정 출력 폴더 라벨/버튼 텍스트 갱신 (D-2)
+        if hasattr(self, '_lang_odir_title'):
+            self._lang_odir_title.setText(_t('settings_output_dir'))
+        if hasattr(self, '_odir_btn'):
+            self._odir_btn.setText(_t('conv_btn_pick'))
+        if hasattr(self, '_odir_reset_btn'):
+            self._odir_reset_btn.setText(_t('merge_path_reset'))
+        # v1.0.6: 라이선스 페이지 타이틀 갱신 (D-3)
+        if hasattr(self, '_license_page_title'):
+            self._license_page_title.setText(_t("settings_nav_license").strip())
         # 라이선스 페이지 갱신
         if hasattr(self, '_license_browser'):
             self._license_browser.setHtml(_build_license_html())
@@ -12206,6 +13312,7 @@ class SettingsDialog(QDialog):
                           'tab_5':'sc_tab_fixer','tab_6':'sc_tab_bulk'}
         self._sc_label_keys = _sc_label_keys
         self._sc_action_lbls = {}
+        self._sc_reset_btns = {}  # v1.0.6: 테마/언어 전환 시 갱신용 self 저장
         for sid, info in SHORTCUT_DEFS.items():
             current = self._shortcuts.get(sid, info['default'])
             row=QHBoxLayout(); row.setSpacing(10); row.setContentsMargins(0,4,0,4)
@@ -12226,6 +13333,7 @@ class SettingsDialog(QDialog):
                 f"QPushButton{{background:{SRF2};border:1px solid {BORDER};"
                 f"border-radius:6px;color:{MUTED};padding:5px 8px;font-size:12px;}}"
                 f"QPushButton:hover{{border-color:{INPUT_H};color:{TEXT};}}")
+            self._sc_reset_btns[sid] = reset_btn  # v1.0.6: self 저장
 
             row.addWidget(action_lbl); row.addWidget(btn); row.addWidget(reset_btn)
             row.addStretch(); lay.addLayout(row)
@@ -12246,6 +13354,7 @@ class SettingsDialog(QDialog):
             f"QPushButton{{background:{SRF2};border:1px solid {BORDER};"
             f"border-radius:7px;color:{MUTED};padding:6px 14px;font-size:12px;}}"
             f"QPushButton:hover{{border-color:{INPUT_H};color:{TEXT};}}")
+        self._sc_reset_all_btn = reset_all  # v1.0.6: 테마/언어 전환 시 갱신용 self 저장
         foot.addWidget(note); foot.addStretch(); foot.addWidget(reset_all)
         lay.addLayout(foot)
         return page
@@ -12318,6 +13427,7 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
         ("📋", "Text Merger", "여러 파일을 하나의 텍스트 파일로 병합합니다",
          "아래 형식의 파일을 원하는 순서로 이어붙여 하나의 텍스트 파일로 만듭니다. DOCX·PDF·XLSX는 해당 라이브러리가 설치된 경우에만 텍스트를 추출할 수 있습니다.",
          [
+          ("formats",[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib'), ('HWPX', 'lib')]),
           ("step","<b>파일 추가</b> — <code>[📄 파일 추가]</code> 버튼 또는 파일을 목록 위로 드래그 앤 드롭합니다. 지원하지 않는 형식은 자동으로 걸러집니다."),
           ("step","<b>순서 조정</b> — 목록 항목을 드래그하거나 <code>[위로]</code> / <code>[아래로]</code> 버튼으로 병합 순서를 정합니다. 병합 결과물에 파일 순서가 그대로 반영됩니다."),
           ("step","<b>인코딩 설정</b> — 각 파일 오른쪽 콤보박스에서 <b>읽기 인코딩</b>을 선택하고, 우측 '저장 설정' 패널에서 <b>저장 인코딩</b>을 선택합니다."),
@@ -12405,6 +13515,10 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ("tip","하단 통계 바에서 <b>병합 횟수·빈 줄 제거 수·원본 줄 수·최종 줄 수</b>를 확인할 수 있습니다."),
           ("tip","<b>Ctrl+F</b>로 원본·수정본 텍스트에서 키워드를 검색할 수 있습니다. Enter로 다음, Shift+Enter로 이전 결과로 이동합니다."),
           ("warn","저장은 항상 <b>UTF-8</b> 인코딩으로 이루어집니다. 원본 인코딩(EUC-KR 등)을 유지해야 하는 경우 별도로 인코딩을 변환하세요."),
+          ("divider",),
+          ("note","<b>부분 손상 파일 처리</b> — 일부 바이트가 손상된 파일도 열 수 있습니다. 깨진 문자는 <code>�</code> (U+FFFD) 로 표시되며, 상태 표시줄에 <b>⚠</b> 아이콘과 '부분 인코딩 실패' 경고가 표시됩니다."),
+          ("tip","Text Fixer는 <b>단일 파일 정밀 검토</b>에 최적화되어 있습니다. 손상된 파일을 열어 깨진 위치를 직접 확인하고, 필요하면 그 구간만 수동으로 편집하거나 원본을 다시 확보할지 판단할 수 있습니다."),
+          ("warn","수만 자 이상의 대량 손상이 있는 파일은 교정해도 품질 회복이 어렵습니다. 원본 출처에서 재다운로드를 먼저 고려하세요. Bulk Fixer에서는 이런 파일을 자동으로 스킵하여 원본을 보호합니다."),
          ]),
 
         ("✦", "Bulk Fixer", "여러 TXT 파일의 줄바꿈을 일괄 교정합니다",
@@ -12417,6 +13531,10 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ("tip","파일 목록에서 항목을 클릭하면 오른쪽 미리보기 창에서 해당 파일의 교정 결과를 미리 확인할 수 있습니다."),
           ("tip","<b>출력 폴더</b> 기본값은 <code>Output/</code> 폴더입니다. ⚙ 설정에서 전역으로 변경하거나 각 탭에서 개별 지정할 수 있습니다. 저장 완료 후 자동으로 열립니다."),
           ("warn","TXT 파일만 지원합니다. DOCX·PDF 등 다른 형식은 먼저 Text Converter로 TXT로 변환한 뒤 사용하세요."),
+          ("divider",),
+          ("note","<b>인코딩 손상 파일 자동 분류</b> — Bulk Fixer는 부분 손상 파일을 감지하면 손상 정도에 따라 3단계로 나누어 처리합니다:<br>• <b>Tier 1</b> (1~500자 손상): 교정 후 리포트 파일 생성<br>• <b>Tier 2</b> (501~5,000자 손상): 교정 후 리포트 파일 생성 (검토 권장)<br>• <b>Tier 3</b> (5,001자 이상): <b>자동 스킵 (원본 보호)</b> + 리포트 파일만 생성"),
+          ("tip","리포트 파일은 <code>{원본파일명}.encoding_report.txt</code> 형태로 교정본 옆에 생성됩니다. 어느 줄·어느 컬럼이 손상됐는지 최대 5,000건까지 상세 기록됩니다."),
+          ("warn","Tier 3로 스킵된 파일은 <b>Text Fixer에서 개별 검토</b>하세요. 대량 손상은 잘못된 인코딩 감지이거나 원본 파일 자체의 문제일 가능성이 높아, 일괄 교정 대신 원본을 재확보하는 것이 낫습니다."),
          ]),
 
         ("⌨️", "단축키 및 기타", "",
@@ -12454,7 +13572,7 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
         ('📋','Text Merger','Merge multiple files into a single text file',
          'Combine files of the formats below into one text file in any order. DOCX, PDF, and XLSX require the respective libraries to be installed.',
          [
-          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib')]),
+          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib'), ('HWPX', 'lib')]),
           ('step','<b>Add files</b> — Click <code>[📄 Add Files]</code> or drag and drop files onto the list. Unsupported formats are filtered out automatically.'),
           ('step','<b>Set order</b> — Drag items in the list or use <code>[Up]</code> / <code>[Down]</code> to set the merge order.'),
           ('step',"<b>Set encoding</b> — Select the <b>read encoding</b> for each file via the combo box, and choose the <b>save encoding</b> in the 'Save Settings' panel."),
@@ -12542,6 +13660,10 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('tip','The status bar at the bottom shows <b>merge count, blank lines removed, original line count, and final line count</b>.'),
           ('tip','Press <b>Ctrl+F</b> to search within the source and result text. Enter jumps to the next match, Shift+Enter to the previous.'),
           ('warn','Files are always saved as <b>UTF-8</b>. Convert the encoding separately if you need to preserve the original (e.g. EUC-KR).'),
+          ('divider',),
+          ('note',"<b>Partially corrupted files</b> — Files with damaged bytes can still be opened. Corrupted characters are shown as <code>�</code> (U+FFFD), and the status bar shows a <b>⚠</b> icon with a 'Partial encoding failure' warning."),
+          ('tip','Text Fixer is optimized for <b>detailed inspection of a single file</b>. Open corrupted files to see exactly where the damage is, edit those spots manually, or decide whether to re-acquire the original.'),
+          ('warn','Files with tens of thousands of corrupted characters rarely recover well. Re-downloading from the source is usually better. Bulk Fixer automatically skips such files to protect the originals.'),
          ]),
 
         ('✦','Bulk Fixer','Batch-correct line breaks across multiple TXT files',
@@ -12554,6 +13676,10 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('tip','Click any file in the list to preview the corrected result in the preview panel on the right.'),
           ('tip','The default output folder is <code>Output/</code>. You can change it globally in ⚙ Settings or per-tab individually. The folder opens automatically after saving.'),
           ('warn','Only TXT files are supported. Convert DOCX, PDF, etc. to TXT with Text Converter first.'),
+          ('divider',),
+          ('note','<b>Automatic corruption tiering</b> — Bulk Fixer classifies partially corrupted files into three tiers based on damage severity:<br>• <b>Tier 1</b> (1–500 damaged chars): Fixed + report generated<br>• <b>Tier 2</b> (501–5,000 damaged chars): Fixed + report generated (review recommended)<br>• <b>Tier 3</b> (5,001+ damaged chars): <b>Automatically skipped (original preserved)</b> + report only'),
+          ('tip','Reports are created next to the fixed output as <code>{original_filename}.encoding_report.txt</code>, detailing damaged line/column positions for up to 5,000 entries.'),
+          ('warn','Files skipped as Tier 3 should be <b>individually reviewed in Text Fixer</b>. Heavy corruption usually means wrong encoding detection or a corrupted source, so re-acquiring the original is often better than forcing correction.'),
          ]),
 
         ('⌨️','Shortcuts & Tips','',
@@ -12591,7 +13717,7 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
         ('📋','Text Merger','複数ファイルを1つのテキストファイルに結合します',
          '以下の形式のファイルを任意の順序で結合して1つのテキストファイルを作成します。DOCX・PDF・XLSXは対応ライブラリがインストールされている場合のみ利用できます。',
          [
-          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib')]),
+          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib'), ('HWPX', 'lib')]),
           ('step','<b>ファイル追加</b> — <code>[📄 ファイル追加]</code>ボタンまたはドラッグ＆ドロップでリストに追加します。未対応の形式は自動的に除外されます。'),
           ('step','<b>順序調整</b> — リスト内でドラッグするか<code>[上へ]</code>/<code>[下へ]</code>で結合順序を設定します。'),
           ('step','<b>エンコード設定</b> — 各ファイルの<b>読み込みエンコード</b>をコンボボックスで選択し、右の「保存設定」パネルで<b>保存エンコード</b>を選択します。'),
@@ -12679,6 +13805,10 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('tip','下部の統計バーで<b>結合回数・空行削除数・元の行数・最終行数</b>を確認できます。'),
           ('tip','<b>Ctrl+F</b>で原文・修正文のテキスト検索ができます。Enterで次へ、Shift+Enterで前へ移動します。'),
           ('warn','保存は常に<b>UTF-8</b>エンコードで行われます。元のエンコード（EUC-KRなど）を維持する必要がある場合は別途変換してください。'),
+          ('divider',),
+          ('note','<b>部分的に破損したファイルの処理</b> — 一部のバイトが破損したファイルも開けます。破損した文字は<code>�</code>（U+FFFD）で表示され、ステータスバーに<b>⚠</b>アイコンと「部分エンコーディング失敗」の警告が表示されます。'),
+          ('tip','Text Fixerは<b>単一ファイルの精密レビュー</b>に最適化されています。破損ファイルを開いて壊れた位置を直接確認し、その箇所を手動編集したり、原本の再取得を判断できます。'),
+          ('warn','数万文字以上の大量破損があるファイルは、補正しても品質回復が困難です。まず原本元からの再ダウンロードを検討してください。Bulk Fixerではこのようなファイルを自動スキップして原本を保護します。'),
          ]),
 
         ('✦','Bulk Fixer','複数のTXTファイルの改行を一括補正します',
@@ -12691,6 +13821,10 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('tip','ファイル一覧の項目をクリックすると、右のプレビューパネルで補正結果を確認できます。'),
           ('tip','デフォルトの出力フォルダは<code>Output/</code>です。⚙設定でグローバルに変更するか、各タブで個別に指定できます。保存完了後に自動で開きます。'),
           ('warn','TXTファイルのみ対応です。DOCX・PDFなどは先にText ConverterでTXTに変換してください。'),
+          ('divider',),
+          ('note','<b>エンコーディング破損ファイルの自動分類</b> — Bulk Fixerは部分破損ファイルを検出すると、破損の程度に応じて3段階に分けて処理します：<br>• <b>Tier 1</b>（1〜500文字破損）：補正後にレポート生成<br>• <b>Tier 2</b>（501〜5,000文字破損）：補正後にレポート生成（レビュー推奨）<br>• <b>Tier 3</b>（5,001文字以上）：<b>自動スキップ（原本保護）</b> + レポートのみ生成'),
+          ('tip','レポートファイルは<code>{元ファイル名}.encoding_report.txt</code>の形で補正版の隣に生成されます。どの行・どの列が破損したかを最大5,000件まで詳細記録します。'),
+          ('warn','Tier 3でスキップされたファイルは<b>Text Fixerで個別にレビュー</b>してください。大量破損はエンコーディング誤検出か原本ファイル自体の問題である可能性が高く、一括補正よりも原本の再取得が良策です。'),
          ]),
 
         ('⌨️','ショートカット & Tips','',
@@ -12728,7 +13862,7 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
         ('📋','Text Merger','将多个文件合并为一个文本文件',
          '将以下格式的文件按您选择的顺序合并为一个文本文件。DOCX、PDF、XLSX需安装对应库后才能提取文本。',
          [
-          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib')]),
+          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib'), ('HWPX', 'lib')]),
           ('step','<b>添加文件</b> — 点击<code>[📄 添加文件]</code>或将文件拖放到列表中。不支持的格式会自动过滤。'),
           ('step','<b>调整顺序</b> — 在列表中拖动或使用<code>[上移]</code>/<code>[下移]</code>设置合并顺序。'),
           ('step','<b>设置编码</b> — 从每个文件右侧的下拉框中选择<b>读取编码</b>，在右侧「保存设置」面板中选择<b>保存编码</b>。'),
@@ -12816,6 +13950,10 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('tip','底部统计栏显示<b>合并次数、空行删除数、原始行数、最终行数</b>。'),
           ('tip','按<b>Ctrl+F</b>可在原文和修改后的文本中搜索关键词。Enter跳到下一个，Shift+Enter跳到上一个。'),
           ('warn','文件始终以<b>UTF-8</b>编码保存。如需保留原始编码（如EUC-KR），请另行转换。'),
+          ('divider',),
+          ('note','<b>部分损坏文件的处理</b> — 部分字节损坏的文件也可以打开。损坏的字符显示为<code>�</code>（U+FFFD），状态栏会显示<b>⚠</b>图标和"部分编码失败"警告。'),
+          ('tip','Text Fixer 针对<b>单个文件的精细审核</b>进行了优化。打开损坏文件可直接查看损坏位置，手动编辑该段，或判断是否需要重新获取原件。'),
+          ('warn','数万字符以上的大量损坏文件难以通过校正恢复质量。建议优先考虑从原来源重新下载。Bulk Fixer 会自动跳过此类文件以保护原件。'),
          ]),
 
         ('✦','Bulk Fixer','批量校正多个TXT文件的换行',
@@ -12828,6 +13966,10 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('tip','点击文件列表中的项目，可在右侧预览面板中预览校正结果。'),
           ('tip','默认输出文件夹为<code>Output/</code>。可在⚙设置中全局更改，也可在各标签页单独指定。保存完成后自动打开。'),
           ('warn','仅支持TXT文件。请先用Text Converter将DOCX、PDF等格式转换为TXT后再使用。'),
+          ('divider',),
+          ('note','<b>编码损坏文件自动分级</b> — Bulk Fixer 检测到部分损坏文件后，根据损坏程度分为三级处理：<br>• <b>Tier 1</b>（1~500字符损坏）：校正后生成报告<br>• <b>Tier 2</b>（501~5,000字符损坏）：校正后生成报告（建议审核）<br>• <b>Tier 3</b>（5,001字符以上）：<b>自动跳过（保护原文件）</b> + 仅生成报告'),
+          ('tip','报告文件以<code>{原文件名}.encoding_report.txt</code>的形式生成在校正版旁边，详细记录哪些行、哪些列出现损坏，最多记录 5,000 条。'),
+          ('warn','被 Tier 3 跳过的文件应<b>在 Text Fixer 中单独审核</b>。大量损坏通常意味着编码检测错误或原文件本身存在问题，与其强制批量校正，不如重新获取原件。'),
          ]),
 
         ('⌨️','快捷键 & 使用技巧','',
@@ -12865,7 +14007,7 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
         ('📋','Text Merger','將多個檔案合併為一個文字檔案',
          '將以下格式的檔案依您選擇的順序合併為一個文字檔案。DOCX、PDF、XLSX需安裝對應函式庫後才能擷取文字。',
          [
-          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib')]),
+          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib'), ('HWPX', 'lib')]),
           ('step','<b>新增檔案</b> — 點擊<code>[📄 新增檔案]</code>或將檔案拖曳放置到清單中。不支援的格式會自動過濾。'),
           ('step','<b>調整順序</b> — 在清單中拖曳或使用<code>[上移]</code>/<code>[下移]</code>設定合併順序。'),
           ('step','<b>設定編碼</b> — 從每個檔案右側的下拉選單選擇<b>讀取編碼</b>，在右側「儲存設定」面板選擇<b>儲存編碼</b>。'),
@@ -12953,6 +14095,10 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('tip','底部統計列顯示<b>合併次數、空行刪除數、原始行數、最終行數</b>。'),
           ('tip','按<b>Ctrl+F</b>可在原文和修改後的文字中搜尋關鍵字。Enter跳到下一個，Shift+Enter跳到上一個。'),
           ('warn','檔案始終以<b>UTF-8</b>編碼儲存。如需保留原始編碼（如EUC-KR），請另行轉換。'),
+          ('divider',),
+          ('note','<b>部分損毀檔案的處理</b> — 部分位元組損毀的檔案也可以開啟。損毀的字元顯示為<code>�</code>（U+FFFD），狀態列會顯示<b>⚠</b>圖示和「部分編碼失敗」警告。'),
+          ('tip','Text Fixer 針對<b>單一檔案的精細審核</b>進行了最佳化。開啟損毀檔案可直接檢視損毀位置，手動編輯該段，或判斷是否需要重新取得原始檔案。'),
+          ('warn','數萬字元以上的大量損毀檔案難以透過校正恢復品質。建議優先考慮從原來源重新下載。Bulk Fixer 會自動略過此類檔案以保護原始檔案。'),
          ]),
 
         ('✦','Bulk Fixer','批量校正多個TXT檔案的換行',
@@ -12965,6 +14111,10 @@ def _build_help_html(_data_only=False, _lang=None) -> str:
           ('tip','點擊檔案清單中的項目，可在右側預覽面板中預覽校正結果。'),
           ('tip','預設輸出資料夾為<code>Output/</code>。可在⚙設定中全域更改，也可在各分頁單獨指定。儲存完成後自動開啟。'),
           ('warn','僅支援TXT檔案。請先用Text Converter將DOCX、PDF等格式轉換為TXT後再使用。'),
+          ('divider',),
+          ('note','<b>編碼損毀檔案自動分級</b> — Bulk Fixer 偵測到部分損毀檔案後，依據損毀程度分為三級處理：<br>• <b>Tier 1</b>（1~500字元損毀）：校正後產生報告<br>• <b>Tier 2</b>（501~5,000字元損毀）：校正後產生報告（建議審核）<br>• <b>Tier 3</b>（5,001字元以上）：<b>自動略過（保護原始檔案）</b> + 僅產生報告'),
+          ('tip','報告檔案以<code>{原檔名}.encoding_report.txt</code>的形式產生在校正版旁邊，詳細記錄哪些行、哪些欄出現損毀，最多記錄 5,000 筆。'),
+          ('warn','被 Tier 3 略過的檔案應<b>在 Text Fixer 中個別審核</b>。大量損毀通常意味著編碼偵測錯誤或原始檔案本身有問題，與其強制批量校正，不如重新取得原始檔案。'),
          ]),
 
         ('⌨️','快捷鍵 & 使用技巧','',
@@ -13263,6 +14413,14 @@ def _build_license_html() -> str:
                     "url": "https://openpyxl.readthedocs.io",
                     "note": "XLSX file reading for Text Merger. Optional — loaded at runtime only if installed.",
                 },
+                {
+                    "name": "python-hwpx",
+                    "version": "—",
+                    "license": "MIT License",
+                    "copyright": "Copyright © Kyuhyun Koh (고규현)",
+                    "url": "https://github.com/airmang/python-hwpx",
+                    "note": "HWPX (KS X 6101 OWPML) text extraction for Text Merger. Pure-Python, no Hancom Office required. Optional — loaded at runtime only if installed.",
+                },
             ],
         },
         {
@@ -13387,83 +14545,10 @@ class AppSuite(QMainWindow):
     def dropEvent(self,e): e.ignore()
 
 
-    def _page_language(self):
-        page=QWidget(); page.setStyleSheet("background:transparent;")
-        lay=QVBoxLayout(page); lay.setContentsMargins(0,0,0,0); lay.setSpacing(16)
-
-        title=QLabel(_t("settings_lang_title"))
-        title.setStyleSheet(f"font-size:14px;font-weight:700;color:{TEXT};")
-        lay.addWidget(title)
-        self._lang_page_title=title
-
-        desc=QLabel(_t("settings_lang_desc"))
-        desc.setStyleSheet(f"color:{MUTED};font-size:12px;")
-        desc.setWordWrap(True)
-        self._lang_page_desc=desc
-        lay.addWidget(desc)
-
-        sep=QFrame(); sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet(f"background:{BORDER};max-height:1px;border:none;")
-        lay.addWidget(sep)
-
-        lang_frame=QFrame()
-        lang_frame.setStyleSheet(
-            f"QFrame{{background:{SRF2};border:1px solid {BORDER};"
-            f"border-radius:10px;}}")
-        lfl=QVBoxLayout(lang_frame); lfl.setContentsMargins(20,16,20,16); lfl.setSpacing(12)
-
-        bg=QButtonGroup(self)
-        for code, label in SUPPORTED_LANGUAGES:
-            rb=QRadioButton(label)
-            rb.setChecked(code == self._chosen_lang)
-            rb.setStyleSheet(f"QRadioButton{{font-size:14px;color:{MUTED};spacing:10px;}}"
-                             f"QRadioButton::indicator{{width:17px;height:17px;border:1.5px solid {INPUT_H};border-radius:9px;background:{SURFACE};}}"
-                             f"QRadioButton::indicator:checked{{border:2px solid {ACCENT};background:{ACCENT};}}")
-            rb.toggled.connect(lambda checked, c=code: self._on_lang_selected(c) if checked else None)
-            bg.addButton(rb)
-            lfl.addWidget(rb)
-            self._lang_radios[code] = rb
-
-        lay.addWidget(lang_frame)
-        lay.addStretch()
-        return page
-
-    def _on_lang_selected(self, code):
-        self._chosen_lang = code
-
-
-    def _retranslate_dialog(self):
-        """언어 변경 후 설정 다이얼로그 자체 텍스트 갱신."""
-        # 사이드바 타이틀
-        self._dlg_title.setText(_t('settings_title'))
-        # 네비게이션 버튼 — 번역 문자열에 이미 아이콘 포함
-        for (sid, _, __), key in zip(self._SECTIONS,
-                ['settings_nav_theme', 'settings_nav_language', 'settings_nav_shortcuts', 'settings_nav_license']):
-            self._nav_btns[sid].setText(_t(key))
-        # 하단 버튼
-        self._bc.setText(_t('btn_close'))
-        self._bo.setText(_t('btn_apply'))
-        # 테마 페이지
-        if hasattr(self, '_theme_page_title'):
-            self._theme_page_title.setText(_t('settings_theme_title'))
-            self._theme_page_hint.setText(_t('settings_theme_hint'))
-        # 단축키 페이지
-        if hasattr(self, '_sc_page_title'):
-            self._sc_page_title.setText(_t('settings_sc_title'))
-            self._sc_page_desc.setText(_t('settings_sc_desc'))
-            self._sc_note.setText(_t('settings_sc_note'))
-            if hasattr(self, '_sc_hdr_labels') and len(self._sc_hdr_labels) >= 2:
-                self._sc_hdr_labels[0].setText(_t('settings_sc_action'))
-                self._sc_hdr_labels[1].setText(_t('settings_sc_key'))
-        # 언어 페이지
-        if hasattr(self, '_lang_page_title'):
-            self._lang_page_title.setText(_t('settings_lang_title'))
-            self._lang_page_desc.setText(_t('settings_lang_desc'))
-        # 라이선스 페이지 갱신
-        if hasattr(self, '_license_browser'):
-            self._license_browser.setHtml(_build_license_html())
-        # 네비 버튼 스타일 재적용
-        self._switch(self._cur)
+    # v1.0.6 #7 지시서 v2: SettingsDialog가 별도 QDialog로 분리되기 전 잔재된
+    # 데드 코드 3개 메서드 (_page_language / _on_lang_selected / _retranslate_dialog)
+    # 제거됨. 전수 grep 검증: 호출처 0건 + self._lang_radios 초기화 없음으로
+    # 실행 시 접근 불가능. closeEvent는 AppSuite의 정상 기능이므로 보존.
 
     def closeEvent(self, event):
         # 작업 중 패널 확인 — 실행 중이면 종료 확인 팝업
