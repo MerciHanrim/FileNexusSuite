@@ -4419,6 +4419,14 @@ if __name__ == '__main__':
     import inspect as _inspect
     import sys as _sys
 
+    # stdout/stderr UTF-8 강제 (v1.0.7 CI 도입 — GitHub Actions windows-latest의
+    # 기본 콘솔 인코딩이 cp1252라 한글·이모지 출력 시 UnicodeEncodeError 발생).
+    # Python 3.7+ 표준 기능이며, 한림 로컬(Windows)·Linux·macOS 모두 무해.
+    if hasattr(_sys.stdout, 'reconfigure'):
+        _sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(_sys.stderr, 'reconfigure'):
+        _sys.stderr.reconfigure(encoding='utf-8')
+
     loader = unittest.TestLoader()
     suite  = unittest.TestSuite()
 
