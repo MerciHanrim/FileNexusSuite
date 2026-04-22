@@ -2095,91 +2095,169 @@ class TestTranslationCompleteness(unittest.TestCase):
 
     def test_ko_has_minimum_keys(self):
         keys = self._get_lang_keys('ko')
-        self.assertGreaterEqual(len(keys), 280)
+        self.assertGreaterEqual(len(keys), 400)
 
-    def test_all_langs_have_dlg_keys(self):
+    # ────────────────────────────────────────────────────────────────
+    # 탭 기반 기능 영역 invariant (v1.0.7 세션 3 재구성)
+    # 버전 스냅샷 방식(v010/v010_1/v100) 폐기 → 10개 대분류로 재조직
+    # 세부 정책은 TEST_MANAGEMENT_POLICY.md 참조
+    # ────────────────────────────────────────────────────────────────
+
+    def test_all_langs_have_common_dialog_keys(self):
+        """대분류 1 — 전 탭 공통 다이얼로그·버튼 키."""
+        common_keys = [
+            'dlg_ok', 'dlg_yes', 'dlg_no',
+            'dlg_warning', 'dlg_error_title',
+            'btn_abort',
+        ]
         for lang in ('ko','en','ja','zh_cn','zh_tw'):
             keys = self._get_lang_keys(lang)
-            with self.subTest(lang=lang):
-                self.assertIn('dlg_ok', keys)
-                self.assertIn('dlg_yes', keys)
-                self.assertIn('dlg_no', keys)
+            for key in common_keys:
+                with self.subTest(lang=lang, key=key):
+                    self.assertIn(key, keys,
+                        f"[{lang}] '{key}' 키 없음 (common 대분류)")
 
-    def test_all_langs_have_sort_header(self):
+    def test_all_langs_have_text_merger_keys(self):
+        """대분류 2 — Text Merger 탭 대표 키."""
+        merger_keys = [
+            'merge_status_add', 'merge_status_del', 'merge_status_clr',
+            'merge_path_set', 'merge_path_reset_done',
+            'merge_reading', 'merge_save_done', 'merge_save_err',
+            'merge_no_support',
+        ]
         for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            with self.subTest(lang=lang):
-                self.assertIn('sort_header', self._get_lang_keys(lang))
+            keys = self._get_lang_keys(lang)
+            for key in merger_keys:
+                with self.subTest(lang=lang, key=key):
+                    self.assertIn(key, keys,
+                        f"[{lang}] '{key}' 키 없음 (text_merger 대분류)")
+
+    def test_all_langs_have_text_converter_keys(self):
+        """대분류 3 — Text Converter 탭 대표 키.
+
+        주의: conv_sub_txt2epub / conv_sub_epub2txt는 L6560의
+        `_t('conv_sub_' + val)` 동적 키 생성으로 활성 사용됨 (v1.0.7 감사 수정).
+        """
+        converter_keys = [
+            'conv_status_done', 'conv_status_fail',
+            'conv_sub_txt2epub', 'conv_sub_epub2txt',
+        ]
+        for lang in ('ko','en','ja','zh_cn','zh_tw'):
+            keys = self._get_lang_keys(lang)
+            for key in converter_keys:
+                with self.subTest(lang=lang, key=key):
+                    self.assertIn(key, keys,
+                        f"[{lang}] '{key}' 키 없음 (text_converter 대분류)")
+
+    def test_all_langs_have_tag_editor_keys(self):
+        """대분류 4 — Tag Editor 탭 대표 키."""
+        tag_keys = [
+            'tag_file_count', 'tag_count_total',
+            'tag_status_found', 'tag_status_found_add', 'tag_status_found_depad',
+            'tag_no_change', 'tag_skip_count',
+            'tag_apply_confirm', 'tag_apply_done',
+        ]
+        for lang in ('ko','en','ja','zh_cn','zh_tw'):
+            keys = self._get_lang_keys(lang)
+            for key in tag_keys:
+                with self.subTest(lang=lang, key=key):
+                    self.assertIn(key, keys,
+                        f"[{lang}] '{key}' 키 없음 (tag_editor 대분류)")
+
+    def test_all_langs_have_batch_renamer_keys(self):
+        """대분류 5 — Batch Renamer 탭 대표 키.
+
+        batch_* / rename_* 두 접두사 통합 대분류 (부록 E 참조):
+          - batch_* ← 원본 BatchRenamer 클래스명에서 유래, UI·옵션
+          - rename_* ← 원본 _do_rename/_confirm_rename 메서드에서 유래, 동작 상태·피드백
+        """
+        batch_keys = [
+            'rename_do', 'rename_cancel',
+            'rename_no_preview', 'rename_no_pairs',
+            'rename_no_subfolders', 'rename_no_files',
+            'rename_collision',
+        ]
+        for lang in ('ko','en','ja','zh_cn','zh_tw'):
+            keys = self._get_lang_keys(lang)
+            for key in batch_keys:
+                with self.subTest(lang=lang, key=key):
+                    self.assertIn(key, keys,
+                        f"[{lang}] '{key}' 키 없음 (batch_renamer 대분류)")
+
+    def test_all_langs_have_text_fixer_keys(self):
+        """대분류 6 — Text Fixer 탭 대표 키.
+
+        주의: tf_dlg_overwrite는 v1.0.7 세션 2·3에서 제거된 고아 키이므로
+        invariant에서 제외됨 (_save_overwrite 데드 메서드와 함께 정리).
+        """
+        fixer_keys = [
+            'tf_dlg_nofile', 'tf_dlg_noperm',
+            'tf_dlg_ioerr', 'tf_dlg_encerr',
+            'tf_undo_done',
+        ]
+        for lang in ('ko','en','ja','zh_cn','zh_tw'):
+            keys = self._get_lang_keys(lang)
+            for key in fixer_keys:
+                with self.subTest(lang=lang, key=key):
+                    self.assertIn(key, keys,
+                        f"[{lang}] '{key}' 키 없음 (text_fixer 대분류)")
 
     def test_all_langs_have_bulk_fixer_keys(self):
-        bulk_keys = ['bulk_run','bulk_running','bulk_status_ready',
-                     'bulk_status_done','bulk_status_err','bulk_file_count']
+        """대분류 7 — Bulk Fixer 탭 대표 키."""
+        bulk_keys = [
+            'bulk_run', 'bulk_running',
+            'bulk_status_ready', 'bulk_status_done', 'bulk_status_err',
+            'bulk_file_count', 'bulk_no_txt',
+            'bulk_keep_structure',
+        ]
         for lang in ('ko','en','ja','zh_cn','zh_tw'):
             keys = self._get_lang_keys(lang)
             for key in bulk_keys:
                 with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys)
+                    self.assertIn(key, keys,
+                        f"[{lang}] '{key}' 키 없음 (bulk_fixer 대분류)")
 
-    def test_all_langs_have_sc_tab_bulk(self):
-        """sc_tab_bulk(Bulk Fixer 단축키 레이블)이 전 언어에 있어야 한다."""
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            with self.subTest(lang=lang):
-                self.assertIn('sc_tab_bulk', self._get_lang_keys(lang))
-
-    def test_all_langs_have_new_v010_keys(self):
-        """v0.10.0에서 추가된 신규 번역 키 22개 전 언어 존재 확인."""
-        new_keys = [
-            'conv_status_done','conv_status_fail','tf_undo_done',
-            'merge_status_add','merge_status_del','merge_status_clr',
-            'merge_path_set','merge_path_reset_done','merge_reading',
-            'merge_save_done','merge_save_err','tag_file_count',
-            'sc_none','sc_press',
-            'tag_count_total','tag_status_found','tag_status_found_add',
-            'tag_status_found_depad','tag_no_change','tag_skip_count',
-            'tag_apply_confirm','tag_apply_done',
+    def test_all_langs_have_settings_keys(self):
+        """대분류 8 — 설정 다이얼로그 대표 키."""
+        settings_keys = [
+            'settings_title',
+            'settings_output_dir',
+            'settings_nav_theme', 'settings_nav_language',
+            'settings_nav_shortcuts', 'settings_nav_license',
         ]
         for lang in ('ko','en','ja','zh_cn','zh_tw'):
             keys = self._get_lang_keys(lang)
-            for key in new_keys:
+            for key in settings_keys:
                 with self.subTest(lang=lang, key=key):
                     self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (v0.10.0 신규 키)")
+                        f"[{lang}] '{key}' 키 없음 (settings 대분류)")
 
-    def test_rename_keys_exist(self):
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            keys = self._get_lang_keys(lang)
-            with self.subTest(lang=lang):
-                self.assertIn('rename_do', keys)
-                self.assertIn('rename_cancel', keys)
-
-    def test_all_langs_have_v010_1_keys(self):
-        """v0.10.1에서 추가된 번역 키 검증 (다이얼로그 타이틀 + Bulk Fixer + 리네이머)."""
-        new_keys = [
-            'tf_dlg_nofile', 'tf_dlg_noperm', 'tf_dlg_ioerr',
-            'tf_dlg_encerr', 'tf_dlg_overwrite',
-            'bulk_no_txt', 'sc_tab_bulk',
-            'rename_no_preview', 'rename_no_pairs',
-            'rename_no_subfolders', 'rename_no_files',
-            'merge_no_support',
-            'rename_collision', 'dlg_warning', 'dlg_error_title',
+    def test_all_langs_have_shortcut_keys(self):
+        """대분류 9 — 단축키 시스템 대표 키."""
+        shortcut_keys = [
+            'sc_none', 'sc_press',
+            'sc_tab_merger', 'sc_tab_converter', 'sc_tab_tag',
+            'sc_tab_batch', 'sc_tab_fixer', 'sc_tab_bulk',
         ]
         for lang in ('ko','en','ja','zh_cn','zh_tw'):
             keys = self._get_lang_keys(lang)
-            for key in new_keys:
+            for key in shortcut_keys:
                 with self.subTest(lang=lang, key=key):
                     self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (v0.10.1 신규 키)")
+                        f"[{lang}] '{key}' 키 없음 (shortcut 대분류)")
 
-    def test_all_langs_have_v100_keys(self):
-        """v1.0.0에서 추가된 신규 번역 키가 전 언어에 있어야 한다."""
-        new_keys = [
-            'btn_abort', 'bulk_keep_structure', 'settings_output_dir',
+    def test_all_langs_have_misc_keys(self):
+        """대분류 10 — 위 어디에도 속하지 않는 잔여 대표 키 (최소화 목표)."""
+        misc_keys = [
+            'app_subtitle',
+            'close_busy_title',
         ]
         for lang in ('ko','en','ja','zh_cn','zh_tw'):
             keys = self._get_lang_keys(lang)
-            for key in new_keys:
+            for key in misc_keys:
                 with self.subTest(lang=lang, key=key):
                     self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (v1.0.0 신규 키)")
+                        f"[{lang}] '{key}' 키 없음 (misc 대분류)")
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -3596,14 +3674,14 @@ class TestV105Regression(unittest.TestCase):
         self.assertNotIn("'Shift-JIS (日語)'", zh_tw_block,
             "중국어 번체에서 '日語' 사용됨 (v1.0.4 tip과 불일치)")
 
-    # ── APP_VERSION 검증은 TestV106AppVersion으로 분리됨 (v1.0.6) ─────
+    # ── APP_VERSION 검증은 TestAppVersion으로 분리됨 (v1.0.7에서 버전 독립 구조 검증으로 재설계) ─────
 
 
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
 class TestV105RegressionModule(unittest.TestCase):
     """v1.0.5 모듈 로드 기반 회귀 테스트 — 런타임 동작 검증.
 
-    주의: APP_VERSION 검증은 TestV106AppVersionModule로 분리됨 (v1.0.6)
+    주의: APP_VERSION 검증은 TestAppVersionModule로 분리됨 (v1.0.7에서 버전 독립 구조 검증으로 재설계)
     """
 
     def test_translations_have_all_enc_keys(self):
@@ -3964,37 +4042,58 @@ class TestV105TranslationNoDuplicates(unittest.TestCase):
 # §추가N  APP_VERSION 검증 (v1.0.6)
 # ════════════════════════════════════════════════════════════════════════
 # 버전업 시점에 APP_VERSION 상수가 정확히 갱신됐는지 검증.
-# 기존 TestV105Regression.test_app_version_source_is_105 및
-# TestV105RegressionModule.test_app_version_is_105에서 이월된 검증 로직을
-# v1.0.6 전용 클래스로 분리. v1.0.5 회귀 테스트 클래스는 v1.0.5 당시의
-# 다른 회귀 항목(상태 메시지·인코딩 드롭다운 등)을 계속 지켜봄.
+# v1.0.7 재설계 — 버전 스냅샷 방식(TestV104Regression → TestV105Regression →
+# TestV106AppVersion 이월)을 버전 독립 구조 검증으로 전환. TEST_MANAGEMENT_POLICY.md
+# §4.4 "버전 스냅샷 방식 invariant 신규 도입 금지" 원칙 적용. 매 릴리즈마다 클래스명·
+# 검증값을 이월해오던 수작업 관례를 폐기하고, APP_VERSION이 존재하며 세미버전 형식
+# (MAJOR.MINOR.PATCH)을 따르는지만 검증. v1.0.7, v1.0.8, v2.0.0 등 모든 버전에서
+# 별도 갱신 없이 통과.
 
 
-class TestV106AppVersion(unittest.TestCase):
-    """v1.0.6 — APP_VERSION 소스값 검증 (소스 파싱 기반, PySide6 불필요)."""
+class TestAppVersion(unittest.TestCase):
+    """APP_VERSION 상수 구조적 검증 (v1.0.7 재설계, 버전 독립).
+
+    기존 이력: TestV104Regression → TestV105Regression → TestV106AppVersion (이월 방식)
+    현재 방식: 버전 독립 구조 검증 (세미버전 포맷만 검증, 구체적 값 강제 안 함)
+    """
 
     @classmethod
     def setUpClass(cls):
         with open(_MAIN_PY, encoding='utf-8') as f:
             cls.src = f.read()
 
-    def test_app_version_source_is_106(self):
-        """소스 상 APP_VERSION 문자열이 정확히 '1.0.6'이어야 한다."""
+    def test_app_version_defined_in_source(self):
+        """소스에 APP_VERSION 문자열 상수가 정의되어 있어야 한다."""
+        m = re.search(r'^APP_VERSION\s*=\s*[\"\']([^\"\']+)[\"\']',
+                      self.src, re.MULTILINE)
+        self.assertIsNotNone(m, "APP_VERSION 정의 없음 (소스 L76 부근 확인)")
+
+    def test_app_version_source_format_is_semver(self):
+        """소스의 APP_VERSION은 세미버전 형식(MAJOR.MINOR.PATCH)을 따라야 한다."""
         m = re.search(r'^APP_VERSION\s*=\s*[\"\']([^\"\']+)[\"\']',
                       self.src, re.MULTILINE)
         self.assertIsNotNone(m, "APP_VERSION 정의 없음")
-        self.assertEqual(m.group(1), '1.0.6',
-            f"APP_VERSION 소스값 불일치: {m.group(1)}")
+        self.assertRegex(m.group(1), r'^\d+\.\d+\.\d+$',
+            f"APP_VERSION 포맷 위반: {m.group(1)} (세미버전 MAJOR.MINOR.PATCH 필요)")
 
 
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
-class TestV106AppVersionModule(unittest.TestCase):
-    """v1.0.6 모듈 로드 기반 APP_VERSION 검증 — 런타임 값 검증."""
+class TestAppVersionModule(unittest.TestCase):
+    """APP_VERSION 런타임 모듈 로드 기반 구조적 검증 (v1.0.7 재설계, 버전 독립)."""
 
-    def test_app_version_is_106(self):
-        """APP_VERSION이 정확히 '1.0.6'이어야 한다."""
+    def test_app_version_loaded(self):
+        """모듈 로드 시 APP_VERSION이 존재하고 문자열이어야 한다."""
         ver = _ns.get('APP_VERSION')
-        self.assertEqual(ver, '1.0.6', f"APP_VERSION 불일치: {ver}")
+        self.assertIsNotNone(ver, "APP_VERSION 미정의")
+        self.assertIsInstance(ver, str,
+            f"APP_VERSION이 문자열이 아님: {type(ver).__name__}")
+
+    def test_app_version_runtime_format_is_semver(self):
+        """런타임 APP_VERSION이 세미버전 형식(MAJOR.MINOR.PATCH)을 따라야 한다."""
+        ver = _ns.get('APP_VERSION')
+        self.assertIsNotNone(ver, "APP_VERSION 미정의")
+        self.assertRegex(ver, r'^\d+\.\d+\.\d+$',
+            f"APP_VERSION 포맷 위반: {ver} (세미버전 MAJOR.MINOR.PATCH 필요)")
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -4368,3 +4467,7 @@ if __name__ == '__main__':
         for e in result.errors:
             print(f'ERROR: {e[0]}')
             for line in e[1].splitlines()[-4:]: print(f'  {line}')
+
+    # CI exit code 계약 (v1.0.7) — 실패/오류 시 non-zero 반환하여 자동 테스트 파이프라인이
+    # 통과 여부를 정확히 감지하도록 보장. 로컬 실행에서는 영향 없음.
+    _sys.exit(0 if (not fails and not errors) else 1)

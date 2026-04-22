@@ -8,10 +8,12 @@ Text merging · EPUB conversion · Filename tag editing · Batch renaming · Lin
 
 <br>
 
-![version](https://img.shields.io/badge/version-1.0.6-CC785C?style=flat-square)
+![version](https://img.shields.io/badge/version-1.0.7-CC785C?style=flat-square)
 ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/PySide6-Qt_6-41CD52?style=flat-square&logo=qt&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
+[![CI](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml)
+![tests](https://img.shields.io/badge/tests-531%20passing-4CB54C?style=flat-square)
 ![license](https://img.shields.io/badge/license-Freeware_(source_available)-7B6FA3?style=flat-square)
 ![AI](https://img.shields.io/badge/AI_pair_programming-Claude-CC785C?style=flat-square)
 
@@ -95,8 +97,8 @@ Download the latest Windows executable from the [**Releases**](https://github.co
 git clone https://github.com/MerciHanrim/FileNexusSuite.git
 cd FileNexusSuite
 
-# Install dependencies
-pip install PySide6 chardet python-docx pdfplumber openpyxl python-hwpx
+# Install dependencies (requirements.txt recommended)
+pip install -r requirements.txt
 
 # Run
 python FileNexusSuite.py

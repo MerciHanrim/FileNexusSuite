@@ -61,7 +61,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QLineEdit, QCheckBox, QRadioButton,
     QButtonGroup, QTextEdit, QPlainTextEdit, QScrollArea, QFrame, QFileDialog,
     QDialog, QProgressBar, QSplitter, QTabWidget,
-    QListWidget, QAbstractItemView, QStackedWidget,
+    QAbstractItemView, QStackedWidget,
     QComboBox, QTreeWidget, QTreeWidgetItem, QHeaderView,
     QTableWidget, QTableWidgetItem, QGroupBox, QGridLayout,
     QSpinBox, QToolButton, QMenu,
@@ -73,7 +73,7 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle
 # ═══════════════════════════════════════════════
 # 앱 버전
 # ═══════════════════════════════════════════════
-APP_VERSION = "1.0.6"
+APP_VERSION = "1.0.7"
 
 # ═══════════════════════════════════════════════
 # 절전 방지 유틸리티 (Windows 전용, 타 OS 무해 처리)
@@ -622,13 +622,6 @@ QTreeWidget {{
 }}
 QTreeWidget::item {{ padding:6px 8px; }}
 QTreeWidget::item:selected {{ background:{_hex_rgba(t['ACCENT'],0.12)}; color:{t['TEXT']}; }}
-QListWidget {{
-    background:{t['SURFACE']}; border:1px solid {t['BORDER']};
-    border-radius:8px; color:{t['TEXT']}; font-size:13px; outline:none;
-    alternate-background-color:{t['SRF2']};
-}}
-QListWidget::item {{ padding:6px 10px; }}
-QListWidget::item:selected {{ background:{_hex_rgba(t['ACCENT'],0.12)}; color:{t['TEXT']}; }}
 QHeaderView::section {{
     background:{t['SRF2']}; border:none;
     border-bottom:1px solid {t['BORDER']}; border-right:1px solid {t['BORDER']};
@@ -878,10 +871,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'btn_apply': '적용',
         'btn_reset': '기본값',
         'btn_reset_all': '모든 단축키 기본값 복원',
-        'merge_file_list': '📋  파일 목록',
-        'sort_header': '파일명',
         'merge_save_settings': '// 저장 설정',
-        'merge_file_mgmt': '// 파일 관리',
         'merge_save_enc': '저장 인코딩:',
         'merge_save_path': '저장 경로:',
         'merge_path_none': '저장 경로가 지정되지 않았습니다',
@@ -921,7 +911,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tag_sub_remove': '태그 제거',
         'tag_sub_add': '태그 추가',
         'tag_sub_depad': '앞자리 0 제거',
-        'tag_file_list': '// 파일 목록',
         'tag_col_filename': '파일명',
         'tag_col_path': '경로',
         'tag_filter': '// 필터 설정',
@@ -946,7 +935,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tag_add_replace': '기존 태그를 새 태그로 교체',
         'tag_add_space_after': '태그 뒤 공백',
         'tag_add_space_before': '태그 앞 공백',
-        'tag_preview_title': '// 변경 미리보기',
         'tag_col_folder': '폴더',
         'tag_col_orig': '원본 파일명',
         'tag_col_new': '변경 후 파일명',
@@ -1097,16 +1085,12 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'sq_suffix_ph2': '예: _final',
         'sq_prefix_ph2': '예: chapter_',
         'settings_tooltip': '설정',
-        'settings_nav_help': '도움말',
         'settings_nav_license': '라이선스',
         'license_summary': '이 소프트웨어는 프리웨어입니다 · 소스 공개 · 개인 및 상업적 사용 가능 · 무단 재배포·재가공·판매 금지',
-        'tf_title':        'Text Fixer',
-        'tf_subtitle':     '텍스트 줄바꿈을 바로잡습니다',
         'tf_open':         '파일 열기',
         'tf_run':          '수정 실행',
         'tf_copy':         '복사',
         'tf_save':         '저장',
-        'tf_save_overwrite': '원본에 덮어쓰기',
         'tf_save_fixed':   '원본 위치에 [Fixed] 태그로 저장',
         'tf_save_as':      '다른 이름으로 저장…',
         'tf_clear':        '초기화',
@@ -1123,10 +1107,8 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tf_lang_auto':    '자동',
         'tf_lang_ko':      '한국어·기타',
         'tf_lang_en':      'English',
-        'tf_grp_opt':      '수정 옵션',
         'tf_grp_input':    '// 원본 텍스트',
         'tf_grp_output':   '// 수정된 텍스트',
-        'tf_ph_input':     '여기에 텍스트를 붙여넣거나 파일을 여세요...',
         'tf_ph_input_edit': '여기에 텍스트를 직접 붙여넣으세요...',
         'tf_ph_output':    '수정 결과가 여기에 표시됩니다...',
         'tf_stat_mid':     '병합된 줄: -',
@@ -1157,10 +1139,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'bulk_save_mode':  '// 저장 설정',
         'bulk_save_desc':   '[Fixed] 태그를 앞에 붙여 저장합니다. 출력 폴더를 지정하지 않으면 원본 파일과 같은 위치에 저장됩니다.',
         'bulk_keep_structure': '폴더 구조 유지 (출력 폴더 지정 시)',
-        'bulk_save_over':  '원본에 덮어쓰기',
-        'bulk_save_fixed': '원본 위치에 _fixed.txt로',
-        'bulk_save_dir':   '출력 폴더에 저장',
-        'bulk_out_folder': '// 출력 폴더',
         'bulk_out_ph':     '비워두면 원본 파일 위치에 저장',
         'bulk_run':        '일괄 교정 시작',
         'bulk_running':    '⏳ 처리 중…',
@@ -1250,7 +1228,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tf_dlg_noperm':   '접근 오류',
         'tf_dlg_ioerr':    '파일 오류',
         'tf_dlg_encerr':   '인코딩 오류',
-        'tf_dlg_overwrite':'덮어쓰기 확인',
         'tf_highlight':    '🟡 노란 줄 = 병합됨  🟠 주황 줄 = 빈 줄 제거',
         'tf_drop1': 'TXT 파일을 드래그하거나  파일 추가 버튼을 사용하세요',
         'tf_drop2': 'TXT (*.txt) 형식 지원',
@@ -1279,7 +1256,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'batch_confirm_items': '개 항목의 이름을 변경합니다',
         'batch_done_items': '개 이름 변경 완료',
         'dlg_rename_partial_note': '실패 항목은 변경되지 않았으며, 실행 취소 대상에서도 제외됩니다.',
-        'p_prefix_ph': '예: ch_',
         'sq_suffix_ph': '예: 화',
         'sq_prefix_ph': '예: ch_',
         'sm_suffix_ph': '예: 화',
@@ -1315,10 +1291,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'btn_apply': 'Apply',
         'btn_reset': 'Default',
         'btn_reset_all': 'Reset All Shortcuts',
-        'merge_file_list': '📋  File List',
-        'sort_header': 'Filename',
         'merge_save_settings': '// Save Settings',
-        'merge_file_mgmt': '// File Management',
         'merge_save_enc': 'Encoding:',
         'merge_save_path': 'Save Path:',
         'merge_path_none': 'No save path specified',
@@ -1358,7 +1331,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tag_sub_remove': 'Remove Tag',
         'tag_sub_add': 'Add Tag',
         'tag_sub_depad': 'Remove Leading Zeros',
-        'tag_file_list': '// File List',
         'tag_col_filename': 'Filename',
         'tag_col_path': 'Path',
         'tag_filter': '// Filter Settings',
@@ -1383,7 +1355,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tag_add_replace': 'Replace existing tag',
         'tag_add_space_after': 'Space after tag',
         'tag_add_space_before': 'Space before tag',
-        'tag_preview_title': '// Change Preview',
         'tag_col_folder': 'Folder',
         'tag_col_orig': 'Original Name',
         'tag_col_new': 'New Name',
@@ -1535,16 +1506,12 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'sq_suffix_ph2': 'e.g. _final',
         'sq_prefix_ph2': 'e.g. chapter_',
         'settings_tooltip': 'Settings',
-        'settings_nav_help': 'Help',
         'settings_nav_license': 'License',
         'license_summary': 'This software is freeware · Source available · Free for personal & commercial use · Unauthorized redistribution, repackaging, or resale is prohibited.',
-        'tf_title':        'Text Fixer',
-        'tf_subtitle':     'Fix line breaks in text',
         'tf_open':         'Open File',
         'tf_run':          'Fix',
         'tf_copy':         'Copy',
         'tf_save':         'Save',
-        'tf_save_overwrite': 'Overwrite original',
         'tf_save_fixed':   'Save as [Fixed] beside original',
         'tf_save_as':      'Save As…',
         'tf_clear':        'Clear',
@@ -1561,10 +1528,8 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tf_lang_auto':    'Auto',
         'tf_lang_ko':      'Korean·Other',
         'tf_lang_en':      'English',
-        'tf_grp_opt':      'Options',
         'tf_grp_input':    '// Original Text',
         'tf_grp_output':   '// Fixed Text',
-        'tf_ph_input':     'Paste text here or open a file...',
         'tf_ph_input_edit': 'Paste your text here directly...',
         'tf_ph_output':    'Fixed result will appear here...',
         'tf_stat_mid':     'Merged lines: -',
@@ -1595,10 +1560,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'bulk_save_mode':  '// Save Settings',
         'bulk_save_desc':   'Saves with [Fixed] prefix. If no output folder is specified, saves alongside the original file.',
         'bulk_keep_structure': 'Preserve folder structure (when output folder is set)',
-        'bulk_save_over':  'Overwrite original',
-        'bulk_save_fixed': 'Save as _fixed.txt beside original',
-        'bulk_save_dir':   'Save to output folder',
-        'bulk_out_folder': '// Output Folder',
         'bulk_out_ph':     'Empty = save beside source file',
         'bulk_run':        'Start Bulk Fix',
         'bulk_running':    '⏳ Processing…',
@@ -1688,7 +1649,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tf_dlg_noperm':   'Access Error',
         'tf_dlg_ioerr':    'File Error',
         'tf_dlg_encerr':   'Encoding Error',
-        'tf_dlg_overwrite':'Confirm Overwrite',
         'tf_highlight':    '🟡 Yellow = merged  🟠 Orange = blank removed',
         'tf_drop1': 'Drag a TXT file here or use the Open File button',
         'tf_drop2': 'TXT (*.txt) supported',
@@ -1717,7 +1677,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'batch_confirm_items': 'items will be renamed',
         'batch_done_items': 'items renamed',
         'dlg_rename_partial_note': 'Failed items were not changed and are excluded from undo.',
-        'p_prefix_ph': 'e.g. ch_',
         'sq_suffix_ph': 'e.g. ep',
         'sq_prefix_ph': 'e.g. ch_',
         'sm_suffix_ph': 'e.g. ep',
@@ -1753,10 +1712,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'btn_apply': '適用',
         'btn_reset': '初期値',
         'btn_reset_all': '全ショートカットをリセット',
-        'merge_file_list': '📋  ファイル一覧',
-        'sort_header': 'ファイル名',
         'merge_save_settings': '// 保存設定',
-        'merge_file_mgmt': '// ファイル管理',
         'merge_save_enc': '保存エンコード:',
         'merge_save_path': '保存先:',
         'merge_path_none': '保存先が指定されていません',
@@ -1796,7 +1752,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tag_sub_remove': 'タグ削除',
         'tag_sub_add': 'タグ追加',
         'tag_sub_depad': '先頭0を削除',
-        'tag_file_list': '// ファイル一覧',
         'tag_col_filename': 'ファイル名',
         'tag_col_path': 'パス',
         'tag_filter': '// フィルター設定',
@@ -1821,7 +1776,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tag_add_replace': '既存タグを新タグに置換',
         'tag_add_space_after': 'タグの後にスペース',
         'tag_add_space_before': 'タグの前にスペース',
-        'tag_preview_title': '// 変更プレビュー',
         'tag_col_folder': 'フォルダ',
         'tag_col_orig': '元ファイル名',
         'tag_col_new': '変更後ファイル名',
@@ -1972,16 +1926,12 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'sq_suffix_ph2': '例: _final',
         'sq_prefix_ph2': '例: chapter_',
         'settings_tooltip': '設定',
-        'settings_nav_help': 'ヘルプ',
         'settings_nav_license': 'ライセンス',
         'license_summary': 'このソフトウェアはフリーウェアです · ソース公開 · 個人・商用利用可 · 無断再配布・改変・販売は禁止されています。',
-        'tf_title':        'Text Fixer',
-        'tf_subtitle':     'テキストの改行を修正します',
         'tf_open':         'ファイルを開く',
         'tf_run':          '修正実行',
         'tf_copy':         'コピー',
         'tf_save':         '保存',
-        'tf_save_overwrite': '元ファイルに上書き',
         'tf_save_fixed':   '元の場所に[Fixed]タグ付きで保存',
         'tf_save_as':      '名前を付けて保存…',
         'tf_clear':        'クリア',
@@ -1998,10 +1948,8 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tf_lang_auto':    '自動',
         'tf_lang_ko':      '韓国語·その他',
         'tf_lang_en':      'English',
-        'tf_grp_opt':      '修正オプション',
         'tf_grp_input':    '// 元のテキスト',
         'tf_grp_output':   '// 修正済みテキスト',
-        'tf_ph_input':     'ここにテキストを貼り付けるかファイルを開いてください...',
         'tf_ph_input_edit': 'ここに直接テキストを貼り付けてください...',
         'tf_ph_output':    '修正結果がここに表示されます...',
         'tf_stat_mid':     '結合行: -',
@@ -2032,10 +1980,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'bulk_save_mode':  '// 保存設定',
         'bulk_save_desc':   '[Fixed]タグを先頭に付けて保存します。出力フォルダを指定しない場合、元ファイルと同じ場所に保存されます。',
         'bulk_keep_structure': 'フォルダ構造を維持（出力フォルダ指定時）',
-        'bulk_save_over':  '元ファイルに上書き',
-        'bulk_save_fixed': '元の場所に_fixed.txtで保存',
-        'bulk_save_dir':   '出力フォルダに保存',
-        'bulk_out_folder': '// 出力フォルダ',
         'bulk_out_ph':     '空欄 = 元ファイルと同じ場所に保存',
         'bulk_run':        '一括修正開始',
         'bulk_running':    '⏳ 処理中…',
@@ -2126,7 +2070,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'tf_dlg_noperm':   'アクセスエラー',
         'tf_dlg_ioerr':    'ファイルエラー',
         'tf_dlg_encerr':   'エンコードエラー',
-        'tf_dlg_overwrite':'上書き確認',
         'tf_highlight':    '🟡 黄色 = 結合済み  🟠 オレンジ = 空行削除',
         'tf_drop1': 'TXTファイルをドラッグするかファイルを開くボタンを使ってください',
         'tf_drop2': 'TXT (*.txt) 形式対応',
@@ -2155,7 +2098,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'batch_confirm_items': '件の名前を変更します',
         'batch_done_items': '件の名前変更が完了',
         'dlg_rename_partial_note': '失敗した項目は変更されず、元に戻す対象からも除外されます。',
-        'p_prefix_ph': '例: ch_',
         'sq_suffix_ph': '例: 話',
         'sq_prefix_ph': '例: ch_',
         'sm_suffix_ph': '例: 話',
@@ -2191,9 +2133,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'btn_apply': '应用',
            'btn_reset': '默认',
            'btn_reset_all': '重置所有快捷键',
-           'merge_file_list': '📋  文件列表',
-           'sort_header': '文件名',
-           'merge_file_mgmt': '// 文件管理',
            'merge_save_settings': '// 保存设置',
            'merge_save_enc': '保存编码:',
            'merge_save_path': '保存路径:',
@@ -2234,7 +2173,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tag_sub_remove': '删除标签',
            'tag_sub_add': '添加标签',
            'tag_sub_depad': '删除前导零',
-           'tag_file_list': '// 文件列表',
            'tag_col_filename': '文件名',
            'tag_col_path': '路径',
            'tag_filter': '// 过滤设置',
@@ -2259,7 +2197,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tag_add_replace': '替换现有标签',
            'tag_add_space_after': '标签后加空格',
            'tag_add_space_before': '标签前加空格',
-           'tag_preview_title': '// 更改预览',
            'tag_col_folder': '文件夹',
            'tag_col_orig': '原文件名',
            'tag_col_new': '更改后文件名',
@@ -2409,16 +2346,12 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'sq_suffix_ph2': '例: _final',
            'sq_prefix_ph2': '例: chapter_',
            'settings_tooltip': '设置',
-           'settings_nav_help': '帮助',
            'settings_nav_license': '许可证',
            'license_summary': '本软件为免费软件 · 开放源代码 · 允许个人及商业使用 · 禁止未经授权的再发布、再加工或销售。',
-           'tf_title':        'Text Fixer',
-           'tf_subtitle':     '修复文本换行',
            'tf_open':         '打开文件',
            'tf_run':          '执行修复',
            'tf_copy':         '复制',
            'tf_save':         '保存',
-           'tf_save_overwrite': '覆盖原文件',
            'tf_save_fixed':   '在原位置另存为_fixed.txt',
            'tf_save_as':      '另存为…',
            'tf_clear':        '清空',
@@ -2435,10 +2368,8 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tf_lang_auto':    '自动',
            'tf_lang_ko':      '韩语·其他',
            'tf_lang_en':      'English',
-           'tf_grp_opt':      '修复选项',
            'tf_grp_input':    '// 原始文本',
            'tf_grp_output':   '// 修复后的文本',
-           'tf_ph_input':     '在此粘贴文本或打开文件...',
         'tf_ph_input_edit': '在此直接粘贴文本...',
            'tf_ph_output':    '修复结果将显示在此处...',
            'tf_stat_mid':     '合并行数: -',
@@ -2467,10 +2398,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'bulk_preview':    '// 预览',
            'bulk_preview_ph': '选择文件后显示预览',
            'bulk_save_mode':  '// 保存方式',
-           'bulk_save_over':  '覆盖原文件',
-           'bulk_save_fixed': '在原位置保存为_fixed.txt',
-           'bulk_save_dir':   '保存到输出文件夹',
-           'bulk_out_folder': '// 输出文件夹',
            'bulk_out_ph':     '留空 = 保存在原文件旁边',
            'bulk_keep_structure': '保留文件夹结构（指定输出文件夹时）',
            'bulk_run':        '开始批量修复',
@@ -2532,7 +2459,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tf_dlg_noperm':   '访问错误',
            'tf_dlg_ioerr':    '文件错误',
            'tf_dlg_encerr':   '编码错误',
-           'tf_dlg_overwrite':'确认覆盖',
            'tf_highlight':    '🟡 黄色 = 已合并  🟠 橙色 = 空行已删除',
            'tf_drop1': '将TXT文件拖到此处或使用打开文件按钮',
            'tf_drop2': '支持 TXT (*.txt) 格式',
@@ -2561,7 +2487,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'batch_confirm_items': '个项目将被重命名',
            'batch_done_items': '个项目重命名完成',
            'dlg_rename_partial_note': '失败的项目未被更改，且不包含在撤销操作中。',
-           'p_prefix_ph': '例: ch_',
            'sq_suffix_ph': '例: 话',
            'sq_prefix_ph': '例: ch_',
            'sm_suffix_ph': '例: 话',
@@ -2627,10 +2552,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'btn_apply': '套用',
            'btn_reset': '預設',
            'btn_reset_all': '重設所有快捷鍵',
-           'merge_file_list': '📋  檔案清單',
-           'sort_header': '檔案名稱',
            'merge_save_settings': '// 儲存設定',
-           'merge_file_mgmt': '// 檔案管理',
            'merge_save_enc': '儲存編碼:',
            'merge_save_path': '儲存路徑:',
            'merge_path_none': '未指定儲存路徑',
@@ -2670,7 +2592,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tag_sub_remove': '移除標籤',
            'tag_sub_add': '新增標籤',
            'tag_sub_depad': '移除前導零',
-           'tag_file_list': '// 檔案清單',
            'tag_col_filename': '檔案名稱',
            'tag_col_path': '路徑',
            'tag_filter': '// 篩選設定',
@@ -2695,7 +2616,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tag_add_replace': '替換現有標籤',
            'tag_add_space_after': '標籤後加空格',
            'tag_add_space_before': '標籤前加空格',
-           'tag_preview_title': '// 變更預覽',
            'tag_col_folder': '資料夾',
            'tag_col_orig': '原檔案名稱',
            'tag_col_new': '變更後檔案名稱',
@@ -2845,16 +2765,12 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'sq_suffix_ph2': '例: _final',
            'sq_prefix_ph2': '例: chapter_',
            'settings_tooltip': '設定',
-           'settings_nav_help': '說明',
            'settings_nav_license': '授權',
            'license_summary': '本軟體為免費軟體 · 開放原始碼 · 允許個人及商業使用 · 禁止未經授權的再發布、再加工或銷售。',
-           'tf_title':        'Text Fixer',
-           'tf_subtitle':     '修復文字換行',
            'tf_open':         '開啟檔案',
            'tf_run':          '執行修復',
            'tf_copy':         '複製',
            'tf_save':         '儲存',
-           'tf_save_overwrite': '覆蓋原檔案',
            'tf_save_fixed':   '在原位置以[Fixed]標籤儲存',
            'tf_save_as':      '另存新檔…',
            'tf_clear':        '清空',
@@ -2871,10 +2787,8 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tf_lang_auto':    '自動',
            'tf_lang_ko':      '韓語·其他',
            'tf_lang_en':      'English',
-           'tf_grp_opt':      '修復選項',
            'tf_grp_input':    '// 原始文字',
            'tf_grp_output':   '// 修復後文字',
-           'tf_ph_input':     '在此貼上文字或開啟檔案...',
         'tf_ph_input_edit': '在此直接貼上文字...',
            'tf_ph_output':    '修復結果將顯示於此...',
            'tf_stat_mid':     '合併行數: -',
@@ -2903,11 +2817,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'bulk_preview':    '// 預覽',
            'bulk_preview_ph': '選擇檔案後顯示預覽',
            'bulk_save_mode':  '// 儲存方式',
-           'bulk_save_over':  '覆蓋原始檔案',
-           'bulk_save_fixed': '在原位置儲存為_fixed.txt',
-           'bulk_save_dir':   '儲存到輸出資料夾',
            'bulk_save_desc':  '在檔案名前加 [Fixed] 標籤儲存。如未指定輸出資料夾，將儲存在原檔案相同位置。',
-           'bulk_out_folder': '// 輸出資料夾',
            'bulk_out_ph':     '留空 = 儲存在原檔案旁邊',
            'bulk_keep_structure': '保留資料夾結構（指定輸出資料夾時）',
            'bulk_run':        '開始批量修復',
@@ -2969,7 +2879,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'tf_dlg_noperm':   '存取錯誤',
            'tf_dlg_ioerr':    '檔案錯誤',
            'tf_dlg_encerr':   '編碼錯誤',
-           'tf_dlg_overwrite':'確認覆蓋',
            'tf_highlight':    '🟡 黃色 = 已合併  🟠 橙色 = 空行已刪除',
            'tf_drop1': '將TXT檔案拖曳至此或使用開啟檔案按鈕',
            'tf_drop2': '支援 TXT (*.txt) 格式',
@@ -3027,7 +2936,6 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'batch_confirm_items': '個項目將被重新命名',
            'batch_done_items': '個項目重新命名完成',
            'dlg_rename_partial_note': '失敗的項目未被更改，且不包含在復原操作中。',
-           'p_prefix_ph': '例: ch_',
            'sq_suffix_ph': '例: 話',
            'sq_prefix_ph': '例: ch_',
            'sm_suffix_ph': '例: 話',
@@ -6425,6 +6333,7 @@ class TextConverterPanel(QWidget):
                 self._worker.sig_progress.disconnect()
                 self._worker.sig_log.disconnect()
                 self._worker.sig_files.disconnect()
+                self._worker.sig_file_progress.disconnect()
                 self._worker.sig_done.disconnect()
             except Exception:
                 pass
@@ -6483,6 +6392,7 @@ class TextConverterPanel(QWidget):
                 self._worker.sig_progress.disconnect()
                 self._worker.sig_log.disconnect()
                 self._worker.sig_files.disconnect()
+                self._worker.sig_file_progress.disconnect()
                 self._worker.sig_done.disconnect()
             except Exception:
                 pass
@@ -8131,7 +8041,8 @@ class TextFixerPanel(QWidget):
                 self._worker.progress.disconnect()
             except Exception:
                 pass
-            self._worker.quit(); self._worker.wait(2000)
+            self._worker.quit()
+            if not self._worker.wait(2000): self._worker.terminate(); self._worker.wait(500)
         _lang_codes = ['auto', 'ko', 'en']
         lang_mode = _lang_codes[self._combo_lang_mode.currentIndex()]
         self._worker = TextFixerWorker(
@@ -8356,20 +8267,6 @@ class TextFixerPanel(QWidget):
         else:
             self._save_as()
 
-    def _save_overwrite(self):
-        """원본 파일에 덮어쓰기."""
-        text = self._output_edit.toPlainText()
-        if not text or not self._loaded_path: return
-        fname = os.path.basename(self._loaded_path)
-        if not _dlg_question(self, _t('tf_dlg_overwrite'),
-                             f'원본 파일을 수정된 내용으로 덮어씁니다.\n\n{fname}\n\n계속하시겠습니까?'): return
-        try:
-            with open(self._loaded_path, 'w', encoding='utf-8') as f: f.write(text)
-            self._lbl_status.setText(_t('tf_saved', name=fname))
-            _glog(f'[Text Fixer] 덮어쓰기: {self._loaded_path}')
-        except OSError as e:
-            _dlg_error(self, _t('tf_err_save'), str(e))
-
     def _save_fixed(self):
         """원본 위치에 [Fixed] 태그를 앞에 붙여 저장."""
         text = self._output_edit.toPlainText()
@@ -8562,7 +8459,6 @@ class TextFixerPanel(QWidget):
             self._combo_lang_mode.clear()
             self._combo_lang_mode.addItems([_t('tf_lang_auto'), _t('tf_lang_ko'), _t('tf_lang_en')])
             self._combo_lang_mode.setCurrentIndex(ci)
-        # tf_grp_opt 키는 번역 사전에 유지 (향후 사용 가능)
         self._grp_in.setText(_t('tf_grp_input'))
         self._grp_out.setText(_t('tf_grp_output'))
         self._input_edit.setPlaceholderText(_t('tf_ph_input_edit'))
@@ -9562,7 +9458,7 @@ class BulkFixerPanel(QWidget):
         """BulkFixerDropZone에서 .txt 파일 드롭 시 호출."""
         _glog(f"🔵 [Trace] _on_files_dropped 진입 (n={len(paths) if paths else 0})")
         if paths: self._flist.add_files(paths)
-        _glog(f"🔵 [Trace] _on_files_dropped 종료")
+        _glog("🔵 [Trace] _on_files_dropped 종료")
 
     def _on_folder_dropped(self, folder: str):
         """BulkFixerDropZone에서 폴더 드롭 시 호출 — 기존 _add_folder 스캔 로직 재사용."""
@@ -9584,7 +9480,7 @@ class BulkFixerPanel(QWidget):
         self._scan_worker.sig_done.connect(self._on_scan_done)
         self._scan_worker.sig_error.connect(self._on_scan_error)
         self._scan_worker.start()
-        _glog(f"🔵 [Trace] _on_folder_dropped 종료 (스캔 워커 시작됨)")
+        _glog("🔵 [Trace] _on_folder_dropped 종료 (스캔 워커 시작됨)")
 
     def _add_files(self):
         paths, _ = QFileDialog.getOpenFileNames(
@@ -10314,8 +10210,7 @@ class TextMergerPanel(QWidget):
         if not scanning: self._scan_lbl.setText("")
         for btn in (self._btn_add, self._btn_add_folder, self._btn_del_all,
                     self._btn_del, self._btn_up, self._btn_dn, self._btn_merge):
-            if hasattr(self, btn.objectName()) or True:
-                btn.setEnabled(not scanning)
+            btn.setEnabled(not scanning)
         if scanning:
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         else:
@@ -12984,8 +12879,8 @@ class SettingsDialog(QDialog):
         self._dlg_title=title
         sep=QFrame(); sep.setFrameShape(QFrame.HLine); sep.setFixedHeight(1); sep.setStyleSheet(f"background:{BORDER};border:none;margin-bottom:6px;"); sl.addWidget(sep)
         self._sb_sep=sep
-        _nav_keys={"appearance":"settings_nav_theme","shortcuts":"settings_nav_shortcuts","language":"settings_nav_language","help":"settings_nav_help","license":"settings_nav_license"}
-        _nav_icons={"appearance":"theme_line","language":"globe_line","shortcuts":"keyboard_line","help":"question_line","license":"license_line"}
+        _nav_keys={"appearance":"settings_nav_theme","shortcuts":"settings_nav_shortcuts","language":"settings_nav_language","license":"settings_nav_license"}
+        _nav_icons={"appearance":"theme_line","language":"globe_line","shortcuts":"keyboard_line","license":"license_line"}
         for sid,icon,label in self._SECTIONS:
             btn=QPushButton(_t(_nav_keys.get(sid,sid))); btn.setFixedHeight(38); btn.setCursor(Qt.CursorShape.PointingHandCursor)
             nav_icon_key = _nav_icons.get(sid)

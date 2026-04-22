@@ -10,6 +10,7 @@ chardet>=4.0.0          # 텍스트 파일 인코딩 자동 감지
 python-docx>=1.0.0      # DOCX 파일 읽기 (Text Merger)
 pdfplumber>=0.10.0      # PDF 텍스트 추출 (Text Merger)
 openpyxl>=3.1.0         # XLSX 파일 읽기 (Text Merger)
+python-hwpx>=2.9.0      # HWPX 파일 읽기 (Text Merger, v1.0.6+ 한국 문서 표준)
 
 # ── Build — 빌드 시에만 필요 ───────────────────────────────────────────
 pyinstaller>=6.0.0      # 단독 실행 파일 빌드

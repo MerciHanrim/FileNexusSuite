@@ -1,0 +1,35 @@
+name: CI
+
+# v1.0.7에서 도입 — 한림 로컬 환경(Windows + Python 3.10.11)을 재현하여
+# test_file_nexus.py의 529개 테스트를 자동 검증한다.
+# 설계 의도: TEST_MANAGEMENT_POLICY.md §2.1 "자동 테스트는 반복적·구조적 결함을 잡는다" 적용
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:   # 수동 실행 지원 (디버깅·특정 커밋 재검증용)
+
+jobs:
+  test:
+    name: Test on Windows / Python 3.10
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: python test_file_nexus.py
