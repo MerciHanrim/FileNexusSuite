@@ -17,6 +17,7 @@
 - (CI 도입 준비) `requirements.txt`에 `python-hwpx>=2.9.0` 누락 보완 (v1.0.6 HWPX 입력 지원 의존성이 README·기술 스택에만 명시되고 requirements에서 빠져 있던 불일치 해소)
 - (CI 도입 준비) `FileNexusSuite.py` L76 `APP_VERSION` 상수 `1.0.6` → `1.0.7` 갱신 (세션 3 당초 누락, 릴리즈 직전 한림의 `findstr` 검증으로 발견). f-string으로 참조되는 앱 타이틀·도움말 창 버전 표시가 자동 일관 갱신됨
 - (CI 도입 준비) `version_info.txt` 4곳 `1.0.6`/`1.0.6.0` → `1.0.7`/`1.0.7.0` 갱신 (`filevers` / `prodvers` 튜플, `FileVersion` / `ProductVersion` 문자열). PyInstaller 빌드 시 Windows `.exe` 속성 창의 "파일 버전" / "제품 버전" 메타데이터가 v1.0.7로 표시되도록 정합 확보
+- (CI 첫 실행 hotfix) `requirements.txt`에서 `PySide6-Qt6-Qt6Svg>=6.4.0` 제거 — PyPI에 존재하지 않는 유령 패키지. 한림 로컬에서는 `pip install` 시 조용히 넘어가 발견되지 않았으나, CI의 깨끗한 환경에서 `ERROR: Could not find a version that satisfies the requirement` 실패로 드러남. PySide6 본체에 QtSvg 모듈이 이미 포함되어 있어 별도 설치 불필요 — CI 도입의 가치가 첫 실행에서 바로 입증된 사례
 - (CI 도입 준비) `README_EN.md` version 뱃지 및 설치 명령어 갱신 (한국어 README와 동일 수준으로 동기화 — 세션 3에서 한국어만 갱신됐던 부분 보완)
 
 ### Removed

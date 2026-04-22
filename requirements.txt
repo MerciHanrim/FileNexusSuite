@@ -2,8 +2,7 @@
 # pip install -r requirements.txt
 
 # ── Required ──────────────────────────────────────────────────────────
-PySide6>=6.4.0          # GUI 프레임워크
-PySide6-Qt6-Qt6Svg>=6.4.0  # SVG 아이콘 렌더링 (아이콘 미표시 시 graceful fallback)
+PySide6>=6.4.0          # GUI 프레임워크 (QtSvg 포함, SVG 아이콘 자동 지원)
 
 # ── Optional — 없어도 실행 가능, 일부 기능 제한 ───────────────────────
 chardet>=4.0.0          # 텍스트 파일 인코딩 자동 감지
