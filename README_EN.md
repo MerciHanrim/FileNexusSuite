@@ -175,6 +175,12 @@ Copyright © 2026 Hanrim
 
 ---
 
+## Code Signing
+
+This project has applied for free code signing from [SignPath Foundation](https://signpath.org). Upon approval, signed `.exe` binaries will be distributed starting from v1.0.11.
+
+---
+
 ## Feedback
 
 Issues, feedback, and feature requests are welcome in any of the 5 supported languages — 한국어 / English / 日本語 / 中文 (简体·繁體).

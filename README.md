@@ -175,6 +175,12 @@ Copyright © 2026 Hanrim
 
 ---
 
+## 코드 서명
+
+본 프로젝트는 [SignPath Foundation](https://signpath.org)의 무료 코드 서명을 신청 중이며, 승인 후 v1.0.11부터 배포되는 `.exe`에 SignPath Foundation 서명이 적용될 예정입니다.
+
+---
+
 ## 피드백
 
 Issues, feedback, and feature requests are welcome in any of the 5 supported languages. 한국어 / English / 日本語 / 中文 (简体·繁體) 모두 환영합니다.
