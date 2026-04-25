@@ -7,6 +7,52 @@
 
 ---
 
+## [1.0.10] — 2026-04-25
+
+v1.0.10 — MIT 전환과 OSS 결의 시작점. v1.0.x 시리즈가 *"개인 작업툴 → OSS 공개"* 결의 전환점에 도달하는 릴리즈. 라이선스 전환(Freeware → MIT) + LGPL 호환성 명시적 문서화 + SignPath OSS Sponsorship 신청 트랙의 묶음.
+
+### Changed
+- **라이선스 전환: Freeware (source available) → MIT License** — 저작권 고지 유지 시 사용·수정·재배포·판매 모두 자유롭게 허용. 한림이 *"개인 작업 도구로 시작했지만, 같은 작업을 하는 다른 분들에게도 도움이 되기를"*이라는 결로 v1.0.x 시리즈 누적의 결과를 OSS 커뮤니티로 개방.
+  - `LICENSE` 파일 — 자체 작성 Freeware 형식에서 MIT 표준 텍스트로 전환 (GitHub Licensee gem 정확 탐지). 한국어 안내 + Test Data Exception (CC0) 부록 보존
+  - 5언어 `license_summary` 키 — *"무단 재배포·재가공·판매 금지"* → *"사용·수정·재배포·판매 모두 허용"* 정반대 의미로 재작성 (en/ko/ja/zh_cn/zh_tw)
+  - `_build_license_html()` 본 프로젝트 항목 — `Freeware — Free for Personal & Commercial Use` → `MIT License` + note 한/영 단락 재작성 ("이타심" 한 줄 신규 추가, AI 페어 프로그래밍 결 보존)
+  - `README.md` / `README_EN.md` 라이선스 섹션 본문 + license 뱃지 + LICENSE 파일 링크
+  - `README.txt` 푸터 `Freeware (Personal & Commercial)` → `MIT License`
+- **`Copyright © 2026 Hanrim. All rights reserved.` → `Copyright © 2026 Hanrim`** — "All rights reserved" 표기 6곳 일괄 정리. 1910년 부에노스아이레스 협약 잔재로 현대 저작권법에 법적 의미 없음 + MIT 라이선스 의미와 결 일관성. 적용 위치: `version_info.txt` `LegalCopyright` / `FileNexusSuite.py` L1 헤더 / `FileNexusSuite.py` L14637 `_footer_copyright` / `FileNexusSuite.py` L14325 `_build_license_html()` 본 프로젝트 항목 / `README.md` / `README_EN.md`
+- **README 뱃지 시각 체계 재정립** — *"v1.0.10이 v1.0.x 시리즈에서 OSS 도착점"*이라는 결을 색의 흐름으로 표현. 카테고리별 색상 정합:
+  - 정체성 (`CC785C` Anthropic 구릿빛): AI pair Claude / Download CTA
+  - OSS 활기 (`97CA00` 짙은 OSS 초록): tests / **license MIT** ← v1.0.10 신규 자리
+  - 시작점 (`7B6FA3` 보라): version 1.0.10 (이전 license에서 재배치)
+  - 브랜드 인용 (외부 표준 그대로): python / PySide6 / platform / CI badge
+
+### Added
+- **LGPL 호환성 명시적 문서화** — `_build_license_html()` PySide6 (LGPL-3.0) / chardet (LGPL-2.1) note 필드에 LGPL replacement 안내 1문장씩 추가. *"File Nexus Suite is built with PyInstaller. Users may replace this LGPL library by rebuilding from source — see the GitHub repository for build instructions."* PyInstaller `--onedir` 빌드 모드의 `_internal/` 폴더 분리 구조에서 사용자가 LGPL 라이브러리를 직접 교체 가능함을 명시. LGPL §3 의무를 암묵적 충족(GitHub source 공개)에서 명시적 충족으로 강화하여 회색지대 영구 차단
+- **`README.txt` `_internal` 폴더 보호 안내** — `⚠ 같은 폴더의 _internal 폴더는 프로그램 실행에 필요한 파일들이 있는 곳입니다. 삭제하지 마세요.` 한/영 양쪽 추가. PyInstaller `--onedir` 빌드 모드에서 사용자가 `_internal/` 폴더를 *"필요 없어 보이는 데이터"*로 오해하여 삭제할 위험 차단. README.txt가 자체 정체성(*"포장지 안내 라벨"*)에서 *"`_internal` 보호 장치"*라는 진짜 결을 정확히 갖추는 의도-산출물 정합 작업
+- **README "이타심" 한 줄** — `README.md` / `README_EN.md` 라이선스 섹션 + `_build_license_html()` 본 프로젝트 항목 note에 일관 추가. *"개인 작업 도구로 시작했지만, 같은 작업을 하는 다른 분들에게도 도움이 되기를 바라며 MIT 라이선스로 공개합니다."* GitHub README와 앱 내 라이선스 페이지가 같은 결의 메시지를 사용자에게 전달
+
+### Deferred
+- **SignPath OSS Sponsorship 신청** — v1.0.10 Release publish 직후 `signpath.org` 신청서 제출. v1.0.10이 *"Latest release: first MIT release"*로 신청서에 기록됨으로써 검토 신뢰도 강화. 승인은 외부 절차(평균 1주 검토)로 진행되며, **승인 후 CI 통합 + 첫 서명 산출물은 v1.0.11에서 별 트랙으로 진행**. 본 릴리즈는 OSS Sponsorship의 자격 조건(OSI-approved license, no malware, maintained, released, documented, verifiable build) 6개 모두 충족하는 기반 마련
+
+### Tests
+- **535 passing** (v1.0.9와 동일), 58개 클래스, 실패·오류·스킵 0 (한림 로컬 + Git 폴더 이중 검증)
+- v1.0.10 변경 영역(라이선스 텍스트 5언어 + 라이브러리 note 2곳 + 푸터 "All rights reserved" 제거 + 버전 갱신)이 자동 테스트 invariant와 충돌 0 — v1.0.4 작업 시점에 도입된 정수 튜플 비교 패턴 (`parts = tuple(int(p) for p in ver.split('.'))`)이 `1.0.10` 같은 두 자릿수 패치 버전을 미리 대비해둔 결과로, 모든 버전 비교 invariant가 자연 통과
+### Documentation
+- `FileNexusSuite.py` `APP_VERSION` 상수 `1.0.9` → `1.0.10` 갱신 (L76). f-string으로 참조되는 도움말 창 타이틀 5개 언어 + 사이드바 버전 라벨이 자동 일관 갱신됨
+- `version_info.txt` 4곳 `1.0.9`/`1.0.9.0` → `1.0.10`/`1.0.10.0` 갱신 (`filevers` / `prodvers` 튜플, `FileVersion` / `ProductVersion` 문자열)
+- `README.md` / `README_EN.md` version 뱃지 1.0.9 → 1.0.10 동기화 (영혼의 반쪽 원칙 적용)
+- `README.txt` 첫 줄 v1.0.9 → v1.0.10 갱신
+
+### File Changes
+- `FileNexusSuite.py`: 14,850 → 14,850 줄 (라인 수 변화 없음 — 6개 영역 모두 *줄 수 동일한 부분 교체*. `note` 필드의 `\n\n`은 한 줄 안의 긴 문자열이라 라인 수에 영향 없음)
+- `LICENSE`: 76 → 68 줄 (-8: third-party libraries 목록 영/한 양쪽 제거 — 앱 내 `_build_license_html()` + README가 단일 진실 원천 책임)
+- `version_info.txt`: 버전 4곳 + `LegalCopyright` 갱신만
+- `README.md` / `README_EN.md`: 라이선스 섹션 본문 재작성 + 뱃지 3개 색상/텍스트 갱신 + Copyright + LICENSE 링크
+- `README.txt`: v1.0.10 갱신 + `_internal` 보호 안내 한/영 + 푸터 MIT
+
+상세: `RELEASE_NOTE_v1.0.10.md` (작업 폴더 전용)
+
+---
+
 ## [1.0.9] — 2026-04-25
 
 v1.0.x 시리즈 마무리 — 사후 정리 / 데이터 청소 카테고리. v1.0.8 인수인계 §5.1의 ACDG 4개 작업을 묶은 릴리즈.

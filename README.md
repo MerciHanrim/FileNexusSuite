@@ -8,13 +8,13 @@
 
 <br>
 
-![version](https://img.shields.io/badge/version-1.0.9-CC785C?style=flat-square)
+![version](https://img.shields.io/badge/version-1.0.10-7B6FA3?style=flat-square)
 ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/PySide6-Qt_6-41CD52?style=flat-square&logo=qt&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
 [![CI](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml)
-![tests](https://img.shields.io/badge/tests-535%20passing-4CB54C?style=flat-square)
-![license](https://img.shields.io/badge/license-Freeware_(source_available)-7B6FA3?style=flat-square)
+![tests](https://img.shields.io/badge/tests-535%20passing-97CA00?style=flat-square)
+![license](https://img.shields.io/badge/license-MIT-97CA00?style=flat-square)
 ![AI](https://img.shields.io/badge/AI_pair_programming-Claude-CC785C?style=flat-square)
 
 <br>
@@ -159,7 +159,9 @@ python FileNexusSuite.py
 
 ## 라이선스
 
-본 소프트웨어는 **프리웨어(소스 공개)** 입니다. 개인 및 상업적 사용이 자유롭게 허용되며, 무단 재배포·재가공·판매는 금지됩니다.
+본 소프트웨어는 **MIT 라이선스**로 배포됩니다. 저작권 고지를 유지하는 조건으로 사용·수정·재배포·판매가 모두 자유롭게 허용됩니다.
+
+개인 작업 도구로 시작했지만, 같은 작업을 하는 다른 분들에게도 도움이 되기를 바라며 MIT 라이선스로 공개합니다.
 
 사용된 오픈소스 라이브러리:
 - Python (PSF License 2.0)
@@ -167,9 +169,9 @@ python FileNexusSuite.py
 - chardet (LGPL-2.1)
 - python-docx, pdfplumber, openpyxl, python-hwpx (MIT)
 
-전체 라이선스 정보는 앱 내 **[설정 → 라이선스]** 에서 확인할 수 있습니다.
+전체 라이선스 정보는 앱 내 **[설정 → 라이선스]** 에서 확인할 수 있으며, 저장소 루트의 [`LICENSE`](./LICENSE) 파일에서도 확인 가능합니다.
 
-Copyright © 2026 Hanrim. All rights reserved.
+Copyright © 2026 Hanrim
 
 ---
 

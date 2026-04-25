@@ -1,6 +1,6 @@
-# Copyright © 2026 Hanrim. All rights reserved.
-# Free to use for personal and commercial purposes.
-# Unauthorized redistribution, repackaging, or sale is prohibited.
+# Copyright © 2026 Hanrim
+# Licensed under the MIT License.
+# Free to use, modify, redistribute, and sell, provided that the copyright notice is retained.
 #
 # Icons: SVG icon set (line/filled styles) created by Microsoft Copilot.
 # No external icon libraries used. No additional attribution required.
@@ -73,7 +73,7 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle
 # ═══════════════════════════════════════════════
 # 앱 버전
 # ═══════════════════════════════════════════════
-APP_VERSION = "1.0.9"
+APP_VERSION = "1.0.10"
 
 # ═══════════════════════════════════════════════
 # 절전 방지 유틸리티 (Windows 전용, 타 OS 무해 처리)
@@ -1088,7 +1088,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'sq_prefix_ph2': '예: chapter_',
         'settings_tooltip': '설정',
         'settings_nav_license': '라이선스',
-        'license_summary': '이 소프트웨어는 프리웨어입니다 · 소스 공개 · 개인 및 상업적 사용 가능 · 무단 재배포·재가공·판매 금지',
+        'license_summary': 'MIT 라이선스로 배포 · 사용·수정·재배포·판매 모두 허용 · 저작권 고지 유지 필요',
         'tf_open':         '파일 열기',
         'tf_run':          '수정 실행',
         'tf_copy':         '복사',
@@ -1509,7 +1509,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'sq_prefix_ph2': 'e.g. chapter_',
         'settings_tooltip': 'Settings',
         'settings_nav_license': 'License',
-        'license_summary': 'This software is freeware · Source available · Free for personal & commercial use · Unauthorized redistribution, repackaging, or resale is prohibited.',
+        'license_summary': 'Licensed under the MIT License · Free to use, modify, distribute, and sell · Copyright notice must be retained.',
         'tf_open':         'Open File',
         'tf_run':          'Fix',
         'tf_copy':         'Copy',
@@ -1929,7 +1929,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'sq_prefix_ph2': '例: chapter_',
         'settings_tooltip': '設定',
         'settings_nav_license': 'ライセンス',
-        'license_summary': 'このソフトウェアはフリーウェアです · ソース公開 · 個人・商用利用可 · 無断再配布・改変・販売は禁止されています。',
+        'license_summary': 'MITライセンスで配布 · 使用・改変・再配布・販売はすべて自由 · 著作権表示の保持が必要',
         'tf_open':         'ファイルを開く',
         'tf_run':          '修正実行',
         'tf_copy':         'コピー',
@@ -2329,7 +2329,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'btn_preview': '预览',
            'settings_tooltip': '设置',
            'settings_nav_license': '许可证',
-           'license_summary': '本软件为免费软件 · 开放源代码 · 允许个人及商业使用 · 禁止未经授权的再发布、再加工或销售。',
+           'license_summary': '采用 MIT 许可证 · 可自由使用、修改、再发布、销售 · 须保留版权声明',
            'tf_open':         '打开文件',
            'tf_run':          '执行修复',
            'tf_copy':         '复制',
@@ -2731,7 +2731,7 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'sq_prefix_ph2': '例: chapter_',
            'settings_tooltip': '設定',
            'settings_nav_license': '授權',
-           'license_summary': '本軟體為免費軟體 · 開放原始碼 · 允許個人及商業使用 · 禁止未經授權的再發布、再加工或銷售。',
+           'license_summary': '採用 MIT 授權 · 可自由使用、修改、再發佈、銷售 · 須保留版權聲明',
            'tf_open':         '開啟檔案',
            'tf_run':          '執行修復',
            'tf_copy':         '複製',
@@ -14253,7 +14253,7 @@ def _build_license_html() -> str:
                     "license": "GNU Lesser General Public License v3 (LGPL-3.0)",
                     "copyright": "Copyright © The Qt Company Ltd.",
                     "url": "https://doc.qt.io/qtforpython-6/",
-                    "note": "Official Python bindings for Qt 6, developed by The Qt Company. Licensed under LGPL v3.",
+                    "note": "Official Python bindings for Qt 6, developed by The Qt Company. Licensed under LGPL v3.\n\nFile Nexus Suite is built with PyInstaller. Users may replace this LGPL library by rebuilding from source — see the GitHub repository for build instructions.",
                 },
             ],
         },
@@ -14266,7 +14266,7 @@ def _build_license_html() -> str:
                     "license": "GNU Lesser General Public License v2.1 (LGPL-2.1)",
                     "copyright": "Copyright © 2001–present Mark Pilgrim and chardet contributors",
                     "url": "https://github.com/chardet/chardet",
-                    "note": "Character encoding detection for text file import. Optional — loaded at runtime only if installed.",
+                    "note": "Character encoding detection for text file import. Optional — loaded at runtime only if installed.\n\nFile Nexus Suite is built with PyInstaller. Users may replace this LGPL library by rebuilding from source — see the GitHub repository for build instructions.",
                 },
                 {
                     "name": "python-docx",
@@ -14321,10 +14321,10 @@ def _build_license_html() -> str:
                 {
                     "name": "File Nexus Suite",
                     "version": "—",
-                    "license": "Freeware — Free for Personal & Commercial Use",
-                    "copyright": "Copyright © 2026 Hanrim. All rights reserved.",
+                    "license": "MIT License",
+                    "copyright": "Copyright © 2026 Hanrim",
                     "url": "",
-                    "note": "이 프로그램은 프리웨어입니다. 개인 및 상업적 목적의 사용은 자유롭게 허용됩니다.\n단, 무단 재배포·재가공·판매는 금지됩니다. 저작권은 Hanrim에 귀속됩니다.\n\n전체 소스 코드는 GitHub 저장소에서 공개됩니다:\nhttps://github.com/MerciHanrim/FileNexusSuite\n\n본 프로젝트는 AI 페어 프로그래밍(Claude)으로 개발되었습니다.\n기획·UX 설계·품질 관리는 Hanrim이 담당하고, 코드 작성은 AI와 협업하여 진행했습니다.\n\nThis software is freeware. Free to use for both personal and commercial purposes.\nUnauthorized redistribution, repackaging, or resale is strictly prohibited.\nCopyright © 2026 Hanrim. All rights reserved.\n\nFull source code is publicly available at:\nhttps://github.com/MerciHanrim/FileNexusSuite\n\nThis project was developed using AI pair programming (Claude).\nPlanning, UX design, and quality management were done by Hanrim,\nwith code written in collaboration with AI.",
+                    "note": "본 소프트웨어는 MIT 라이선스로 배포됩니다.\n저작권 고지를 유지하는 조건으로 사용·수정·재배포·판매가 모두 자유롭게 허용됩니다.\n\n개인 작업 도구로 시작했지만, 같은 작업을 하는 다른 분들에게도\n도움이 되기를 바라며 MIT 라이선스로 공개합니다.\n\n전체 소스 코드는 GitHub 저장소에서 공개됩니다:\nhttps://github.com/MerciHanrim/FileNexusSuite\n\n본 프로젝트는 AI 페어 프로그래밍(Claude)으로 개발되었습니다.\n기획·UX 설계·품질 관리는 Hanrim이 담당하고, 코드 작성은 AI와 협업하여 진행했습니다.\n\nThis software is distributed under the MIT License.\nFree to use, modify, redistribute, and sell, provided that the copyright notice is retained.\n\nOriginally built as a personal tool, now released under MIT\nin the hope it may help others with similar workflows.\n\nFull source code is publicly available at:\nhttps://github.com/MerciHanrim/FileNexusSuite\n\nThis project was developed using AI pair programming (Claude).\nPlanning, UX design, and quality management were done by Hanrim,\nwith code written in collaboration with AI.",
                 },
             ],
         },
@@ -14634,7 +14634,7 @@ class AppSuite(QMainWindow):
         self._dbg_clear_btn.setVisible(False)
         self._log("✅ File Nexus Suite 시작 — 탭을 선택하여 원하는 기능을 사용하세요")
         # 하단 저작권 푸터 (항상 고정 표시)
-        self._footer_copyright=QLabel("Copyright © 2026 Hanrim. All rights reserved.")
+        self._footer_copyright=QLabel("Copyright © 2026 Hanrim")
         self._footer_copyright.setAlignment(Qt.AlignmentFlag.AlignRight)
         self._footer_copyright.setStyleSheet(f"color:{MUTED};font-size:12px;padding-top:2px;")
         root.addWidget(self._footer_copyright)

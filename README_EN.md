@@ -8,13 +8,13 @@ Text merging · EPUB conversion · Filename tag editing · Batch renaming · Lin
 
 <br>
 
-![version](https://img.shields.io/badge/version-1.0.9-CC785C?style=flat-square)
+![version](https://img.shields.io/badge/version-1.0.10-7B6FA3?style=flat-square)
 ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/PySide6-Qt_6-41CD52?style=flat-square&logo=qt&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
 [![CI](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml)
-![tests](https://img.shields.io/badge/tests-535%20passing-4CB54C?style=flat-square)
-![license](https://img.shields.io/badge/license-Freeware_(source_available)-7B6FA3?style=flat-square)
+![tests](https://img.shields.io/badge/tests-535%20passing-97CA00?style=flat-square)
+![license](https://img.shields.io/badge/license-MIT-97CA00?style=flat-square)
 ![AI](https://img.shields.io/badge/AI_pair_programming-Claude-CC785C?style=flat-square)
 
 <br>
@@ -159,7 +159,9 @@ Language is auto-detected from OS settings on first launch and can be changed an
 
 ## License
 
-This software is **freeware (source available)**. Free for personal and commercial use. Unauthorized redistribution, repackaging, or resale is prohibited.
+This software is distributed under the **MIT License**. Free to use, modify, redistribute, and sell, provided that the copyright notice is retained.
+
+Originally built as a personal tool, now released under MIT in the hope it may help others with similar workflows.
 
 Open-source libraries used:
 - Python (PSF License 2.0)
@@ -167,9 +169,9 @@ Open-source libraries used:
 - chardet (LGPL-2.1)
 - python-docx, pdfplumber, openpyxl, python-hwpx (MIT)
 
-Full license information is available in the app at **[Settings → License]**.
+Full license information is available in the app at **[Settings → License]**, and also in the [`LICENSE`](./LICENSE) file in the repository root.
 
-Copyright © 2026 Hanrim. All rights reserved.
+Copyright © 2026 Hanrim
 
 ---
 
