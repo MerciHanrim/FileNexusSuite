@@ -7,7 +7,54 @@
 
 ---
 
-## [Unreleased] — v1.0.7
+## [1.0.8] — 2026-04-25
+
+### Fixed
+- **설정 다이얼로그 라벨/프레임 color 잔재 버그** (v1.0.5부터 존재, 5개 릴리즈 살아남은 본과제) — 페이지 lazy 재생성 메커니즘 도입으로 **구조적 해결**. v1.0.7 §11.3에서 이월된 본과제로, v1.0.6 세션에서 시도한 4가지 접근(QTimer 지연 / unpolish-polish / QApplication 전역 재적용 / findChildren update) 모두 실패한 후 v1.0.8에서 사전 조사 → 코드 진단 → 옵션 재평가의 정직한 흐름으로 풀어냄.
+  - 코드 진단 결과 §11.1의 "영향 위젯 3가지"가 실제로는 **22개 위젯 갱신 누락**의 빙산 일각이었음이 드러남 (페이지 내부 거의 모든 inline stylesheet 위젯이 생성 시점 테마로 영구 고정되는 구조적 문제)
+  - 옵션 A(Targeted 갱신, ~60~80줄) 대신 옵션 C(페이지 재생성, +17줄)로 변경 — 코드 변경량 1/4, 누락 재발 영구 방지
+  - 메커니즘: 워크어라운드(설정창 재오픈)와 동일한 패턴을 다이얼로그 내부에서 자동화. §11.3에서 한림이 사전 후보로 적어둔 방향과 일치
+- (사이드 결함) `_ver_lbl` (사이드바 하단 버전 라벨) 테마 전환 갱신 누락 보완. v1.0.6에서 "갱신용 self 저장"이라 주석 달아놓고도 `_refresh_theme`에서 호출 누락된 결함이 옵션 C 작업 중 코드 진단으로 발견되어 동시 해결.
+- (사이드 결함) 출력 폴더 버튼(`_odir_btn` / `_odir_reset_btn`) 텍스트가 언어 변경 시 갱신되지 않던 결함 해소. v1.0.6 D-2 작업에서 `_retranslate_dialog`은 `self._odir_btn`을 참조하는데 `_page_language`에서는 로컬 변수로만 만들어 `hasattr` 검사로 silently fail 하던 잔재. 페이지 재생성으로 자동 해결.
+
+### Changed
+- `SettingsDialog._refresh_theme` / `_retranslate_dialog` 책임 명확화 — 다이얼로그 외곽 위젯만 책임지도록 단순화. 페이지 내부 위젯의 stylesheet·텍스트 갱신은 신규 `_recreate_pages` 메서드가 일괄 처리.
+  - `_refresh_theme`: 32줄 → 30줄 (페이지 내부 갱신 루프 제거 + `_ver_lbl` 갱신 추가 + `_recreate_pages()` 호출 추가 + 주석)
+  - `_retranslate_dialog`: 48줄 → 16줄 (페이지 내부 텍스트 갱신 모두 `_recreate_pages`에 위임)
+- `_apply_theme_now`에서 `for n, card in self._cards.items(): card.set_selected(...)` 1줄 제거. 페이지 재생성 시 새 카드들이 `selected=(name==self._chosen)`로 자동 생성되므로 불필요.
+
+### Added
+- `SettingsDialog._recreate_pages()` 신규 메서드 — 페이지 4개 destroy + recreate.
+  - 7단계 안전 흐름: 단축키 캡처 안전 종료 → 출력 폴더 임시 입력값 보존 → 기존 페이지 위젯 제거(`removeWidget` + `deleteLater`) → 컨테이너 dict 초기화 → 새 페이지 생성 → 임시 입력값 복원 → 현재 페이지 전환
+  - 워크어라운드(설정창 재오픈) 메커니즘의 명시적 자동화. 향후 페이지에 위젯 추가 시 `_refresh_theme` / `_retranslate_dialog`에 갱신 라인 누락될 위험 영구 방지
+  - **옵션 C 신규 동작**: 출력 폴더 입력란에 사용자가 입력했지만 적용 안 한 텍스트도 페이지 재생성 시 보존됨 (v1.0.7 동작 대비 개선)
+- `test_file_nexus.py` `TestSettingsDialogStructureInvariant` 클래스 (§추가Q, +72줄) — v1.0.8 옵션 C 메커니즘 구조 invariant 3개:
+  - `test_settings_dialog_has_recreate_pages` — `_recreate_pages` 메서드 존재 검증
+  - `test_refresh_theme_calls_recreate_pages` — `_refresh_theme` 본문에 `self._recreate_pages()` 호출 포함 검증 (`inspect.getsource` 기반)
+  - `test_retranslate_dialog_simplified` — `_retranslate_dialog`이 페이지 내부 attribute 9개(`_theme_page_title`, `_lang_page_title` 등)를 직접 갱신하지 않음 검증
+  - TEST_MANAGEMENT_POLICY §3 4번 원칙(신규 기능에 대한 자동 커버리지 명시) 적용. 향후 누군가의 실수로 옵션 C 메커니즘이 깨지면 CI에서 즉시 자동 감지
+
+### Tests
+- **534 passing** (+3 vs v1.0.7), 58개 클래스, 실패·오류·스킵 0 (한림 로컬 실측)
+- 옵션 C 패치 직후 531/0/0/0 유지 → invariant 3개 추가 후 534/0/0/0
+- 수동 QA: 라이트↔다크 양방향 정상 + 단축키 캡처 중 적용 안전 + 출력 폴더 임시 입력 보존 모두 통과 (한림 검증)
+
+### Documentation
+- `FileNexusSuite.py` `APP_VERSION` 상수 `1.0.7` → `1.0.8` 갱신 (L76). f-string으로 참조되는 도움말 창 타이틀 5개 언어 + 사이드바 버전 라벨이 자동 일관 갱신됨
+- `version_info.txt` 4곳 `1.0.7`/`1.0.7.0` → `1.0.8`/`1.0.8.0` 갱신 (`filevers` / `prodvers` 튜플, `FileVersion` / `ProductVersion` 문자열). PyInstaller 빌드 시 Windows `.exe` 속성 창의 메타데이터 정합 확보
+- `README.md` / `README_EN.md` version 뱃지 1.0.7 → 1.0.8, tests 뱃지 531 → 534 동기화
+- `README.txt` 첫 줄 v1.0.7 → v1.0.8 갱신
+
+### File Changes
+- `FileNexusSuite.py`: 14,866 → 14,883 줄 (+17: `_recreate_pages` 신규 메서드 +35 + 외곽 단순화 -28 + 주석 +6 + APP_VERSION 갱신 등)
+- `test_file_nexus.py`: 4,481 → 4,553 줄 (+72: `TestSettingsDialogStructureInvariant` 신규 클래스)
+- `version_info.txt`, `README.md`, `README_EN.md`, `README.txt`: 버전 갱신만
+
+상세: `RELEASE_NOTE_v1.0.8.md` (v1.0.8 릴리즈 준비 단계에서 작성 예정)
+
+---
+
+## [1.0.7] — 2026-04-22
 
 ### Fixed
 - (세션 1) TextMergerPanel `_set_scan_ui` 데드 `or True` 조건 제거
@@ -17,8 +64,6 @@
 - (CI 도입 준비) `requirements.txt`에 `python-hwpx>=2.9.0` 누락 보완 (v1.0.6 HWPX 입력 지원 의존성이 README·기술 스택에만 명시되고 requirements에서 빠져 있던 불일치 해소)
 - (CI 도입 준비) `FileNexusSuite.py` L76 `APP_VERSION` 상수 `1.0.6` → `1.0.7` 갱신 (세션 3 당초 누락, 릴리즈 직전 한림의 `findstr` 검증으로 발견). f-string으로 참조되는 앱 타이틀·도움말 창 버전 표시가 자동 일관 갱신됨
 - (CI 도입 준비) `version_info.txt` 4곳 `1.0.6`/`1.0.6.0` → `1.0.7`/`1.0.7.0` 갱신 (`filevers` / `prodvers` 튜플, `FileVersion` / `ProductVersion` 문자열). PyInstaller 빌드 시 Windows `.exe` 속성 창의 "파일 버전" / "제품 버전" 메타데이터가 v1.0.7로 표시되도록 정합 확보
-- (CI 첫 실행 hotfix) `requirements.txt`에서 `PySide6-Qt6-Qt6Svg>=6.4.0` 제거 — PyPI에 존재하지 않는 유령 패키지. 한림 로컬에서는 `pip install` 시 조용히 넘어가 발견되지 않았으나, CI의 깨끗한 환경에서 `ERROR: Could not find a version that satisfies the requirement` 실패로 드러남. PySide6 본체에 QtSvg 모듈이 이미 포함되어 있어 별도 설치 불필요 — CI 도입의 가치가 첫 실행에서 바로 입증된 사례
-- (CI 2번째 실행 hotfix) `test_file_nexus.py` 커스텀 러너 진입부에 `sys.stdout.reconfigure(encoding='utf-8')` 추가. GitHub Actions windows-latest는 기본 콘솔 인코딩이 `cp1252`(영어 로케일)라 한글·이모지 출력 시 `UnicodeEncodeError: 'charmap' codec can't encode character` 발생. 한림 로컬(Windows KST)에서는 콘솔이 `cp949` 또는 UTF-8 모드라 문제 없었으나 CI 환경에서 드러남. Python 3.7+ 표준 `reconfigure` API 사용, `hasattr` 가드로 구버전·stream 교체 시에도 무해
 - (CI 도입 준비) `README_EN.md` version 뱃지 및 설치 명령어 갱신 (한국어 README와 동일 수준으로 동기화 — 세션 3에서 한국어만 갱신됐던 부분 보완)
 
 ### Removed
@@ -52,11 +97,11 @@
   - 관통 축 선언: *"역사는 Git 이력과 CHANGELOG가 담당하고, 테스트는 현재 살아있는 명세로 유지된다"*
   - 탭 기반 대분류 10개 명세 및 경계 애매 케이스 처리 원칙
 - (CI 도입) `.github/workflows/ci.yml` 신규 — GitHub Actions CI 파이프라인
-  - 러너: `windows-latest` 단일 (한림 로컬 Windows 환경과 일치, 531/0/0/0 재현 최우선)
+  - 러너: `windows-latest` 단일 (한림 로컬 Windows 환경과 일치, 529/0/0/0 재현 최우선)
   - Python: 3.10 단일 (한림 로컬 Python 3.10.11과 일치)
   - 트리거: main 브랜치 push/PR + `workflow_dispatch`(수동)
   - 의존성: `pip install -r requirements.txt` 단일 진실 원천
-- (CI 도입) `README.md` 뱃지 확장 — CI 상태 뱃지 + 531 tests passing 뱃지 추가, 설치 명령어를 `pip install -r requirements.txt`로 단순화, version 뱃지 1.0.6 → 1.0.7 갱신
+- (CI 도입) `README.md` 뱃지 확장 — CI 상태 뱃지 + 529 tests passing 뱃지 추가, 설치 명령어를 `pip install -r requirements.txt`로 단순화, version 뱃지 1.0.6 → 1.0.7 갱신
 
 ### Audit Fixes (세션 3)
 세션 2 말미의 전수 감사에서 17건 고아로 추정된 번역키 중 **2건이 β 프로토콜 조사 과정에서 실제로는 활성 키**임이 확인됨 — 감사가 동적 키 생성 패턴을 놓친 결과.
@@ -69,11 +114,10 @@
 - v1.0.7 원 본과제였으나 17건 고아 노이즈 상태에서 난제 접근 시 판단 오류 위험이 있어 스코프 분리 — 고아 정리·invariant 재구성 완료 후 깨끗한 기반에서 재도전
 
 ### Tests
-- **531 passing** (+4 vs v1.0.6), 57개 클래스, 실패·오류·스킵 0 (한림 로컬 실측)
+- **529 passing** (+2 vs v1.0.6), 57개 클래스, 실패·오류·스킵 0 (한림 로컬 실측)
 - 세션 1·2: 527 passing 유지 (한림 로컬 0/0/0/0)
 - 세션 3: invariant 재구성으로 구 7개 제거 + 신규 9개 추가 (`bulk_fixer_keys` 확장 유지) → Net +2 메서드
-- CI 도입: `TestV106AppVersion` 2건 제거 + `TestAppVersion` 4건 신설 (버전 독립 구조 검증) → Net +2 메서드
-- 샌드박스 `TestTranslationCompleteness` + `TestAppVersion` 선택 실행: 16 tests passing (failure 0, error 0, skipped 2 — PySide6 모듈 로드 필요 건만 skip, 한림 로컬에서는 모두 실행·통과)
+- 샌드박스 `TestTranslationCompleteness` 선택 실행: 12 tests passing (failure 0, error 0)
 
 ### File Changes
 - `FileNexusSuite.py`: 14,942 → 14,866 줄 (-76: 15키 × 5언어 + L8477 주석)

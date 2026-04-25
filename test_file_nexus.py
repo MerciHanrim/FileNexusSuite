@@ -4413,6 +4413,78 @@ class TestPreviewExtractionPerformance(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
+# §추가Q  v1.0.8 SettingsDialog 구조 invariant — 페이지 lazy 재생성
+# ════════════════════════════════════════════════════════════════════════
+
+@unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
+class TestSettingsDialogStructureInvariant(unittest.TestCase):
+    """v1.0.8 옵션 C — 설정 다이얼로그 페이지 lazy 재생성 메커니즘 구조 검증.
+
+    배경: v1.0.5부터 존재한 라벨/프레임 color 잔재 버그를 v1.0.8에서 페이지
+    재생성 메커니즘으로 구조적 해결. 이 메커니즘이 향후 누군가의 실수로
+    제거되거나 약화되지 않도록 invariant로 보호한다.
+
+    참조: TEST_MANAGEMENT_POLICY §3 4번 원칙 (신규 기능에 대한 자동 커버리지 명시),
+    Claude_Handover v1.0.7 §5.1 / §7.8, Phase2_Completion_Record §11.3.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import inspect as _ins
+        cls._ins = _ins
+        cls.dialog_cls = _ns.get('SettingsDialog')
+
+    def test_settings_dialog_has_recreate_pages(self):
+        """SettingsDialog 클래스에 _recreate_pages 메서드가 존재해야 한다.
+
+        v1.0.8 옵션 C 핵심 메커니즘 — 페이지 재생성을 담당하는 메서드.
+        제거되면 라벨 color 잔재 버그가 부활.
+        """
+        self.assertIsNotNone(self.dialog_cls, "SettingsDialog 클래스 없음")
+        self.assertTrue(hasattr(self.dialog_cls, '_recreate_pages'),
+            "SettingsDialog._recreate_pages 메서드 없음 — "
+            "v1.0.8 페이지 lazy 재생성 메커니즘이 누락됨")
+        self.assertTrue(callable(getattr(self.dialog_cls, '_recreate_pages')),
+            "SettingsDialog._recreate_pages가 callable이 아님")
+
+    def test_refresh_theme_calls_recreate_pages(self):
+        """SettingsDialog._refresh_theme 본문이 self._recreate_pages()를 호출해야 한다.
+
+        v1.0.8 옵션 C — _refresh_theme이 페이지 내부 위젯 갱신을 _recreate_pages에
+        위임하는 구조. 호출이 빠지면 라벨 color 잔재 버그가 부활.
+        """
+        self.assertIsNotNone(self.dialog_cls, "SettingsDialog 클래스 없음")
+        src = self._ins.getsource(self.dialog_cls._refresh_theme)
+        self.assertIn('self._recreate_pages()', src,
+            "_refresh_theme 본문에 'self._recreate_pages()' 호출 없음 — "
+            "v1.0.8 옵션 C 메커니즘이 끊어짐")
+
+    def test_retranslate_dialog_simplified(self):
+        """SettingsDialog._retranslate_dialog이 페이지 내부 위젯 attribute를
+        직접 갱신하지 않아야 한다.
+
+        v1.0.8 옵션 C — _retranslate_dialog은 외곽(사이드바/네비/하단 버튼)만
+        책임지고, 페이지 내부 텍스트 갱신은 _recreate_pages에 위임. 페이지 내부
+        attribute(_lang_page_title 등) 직접 setText는 v1.0.7 단순화 이전 패턴.
+        """
+        self.assertIsNotNone(self.dialog_cls, "SettingsDialog 클래스 없음")
+        src = self._ins.getsource(self.dialog_cls._retranslate_dialog)
+        # 페이지 내부 attribute 패턴들 — 이전 버전 구조의 흔적
+        forbidden_attrs = [
+            '_theme_page_title', '_theme_page_hint',
+            '_lang_page_title', '_lang_page_desc',
+            '_sc_page_title', '_sc_page_desc',
+            '_lang_odir_title',
+            '_license_page_title', '_license_browser',
+        ]
+        for attr in forbidden_attrs:
+            with self.subTest(attr=attr):
+                self.assertNotIn(f'self.{attr}', src,
+                    f"_retranslate_dialog에 'self.{attr}' 직접 갱신이 남아있음 — "
+                    f"v1.0.8 단순화 위반. 페이지 내부 텍스트는 _recreate_pages가 처리해야 함")
+
+
+# ════════════════════════════════════════════════════════════════════════
 # 테스트 러너 — 자동 발견 방식 (수동 등록 불필요)
 # ════════════════════════════════════════════════════════════════════════
 if __name__ == '__main__':

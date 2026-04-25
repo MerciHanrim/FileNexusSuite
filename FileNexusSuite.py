@@ -73,7 +73,7 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle
 # ═══════════════════════════════════════════════
 # 앱 버전
 # ═══════════════════════════════════════════════
-APP_VERSION = "1.0.7"
+APP_VERSION = "1.0.8"
 
 # ═══════════════════════════════════════════════
 # 절전 방지 유틸리티 (Windows 전용, 타 OS 무해 처리)
@@ -12939,11 +12939,19 @@ class SettingsDialog(QDialog):
         self._bo.setVisible(show_apply)
 
     def _refresh_theme(self):
-        """테마 변경 후 다이얼로그 자체의 모든 인라인 스타일 갱신."""
+        """테마 변경 후 다이얼로그 외곽 갱신 + 페이지 재생성.
+
+        v1.0.8: 페이지 내부 위젯들은 inline stylesheet 잔재 방지를 위해
+        _recreate_pages()에서 일괄 재생성 (워크어라운드 메커니즘 자동화).
+        이 메서드는 다이얼로그 외곽 위젯만 책임진다.
+        """
+        # 다이얼로그 외곽 갱신
         self.setStyleSheet(f"QDialog{{background:{BG};}} QLabel{{background:transparent;color:{TEXT};}}")
         self._sb.setStyleSheet(f"QFrame{{background:{SRF2};border-right:1px solid {BORDER};}}")
         self._dlg_title.setStyleSheet(f"font-size:16px;font-weight:700;color:{TEXT};padding-left:6px;padding-bottom:10px;")
         self._sb_sep.setStyleSheet(f"background:{BORDER};border:none;margin-bottom:6px;")
+        # v1.0.8: _ver_lbl 갱신 보완 — v1.0.6에서 "갱신용 self 저장"이라 주석 달아놓고 누락된 결함
+        self._ver_lbl.setStyleSheet(f"color:{MUTED};font-size:11px;padding-left:6px;padding-bottom:4px;")
         self._right.setStyleSheet(f"QFrame{{background:{SURFACE};}}")
         self._bot_div.setStyleSheet(f"background:{BORDER};max-height:1px;border:none;")
         self._status_lbl.setStyleSheet(f"color:{ACCENT};font-size:12px;font-weight:600;")
@@ -12955,21 +12963,61 @@ class SettingsDialog(QDialog):
             f"QPushButton{{background:{ACCENT};border:none;color:white;"
             f"border-radius:8px;padding:8px 0;font-size:13px;font-weight:600;}}"
             f"QPushButton:hover{{background:{ACCENT_HOVER};}}")
-        self._switch(self._cur)  # 네비 버튼 색상 갱신
-        # 언어 라디오 버튼 스타일 갱신
-        for rb in self._lang_radios.values():
-            rb.setStyleSheet(f"QRadioButton{{font-size:14px;color:{MUTED};spacing:10px;}}"
-                             f"QRadioButton::indicator{{width:17px;height:17px;border:1.5px solid {INPUT_H};border-radius:9px;background:{SURFACE};}}"
-                             f"QRadioButton::indicator:checked{{border:2px solid {ACCENT};background:{ACCENT};}}")
-        # 테마 카드 레이블 갱신
-        for key, card in self._cards.items():
-            card.set_label(_theme_label(key))
-        # 단축키 액션 라벨 갱신
-        for sid, lbl in getattr(self,"_sc_action_lbls",{}).items():
-            key = getattr(self,"_sc_label_keys",{}).get(sid, sid)
-            lbl.setText(_t(key))
         # 다이얼로그 윈도우 타이틀 갱신
         self.setWindowTitle(_t("settings_title"))
+        # v1.0.8: 페이지 재생성 — inline stylesheet 색상 잔재 구조적 해결
+        # (v1.0.5부터 존재한 라벨/프레임 color 잔재 버그, 22개 위젯 갱신 누락 일괄 처리)
+        self._recreate_pages()
+
+    # ── v1.0.8: 페이지 재생성 (라벨 color 잔재 버그 구조적 해결) ─────
+    def _recreate_pages(self):
+        """v1.0.8: 테마/언어 변경 시 페이지 재생성으로 inline stylesheet 색상 및
+        번역 텍스트를 일괄 갱신.
+
+        배경: 페이지 내부 위젯들의 inline stylesheet에 색상값이 f-string으로 박혀
+        생성 시점의 테마로 고정됨 (v1.0.5부터의 구조적 한계). 22개 위젯의
+        개별 갱신 라인을 _refresh_theme에 누적하기보다, 워크어라운드(설정창 재오픈)와
+        동일한 메커니즘을 자동화하는 방식.
+
+        페이지 상태 보존:
+        - 외관: self._chosen (현재 선택된 테마) — 카드 selected 상태 자동 복원
+        - 언어: self._chosen_lang (현재 선택된 언어) — 라디오 체크 자동 복원
+        - 단축키: self._shortcuts (현재 단축키 매핑) — 캡처 버튼 텍스트 자동 복원
+        - 출력 폴더: self._odir_edit 텍스트 — 적용 전 임시 입력 보존 처리
+        - 라이선스: 상태 없음
+        """
+        # 1. 단축키 캡처 진행 중인 버튼 안전 종료 (closeEvent 패턴)
+        for btn in self._capture_btns.values():
+            if btn._capturing:
+                btn._stop_capture()
+
+        # 2. 출력 폴더 임시 입력값 보존 (사용자가 입력했지만 아직 적용 안 한 상태)
+        odir_temp = self._odir_edit.text() if hasattr(self, '_odir_edit') else None
+
+        # 3. 기존 페이지 위젯 제거
+        while self._stack.count() > 0:
+            old = self._stack.widget(0)
+            self._stack.removeWidget(old)
+            old.deleteLater()
+
+        # 4. 컨테이너 dict 초기화 (페이지가 새로 만들어지며 재채워짐)
+        self._capture_btns.clear()
+        self._lang_radios.clear()
+        self._cards.clear()
+        self._pidx = {}
+
+        # 5. 새 페이지 생성 (현재 테마/언어 색상·텍스트로)
+        for sid, _, _ in self._SECTIONS:
+            page = getattr(self, f"_page_{sid}")()
+            idx = self._stack.addWidget(page)
+            self._pidx[sid] = idx
+
+        # 6. 출력 폴더 임시 입력값 복원
+        if odir_temp is not None and hasattr(self, '_odir_edit'):
+            self._odir_edit.setText(odir_temp)
+
+        # 7. 현재 페이지로 전환 (네비 버튼 active 스타일 갱신 포함)
+        self._switch(self._cur)
 
     # ── 설정 적용 (창 유지) ─────────────────────────
     def _apply_now(self):
@@ -12991,7 +13039,8 @@ class SettingsDialog(QDialog):
     def _apply_theme_now(self, name):
         """테마 카드 더블클릭 — 해당 테마만 즉시 반영, 창 유지."""
         self._chosen = name
-        for n, card in self._cards.items(): card.set_selected(n == name)
+        # v1.0.8: card.set_selected 루프 제거 — _recreate_pages에서 새 카드들이
+        # selected=(name==self._chosen) 으로 자동 생성되므로 불필요
         self.theme_applied.emit(name)
         self._refresh_theme()
         self._retranslate_dialog()  # v1.0.6 §2.1 A: _apply_now와 일관성
@@ -13120,53 +13169,21 @@ class SettingsDialog(QDialog):
 
 
     def _retranslate_dialog(self):
-        """언어 변경 후 설정 다이얼로그 자체 텍스트 갱신."""
+        """언어 변경 후 다이얼로그 외곽 텍스트 갱신.
+
+        v1.0.8: 페이지 내부 텍스트는 _recreate_pages()에서 일괄 재생성됨.
+        이 메서드는 사이드바·네비 버튼·하단 버튼 등 외곽 텍스트만 책임진다.
+        """
         # 사이드바 타이틀
         self._dlg_title.setText(_t('settings_title'))
-        # 네비게이션 버튼
         # 네비게이션 버튼 — 번역 문자열에 이미 아이콘 포함
         for (sid, _, __), key in zip(self._SECTIONS,
                 ['settings_nav_theme', 'settings_nav_language', 'settings_nav_shortcuts', 'settings_nav_license']):
             self._nav_btns[sid].setText(_t(key))
+        # 하단 버튼
         self._bc.setText(_t('btn_close'))
         self._bo.setText(_t('btn_apply'))
-        # 테마 페이지
-        if hasattr(self, '_theme_page_title'):
-            self._theme_page_title.setText(_t('settings_theme_title'))
-            self._theme_page_hint.setText(_t('settings_theme_hint'))
-        # 단축키 페이지
-        if hasattr(self, '_sc_page_title'):
-            self._sc_page_title.setText(_t('settings_sc_title'))
-            self._sc_page_desc.setText(_t('settings_sc_desc'))
-            self._sc_note.setText(_t('settings_sc_note'))
-            if hasattr(self, '_sc_hdr_labels') and len(self._sc_hdr_labels) >= 2:
-                self._sc_hdr_labels[0].setText(_t('settings_sc_action'))
-                self._sc_hdr_labels[1].setText(_t('settings_sc_key'))
-        # 언어 페이지
-        if hasattr(self, '_lang_page_title'):
-            self._lang_page_title.setText(_t('settings_lang_title'))
-            self._lang_page_desc.setText(_t('settings_lang_desc'))
-        # v1.0.6: 단축키 리셋 버튼들 텍스트 갱신 (D-1)
-        if hasattr(self, '_sc_reset_btns'):
-            for btn in self._sc_reset_btns.values():
-                btn.setText(_t("btn_reset"))
-        if hasattr(self, '_sc_reset_all_btn'):
-            self._sc_reset_all_btn.setText(_t("btn_reset_all"))
-        # v1.0.6: 일반 설정 출력 폴더 라벨/버튼 텍스트 갱신 (D-2)
-        if hasattr(self, '_lang_odir_title'):
-            self._lang_odir_title.setText(_t('settings_output_dir'))
-        if hasattr(self, '_odir_btn'):
-            self._odir_btn.setText(_t('conv_btn_pick'))
-        if hasattr(self, '_odir_reset_btn'):
-            self._odir_reset_btn.setText(_t('merge_path_reset'))
-        # v1.0.6: 라이선스 페이지 타이틀 갱신 (D-3)
-        if hasattr(self, '_license_page_title'):
-            self._license_page_title.setText(_t("settings_nav_license").strip())
-        # 라이선스 페이지 갱신
-        if hasattr(self, '_license_browser'):
-            self._license_browser.setHtml(_build_license_html())
-        # 네비 버튼 스타일 재적용
-        self._switch(self._cur)
+        # v1.0.8: 페이지 내부 텍스트는 _recreate_pages()에서 일괄 처리
 
     def closeEvent(self, event):
         """다이얼로그 강제 종료 시 캡처 중인 키보드 반드시 해제."""
