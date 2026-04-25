@@ -62,6 +62,38 @@ def check_version_file():
     return False
 
 
+def check_version_consistency(strict=False):
+    """README.txt와 APP_VERSION 버전 일관성을 검증.
+
+    strict=True에서 mismatch 발견 시 빌드 중단(exit 1).
+    strict=False에서는 경고만 출력하고 계속 진행.
+    """
+    try:
+        py_src = Path(SCRIPT).read_text(encoding="utf-8")
+        m = re.search(r'APP_VERSION\s*=\s*["\']([\d.]+)["\']', py_src)
+        app_ver = m.group(1) if m else None
+
+        readme = Path(README_FILE)
+        readme_ver = None
+        if readme.exists():
+            rm = re.search(r'v(\d+\.\d+\.\d+)', readme.read_text(encoding="utf-8"))
+            readme_ver = rm.group(1) if rm else None
+
+        if app_ver and readme_ver and app_ver != readme_ver:
+            print(f"  ⚠ Version mismatch — {README_FILE}: v{readme_ver}, APP_VERSION: v{app_ver}")
+            print(f"    → Update {README_FILE} to v{app_ver} before release.")
+            if strict:
+                print(f"  ❌ --strict mode: aborting build.")
+                sys.exit(1)
+            return False
+        if app_ver:
+            print(f"  ✅ Version consistent  (v{app_ver})")
+        return True
+    except Exception as e:
+        print(f"  ⚠ Version check failed: {e}")
+        return False
+
+
 def check_pyinstaller():
     try:
         r = subprocess.run(
@@ -167,22 +199,6 @@ def copy_readme_to_dist():
         print(f"  ⚠ {dst_dir}/ not found — build may have failed.")
         return False
 
-    # 버전 일관성 검증 — README.txt의 vX.Y.Z가 APP_VERSION과 일치하는지
-    try:
-        py_src = Path(SCRIPT).read_text(encoding="utf-8")
-        m = re.search(r'APP_VERSION\s*=\s*["\']([\d.]+)["\']', py_src)
-        app_ver = m.group(1) if m else None
-
-        readme_text = src.read_text(encoding="utf-8")
-        rm = re.search(r'v(\d+\.\d+\.\d+)', readme_text)
-        readme_ver = rm.group(1) if rm else None
-
-        if app_ver and readme_ver and app_ver != readme_ver:
-            print(f"  ⚠ Version mismatch — {README_FILE}: v{readme_ver}, APP_VERSION: v{app_ver}")
-            print(f"    → Update {README_FILE} to v{app_ver} before release.")
-    except Exception:
-        pass  # 버전 체크 실패는 무시 (복사는 계속)
-
     dst = dst_dir / README_FILE
     shutil.copy2(src, dst)
     print(f"  ✅ {README_FILE} copied  →  {dst}")
@@ -209,11 +225,14 @@ def cleanup():
 # Main
 # ══════════════════════════════════════════════════════════════════════
 def main():
-    TOTAL = 7
+    TOTAL = 8
+    STRICT = "--strict" in sys.argv
     print()
     print("╔══════════════════════════════════════════════╗")
     print("║  File Nexus Suite — PyInstaller Build Script ║")
     print("╚══════════════════════════════════════════════╝")
+    if STRICT:
+        print("  Mode: STRICT  (build will abort on version mismatch)")
 
     if not Path(SCRIPT).exists():
         print(f"\n❌ {SCRIPT} not found. Run from the same folder.")
@@ -232,13 +251,16 @@ def main():
     step(4, TOTAL, "Icon extraction")
     has_icon = extract_icon(SCRIPT)
 
-    step(5, TOTAL, "PyInstaller build")
+    step(5, TOTAL, "Version consistency check")
+    check_version_consistency(strict=STRICT)
+
+    step(6, TOTAL, "PyInstaller build")
     success = run_pyinstaller(has_icon, has_version_file, upx_exe)
 
-    step(6, TOTAL, "Copy README.txt to dist")
+    step(7, TOTAL, "Copy README.txt to dist")
     copy_readme_to_dist()
 
-    step(7, TOTAL, "Cleanup")
+    step(8, TOTAL, "Cleanup")
     cleanup()
 
     print()

@@ -2084,14 +2084,45 @@ class TestTranslationCompleteness(unittest.TestCase):
         return set(re.findall(r"'([a-z_][a-z0-9_]*)'\s*:", m.group(1)))
 
     def test_all_langs_same_key_count(self):
-        langs = ['ko','en','ja','zh_cn','zh_tw']
-        counts = {lang: len(self._get_lang_keys(lang)) for lang in langs}
-        # 모두 ko 기준과 동일해야 함
-        ko_count = counts['ko']
-        for lang, cnt in counts.items():
+        """5언어 키 개수 검증 — zh_cn은 zh_tw fallback으로 부분집합 허용 (v1.0.9 §5.1.G).
+
+        ko/en/ja/zh_tw는 ko 기준과 동일 개수 (대칭).
+        zh_cn은 zh_tw와 값이 100% 동일한 키들이 제거되어 적을 수 있으나,
+        남은 키는 모두 zh_tw에 있어야 fallback 안전성이 보장됨.
+        """
+        lang_keys = {l: self._get_lang_keys(l) for l in ['ko','en','ja','zh_cn','zh_tw']}
+        ko_count = len(lang_keys['ko'])
+        # ko/en/ja/zh_tw 대칭 검증
+        for lang in ('en', 'ja', 'zh_tw'):
             with self.subTest(lang=lang):
-                self.assertEqual(cnt, ko_count,
-                    f"{lang} 키 수 {cnt} ≠ ko {ko_count}")
+                self.assertEqual(len(lang_keys[lang]), ko_count,
+                    f"{lang} 키 수 {len(lang_keys[lang])} ≠ ko {ko_count}")
+        # zh_cn은 zh_tw 부분집합 (fallback 안전성)
+        not_in_zh_tw = lang_keys['zh_cn'] - lang_keys['zh_tw']
+        with self.subTest(lang='zh_cn_subset'):
+            self.assertEqual(not_in_zh_tw, set(),
+                f"zh_cn 키가 zh_tw에 없음 (fallback 불가): {sorted(not_in_zh_tw)}")
+
+    def test_zh_cn_fallback_to_zh_tw(self):
+        """zh_cn 사전 미정의 키는 zh_tw로 fallback되어야 함 (v1.0.9 §5.1.G).
+
+        §5.1.G에서 zh_cn↔zh_tw 값 동일 키를 zh_cn에서 제거.
+        _t() / _rt() 두 함수 모두에 fallback 메커니즘이 살아있어야
+        zh_cn 사용자 동작 영향이 0으로 유지됨.
+        """
+        import re
+        lang_keys = {l: self._get_lang_keys(l) for l in ['zh_cn', 'zh_tw']}
+        # 검증 대상이 존재해야 함 (정리 작업이 적용된 상태)
+        missing_in_zh_cn = lang_keys['zh_tw'] - lang_keys['zh_cn']
+        self.assertGreater(len(missing_in_zh_cn), 0,
+            "fallback 검증 대상 키가 없음 — §5.1.G 정리가 미적용 상태?")
+        # 소스에서 zh_cn → zh_tw fallback 패턴 존재 검증 (_t와 _rt 두 곳)
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            src = f.read()
+        fallback_pattern = r"TRANSLATIONS\['zh_tw'\]\.get\(key\)\s+if\s+lang\s*==\s*'zh_cn'"
+        matches = re.findall(fallback_pattern, src)
+        self.assertGreaterEqual(len(matches), 2,
+            f"_t() / _rt() 모두에 zh_cn → zh_tw fallback 필요 — 현재 {len(matches)}곳")
 
     def test_ko_has_minimum_keys(self):
         keys = self._get_lang_keys('ko')
@@ -4028,14 +4059,19 @@ class TestV105TranslationNoDuplicates(unittest.TestCase):
     def test_all_languages_have_similar_key_count(self):
         """5개 언어의 고유 키 수가 비슷해야 한다 (완결성 보장).
         큰 차이가 있으면 어떤 언어에서 번역이 누락됐다는 신호.
-        v1.0.5 중복 정리 직후 기준 391±2 정도를 허용 범위로 설정."""
+        v1.0.5 중복 정리 직후 기준 391±2 정도를 허용 범위로 설정.
+        v1.0.9 §5.1.G — zh_cn은 zh_tw fallback 메커니즘으로 부분집합 허용,
+        검증 대상에서 제외하고 다른 4언어만 ≤5 차이 강제."""
         per_lang = self._count_keys_per_language()
         counts = {lang: len(c) for lang, c in per_lang.items()}
-        max_count = max(counts.values())
-        min_count = min(counts.values())
+        # zh_cn은 zh_tw fallback으로 의도적으로 작음 — 키 수 검증에서 제외
+        counts_for_check = {l: c for l, c in counts.items() if l != 'zh_cn'}
+        max_count = max(counts_for_check.values())
+        min_count = min(counts_for_check.values())
         # 완전 동일은 어려우니 5개 이내 차이까지 허용 (일부 언어 미번역 키가 남을 수 있음)
         self.assertLessEqual(max_count - min_count, 5,
-            f"언어별 키 수 차이 과다 (허용 ≤5): {counts}")
+            f"언어별 키 수 차이 과다 (zh_cn 제외, 허용 ≤5): "
+            f"{counts_for_check}  (zh_cn={counts.get('zh_cn')} — fallback 의도)")
 
 
 # ════════════════════════════════════════════════════════════════════════

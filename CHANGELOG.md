@@ -7,6 +7,54 @@
 
 ---
 
+## [1.0.9] — 2026-04-25
+
+v1.0.x 시리즈 마무리 — 사후 정리 / 데이터 청소 카테고리. v1.0.8 인수인계 §5.1의 ACDG 4개 작업을 묶은 릴리즈.
+
+### Added
+- `build_pyinstaller.py` `--strict` 모드 신설 — 버전 일관성 검증 단계를 빌드 전(step 5)으로 분리하여 mismatch 발견 시 빌드 즉시 중단. PyInstaller 수십 초 + UPX 압축이 시작 전에 차단되어 시간/디스크 절약, 기존 빌드 산출물 보존. 신규 함수 `check_version_consistency(strict)` 추가, step 시퀀스 7→8단계로 재정렬.
+  - `build.bat` wrapper에 `%*` 인자 패스스루 추가하여 `build.bat --strict` 직접 호출 가능
+- `_t()` / `_rt()` 함수에 zh_cn → zh_tw fallback chain 추가 — zh_cn 사전에 미정의 키는 zh_tw로 1차 fallback, 최종은 ko fallback. v1.0.5부터 fallback이 ko 단일이었던 한계 보완.
+- `test_file_nexus.py` `test_zh_cn_fallback_to_zh_tw` 신규 invariant — `_t()`/`_rt()` 두 함수 모두에 fallback 패턴이 살아있고 검증 대상 키가 존재하는지 검증. fallback 메커니즘이 향후 누군가의 실수로 깨지면 CI에서 즉시 자동 감지
+
+### Changed
+- `zh_cn` 사전에서 zh_tw와 값이 100% 동일한 **40개 키 정리** — fallback chain 도입으로 사용자 동작 영향 0이 정의상 보장됨 (v1.0.8 인수인계 §5.1.G "188개" 명세는 데이터로 검증되지 않아 현실 데이터 47개 → invariant 보호 7개 제외 → 40개로 정직하게 재정의)
+  - 정리 대상: 이모지/심볼 (▶, UTF-8/UTF-16 등 인코딩 라벨 일부), 짧은 단어 (取消/完成/字/行 등), 자릿수 표기 (最少2位/固定3位 등), 자리표시자 (例: jpg, png, gif 등), 테마명 (深色/蜂蜜/薰衣草 등)
+  - invariant 보호로 제외된 7개: `dlg_yes`/`dlg_no`/`dlg_warning` (다이얼로그 공통), `conv_status_done`/`conv_sub_epub2txt`/`conv_sub_txt2epub` (변환 상태), `rename_cancel` (취소) — 핵심 UI 키는 5언어 직접 정의 유지
+- `test_file_nexus.py` `test_all_langs_same_key_count` 재설계 — 대칭 강제(5언어 동일 키 수)에서 비대칭 허용(zh_cn은 zh_tw 부분집합 허용 + ko/en/ja/zh_tw만 동일 키 수)으로 전환. zh_cn fallback 메커니즘과 정합성 확보
+- `test_file_nexus.py` `test_all_languages_have_similar_key_count` 갱신 — zh_cn은 fallback chain 사용을 명시하여 키 수 검증에서 제외, 다른 4언어만 ≤5 차이 강제 (v1.0.5 시절 의도 유지)
+- `README.md` / `README_EN.md` Copyright 및 제작자 표기 — `Yongwoo Shin (Hanrim)` → `Hanrim` 단독 (4곳). v1.0.8 §4.36 매체별 표기 정책에 따른 GitHub-facing 자료 동기화. 외부 격식 매체(포트폴리오, 기획서)는 풀네임 유지
+
+### Verified
+- `HelpDialog` 점검 — v1.0.8 SettingsDialog의 옵션 C 패턴(페이지 lazy 재생성)과 같은 구조적 결함 잠재 가능성 진단. 호출 방식 비교 결과 두 다이얼로그가 본질적으로 다른 패턴(HelpDialog는 `exec()` 모달 + 시그널 연결 0개 vs SettingsDialog는 "창 유지" + 시그널 3개)임이 확인되어 옵션 C 적용 불요. 점검 자체가 v1.0.9 §5.1.D 산출물 (코드 변경 0줄, 잠재 결함 없음을 데이터로 명시)
+
+### Tests
+- **535 passing** (+1 vs v1.0.8), 58개 클래스, 실패·오류·스킵 0 (한림 로컬 + Git 폴더 이중 검증)
+- 회귀 발견 → 수정 사이클: §5.1.G 1차 적용 후 v1.0.5 회귀 테스트 6개 FAIL 발견 (`merge_enc_utf8`/`utf16`/`shiftjis` invariant 보호 키 정리에서 누락) → 정리 대상 47→40개로 축소 + invariant 갱신 → 535/0/0/0 통과
+- 자동 테스트 시뮬레이션 단계 통과 (PySide6 의존성 없는 invariant 모두 직접 검증)
+
+### Documentation
+- `FileNexusSuite.py` `APP_VERSION` 상수 `1.0.8` → `1.0.9` 갱신 (L76). f-string으로 참조되는 도움말 창 타이틀 5개 언어 + 사이드바 버전 라벨이 자동 일관 갱신됨
+- `version_info.txt` 4곳 `1.0.8`/`1.0.8.0` → `1.0.9`/`1.0.9.0` 갱신 (`filevers` / `prodvers` 튜플, `FileVersion` / `ProductVersion` 문자열)
+- `README.md` / `README_EN.md` version 뱃지 1.0.8 → 1.0.9, tests 뱃지 534 → 535 동기화
+- `README.txt` 첫 줄 v1.0.8 → v1.0.9 갱신
+
+### File Changes
+- `FileNexusSuite.py`: 14,883 → 14,850 줄 (-33: zh_cn 40개 키 제거 -40 + `_t()`/`_rt()` fallback 보강 +6 + APP_VERSION 갱신 등)
+- `test_file_nexus.py`: 4,553 → 4,589 줄 (+36: 새 invariant `test_zh_cn_fallback_to_zh_tw` +20 + 기존 invariant 2개 갱신 +16)
+- `build_pyinstaller.py`: 262 → 284 줄 (+22: `check_version_consistency` 신규 함수 + `--strict` CLI 파싱 + step 시퀀스 재정렬)
+- `build.bat`: `%*` 인자 패스스루 1글자 추가
+- `README.md` / `README_EN.md`: 표기 4곳 + 뱃지 2곳 갱신
+- `version_info.txt`, `README.txt`: 버전 갱신만
+
+### Known Issues / Deferred to v1.1.x
+- **`ko` 사전 1개 부족 단서** — fail_log 메시지에서 `'ko': 403` (다른 4언어는 404)로 1개 차이가 발견됨. v1.0.7 §추가 작업 후 어디선가 발생한 것으로 추정. `_count_keys_per_language` 정규식이 멀티라인 값에서 키 1개를 못 잡는 가능성도 있음. v1.0.9 §5.1.G 스코프 외이며 v1.1.x 후보로 이월
+- **Claude Desktop 4/14 리디자인 부수 효과** (v1.0.9 외부 발견) — 클라이언트 단에서 메시지 입력의 마크다운 auto-linking이 더 적극적으로 켜진 것으로 추정. 운영상 백틱(`` ` ``) 감싸기 + 긴 출력은 파일 업로드 우회 패턴으로 대응
+
+상세: `RELEASE_NOTE_v1.0.9.md` (작업 폴더 전용)
+
+---
+
 ## [1.0.8] — 2026-04-25
 
 ### Fixed

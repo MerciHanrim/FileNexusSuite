@@ -8,12 +8,12 @@ Text merging · EPUB conversion · Filename tag editing · Batch renaming · Lin
 
 <br>
 
-![version](https://img.shields.io/badge/version-1.0.8-CC785C?style=flat-square)
+![version](https://img.shields.io/badge/version-1.0.9-CC785C?style=flat-square)
 ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/PySide6-Qt_6-41CD52?style=flat-square&logo=qt&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
 [![CI](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml)
-![tests](https://img.shields.io/badge/tests-534%20passing-4CB54C?style=flat-square)
+![tests](https://img.shields.io/badge/tests-535%20passing-4CB54C?style=flat-square)
 ![license](https://img.shields.io/badge/license-Freeware_(source_available)-7B6FA3?style=flat-square)
 ![AI](https://img.shields.io/badge/AI_pair_programming-Claude-CC785C?style=flat-square)
 
@@ -169,7 +169,7 @@ Open-source libraries used:
 
 Full license information is available in the app at **[Settings → License]**.
 
-Copyright © 2026 Yongwoo Shin (Hanrim). All rights reserved.
+Copyright © 2026 Hanrim. All rights reserved.
 
 ---
 
@@ -181,6 +181,6 @@ Issues, feedback, and feature requests are welcome in any of the 5 supported lan
 
 ## Author
 
-**Yongwoo Shin (Hanrim)** — [@MerciHanrim](https://github.com/MerciHanrim)
+**Hanrim** — [@MerciHanrim](https://github.com/MerciHanrim)
 
 Product planning · UX design · Quality management · AI direction · Release management

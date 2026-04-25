@@ -15,7 +15,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-python build_pyinstaller.py
+python build_pyinstaller.py %*
 
 echo.
 pause
