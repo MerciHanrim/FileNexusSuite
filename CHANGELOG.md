@@ -49,7 +49,18 @@ v1.0.10 — MIT 전환과 OSS 결의 시작점. v1.0.x 시리즈가 *"개인 작
 - `README.md` / `README_EN.md`: 라이선스 섹션 본문 재작성 + 뱃지 3개 색상/텍스트 갱신 + Copyright + LICENSE 링크
 - `README.txt`: v1.0.10 갱신 + `_internal` 보호 안내 한/영 + 푸터 MIT
 
-상세: `RELEASE_NOTE_v1.0.10.md` (작업 폴더 전용)
+### Post-Release Documentation
+
+v1.0.10 Release publish 후 외부 OSS-facing 결의 정합 작업으로 4개 docs commit 추가 (버전 번호는 v1.0.10 그대로 유지, 본 카테고리는 v1.0.10 풀코스 마감 시점 이후 누적). SignPath 검토자·외부 OSS 검토자가 저장소 도착 시 영문 첫 화면 + 영문 정책 문서 도달 가능한 결.
+
+- **`1c2c8e8`** — README에 SignPath 코드 서명 안내 추가 (OSS Sponsorship 신청 준비). v1.0.10 신청서 §9 Reputation에서 README가 SignPath 트랙 진행 결을 외부 검토자에게 도달 가능하도록 명시
+- **`ceef147`** — README 영문 기본 결 전환 (rename `README.md` → `README_KO.md`, `README_EN.md` → `README.md`). Git rename 정확 인식 (3 files / +245 / −245). 저장소 첫 화면이 영문 README로 도달, 외부 OSS-facing 결의 시작점
+- **`0a936f3`** — `TEST_MANAGEMENT_POLICY.md` 영문 기본 결 전환. 한국어 원문은 `TEST_MANAGEMENT_POLICY_KO.md`로 사본 보존, 영문 신규 작성하여 같은 파일명에 덮어쓴 결로 외부 기본을 영문 결로 전환. SignPath 신청서 §9 Reputation의 `TEST_MANAGEMENT_POLICY.md` 클릭 시 영문 도착
+- **`723219c`** — `TEST_MANAGEMENT_POLICY_KO.md` 한국어 사본 GitHub 추가 commit. `0a936f3` 시점에는 untracked 상태로 빠져 있었으나 후속 보충으로 영문 + 한국어 양쪽 사본이 GitHub에 도달
+
+→ 4개 commit 모두 SSH 서명 + GitHub Actions CI 통과. 본 결로 v1.0.10 docs 정리 트랙 마감 도달, SignPath 검토 결과 대기 + v1.0.11 새 기능 트랙 진입 가능 상태.
+
+상세: `RELEASE_NOTE_v1.0.10.md` (작업 폴더 전용, v1.0.10 풀코스 마감 시점 본문 — post-release docs는 본 카테고리 직접 명시)
 
 ---
 
