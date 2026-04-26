@@ -7,6 +7,22 @@
 
 ---
 
+## [Unreleased]
+
+Post-v1.0.10 docs 정리 트랙 — **메인 코드 + 부속 문서 영문 기본 결 전환**으로 비한국어권 개발자의 접근성 결을 두텁게 차리고 SignPath OSS Sponsorship 검토 신뢰도 결을 보강. 본 트랙은 SignPath 승인 결과가 도달한 시점에 v1.0.11로 릴리즈될 결.
+
+### Changed
+- **메인 소스 코드 영문화** — `FileNexusSuite.py`의 한국어 주석·docstring·디버그 로그 1,133줄을 영문으로 변환. 사용자 노출 UI 문자열, 언어별 분기 도움말 본문, 사전 키/값(의도적 한국어 결)은 보호. 안전을 위해 두 commit으로 분리 봉인: Step 1+2 (506줄, `f54bc81`) + Step 3 final (627줄, `177598b`). 청크별 `ast.parse` 통과 + 작업 폴더·Git 폴더 양쪽 ×2에서 `test_file_nexus.py` 535/0/0/0 결로 검증 마감.
+- **STORY.md를 이중언어 EN/KO 서사 결로 전환** (`c469f6b`) — 프로젝트 서사를 단락별로 영문 우선 + 한국어 병기 결로 차려, 영어 사용자와 한국어 사용자 양쪽 모두 접근 가능하게 결을 펴짐.
+- **README.txt를 영문 기본 + 다국어 라벨 결로 전환** (`3922250`) — 배포 ZIP에 동봉되는 README를 영문 본문 + 비한국어 사용자를 위한 짧은 다국어 라벨 결로 정리.
+- **빌드 메타데이터 영문화** (`7ca4f734`) — `version_info.txt`, `requirements.txt`, 빌드 스크립트의 한국어 결을 영문으로 전환. 한국어 사용자에게 의도적으로 노출되는 결만 남김.
+- **README.md STORY.md 참조 결 정밀화** (`91f67b5`) — `*(Korean only)*` → `*(English & Korean)*`로 정정. `c469f6b`에서 도입된 STORY.md 이중언어 구조 결을 정확히 반영.
+
+### Documentation
+- **다중 라인 docstring 닫음 결 식별 패턴**을 Console Release Manual에 추가 (v1.2 §5.9) — Step 3a 시행착오에서 발견된 *`"""` 닫음 위치 결의 두 패턴* (줄 끝 닫음 vs 별도 줄 닫음) 자국. 미래 일괄 리팩토링 트랙에서 같은 함정을 회피하도록 사전 점검 결의 명령어까지 포함.
+
+---
+
 ## [1.0.10] — 2026-04-25
 
 v1.0.10 — MIT 전환과 OSS 결의 시작점. v1.0.x 시리즈가 *"개인 작업툴 → OSS 공개"* 결의 전환점에 도달하는 릴리즈. 라이선스 전환(Freeware → MIT) + LGPL 호환성 명시적 문서화 + SignPath OSS Sponsorship 신청 트랙의 묶음.

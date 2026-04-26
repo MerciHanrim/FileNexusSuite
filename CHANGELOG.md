@@ -7,6 +7,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Unreleased]
+
+Post-v1.0.10 documentation track — **English-first transition for the entire codebase and supporting documents**, strengthening accessibility for non-Korean-speaking developers and reinforcing the credibility of the SignPath OSS Sponsorship review. The track will be released as v1.0.11 once SignPath approval lands.
+
+### Changed
+- **Main source code translated to English** — 1,133 lines of Korean comments, docstrings, and debug-log strings in `FileNexusSuite.py` translated to English while preserving user-facing UI strings, language-branched help content, and dictionary keys/values intentionally kept in Korean. Split into two commits for safety: Step 1+2 (506 lines, `f54bc81`) and Step 3 final (627 lines, `177598b`). Validated by `ast.parse` per chunk and full `test_file_nexus.py` 535/0/0/0 across both work and Git folders ×2.
+- **STORY.md switched to bilingual EN/KO narrative** (`c469f6b`) — Project narrative now presented as English-first with Korean accompaniment per paragraph, accessible to both English-speaking and Korean-speaking readers.
+- **README.txt switched to English-first with multilingual labels** (`3922250`) — Bundled README inside the distribution ZIP now opens in English with brief multilingual labels for non-Korean users.
+- **Build metadata translated to English** (`7ca4f734`) — Korean strings in `version_info.txt`, `requirements.txt`, and the build script translated, leaving only the parts that intentionally surface to Korean users.
+- **README.md STORY.md reference clarified** (`91f67b5`) — `*(Korean only)*` → `*(English & Korean)*`, accurately reflecting STORY.md's bilingual structure introduced in `c469f6b`.
+
+### Documentation
+- **Multi-line docstring closing pattern identification** added to the Console Release Manual (v1.2 §5.9) — captures the trailing-`"""` placement nuance discovered during the Step 3a trial-and-error that briefly broke `ast.parse`. Future bulk-refactoring tracks can use the pre-check command to avoid the same pitfall.
+
+---
+
 ## [1.0.10] — 2026-04-25
 
 v1.0.10 — The starting point of the MIT transition and the OSS direction. The release that brings the v1.0.x series to its turning point of *"personal tool → OSS publication"*. A bundle of three tracks: license transition (Freeware → MIT), explicit LGPL compatibility documentation, and the SignPath OSS Sponsorship application.
