@@ -1,20 +1,20 @@
 """
-File Nexus Suite — 자동화 테스트 (세밀 버전)
-실행: python test_file_nexus.py
+File Nexus Suite — Automated tests (detailed edition)
+Run: python test_file_nexus.py
 """
 import unittest, os, sys, re, zipfile, json, tempfile, time, shutil
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-# 테스트 파일 기준으로 FileNexusSuite.py 절대 경로 고정
+# Pin absolute path to FileNexusSuite.py based on this test file's location
 _MAIN_PY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'FileNexusSuite.py')
 
 
 # ════════════════════════════════════════════════════════════════════════
-# 테스트용 순수 함수 추출
+# Extract pure functions for testing
 # ════════════════════════════════════════════════════════════════════════
 
-# ── HTML 유틸 ──────────────────────────────────────────────────────────
+# ── HTML utilities ───────────────────────────────────────────────────
 def _de(s):
     if not s: return s
     s = s.replace('&amp;','&').replace('&lt;','<').replace('&gt;','>') \
@@ -38,12 +38,12 @@ def _h2t(h):
     h = _re.sub(r'<[^>]+>', '', h)
     return _de(h).strip()
 
-# ── 자연 정렬 ──────────────────────────────────────────────────────────
+# ── Natural sort ─────────────────────────────────────────────────────
 def natural_sort_key(s):
     return [int(c) if c.isdigit() else c.lower()
             for c in _re.split(r'(\d+)', s)]
 
-# ── 태그 조작 ──────────────────────────────────────────────────────────
+# ── Tag manipulation ─────────────────────────────────────────────────
 def remove_tag(filename, position='both', target=''):
     base, ext = os.path.splitext(filename)
     if target:
@@ -77,8 +77,8 @@ def add_tag(filename, tag, position='front', space_after=True, space_before=True
     return base + ext
 
 def depad(filename):
-    # (?<![0-9\-]): 앞 문자가 숫자 또는 하이픈이면 건드리지 않음
-    # → 날짜 형식(2024-01-01) 보존, 범위 표기(001-197화)에서 앞 001만 제거
+    # (?<![0-9\-]): if the preceding char is a digit or hyphen, do not touch
+    # → preserves date format (2024-01-01); for range notation (001-197화), strips only the leading 001
     return _re.sub(r'(?<![0-9\-])0+(\d)', r'\1', filename)
 
 def detect_prefix(names):
@@ -95,23 +95,23 @@ def extract_number(s):
     return int(m.group()) if m else None
 
 # ════════════════════════════════════════════════════════════════════════
-# PySide6 Mock — PySide6 미설치 환경에서도 모듈 exec 가능하도록
+# PySide6 Mock — allow module exec even when PySide6 is not installed
 # ════════════════════════════════════════════════════════════════════════
 def _install_qt_mock():
-    """PySide6가 없을 때 sys.modules에 최소 스텁 주입.
-    순수 로직(Worker, Fixer, EPUB 등)은 실제 동작 검증.
-    Qt UI 렌더링 의존 항목은 형식만 검증됨 — 실제 UI는 PySide6 환경에서 확인 필요.
+    """Inject minimal stubs into sys.modules when PySide6 is unavailable.
+    Pure logic (Worker, Fixer, EPUB, etc.) gets real behavior validation.
+    Items that depend on Qt UI rendering are validated only by shape — actual UI must be verified under a PySide6 environment.
     """
     from types import ModuleType
 
-    # ── 서브클래싱 가능한 Qt 클래스 스텁 팩토리 ──────────────────────
+    # ── Subclassable Qt class stub factory ───────────────────────────────
     def _qcls(name, *bases):
-        """상속 가능한 Qt 스텁 클래스를 동적으로 생성."""
+        """Dynamically create a subclassable Qt stub class."""
         def _noop(self, *a, **kw): pass
         return type(name, bases if bases else (object,), {'__init__': _noop})
 
-    # ── Signal 스텁 ───────────────────────────────────────────────────
-    # PySide6 Signal은 descriptor. 클래스 변수로 선언될 때 __set_name__ 호출됨.
+    # ── Signal stub ──────────────────────────────────────────────────────
+    # PySide6 Signal is a descriptor; __set_name__ is invoked when declared as a class variable.
     class _Signal:
         def __init__(self, *types): pass
         def __set_name__(self, owner, name): self._attr = name
@@ -119,10 +119,10 @@ def _install_qt_mock():
         def connect(self, fn): pass
         def disconnect(self, fn=None): pass
         def emit(self, *args): pass
-        def __call__(self, *a, **kw): return self  # Signal(int) 패턴 대응
+        def __call__(self, *a, **kw): return self  # handles the Signal(int) pattern
 
-    # ── QColor 스텁 ───────────────────────────────────────────────────
-    # _build_help_html 내 _mix() 함수가 red()/green()/blue() 를 호출함.
+    # ── QColor stub ──────────────────────────────────────────────────────
+    # _mix() inside _build_help_html calls red()/green()/blue().
     class _QColor:
         def __init__(self, *a, **kw): pass
         def red(self):   return 0
@@ -132,13 +132,13 @@ def _install_qt_mock():
         def name(self):  return '#000000'
         def __getattr__(self, n): return lambda *a, **kw: 0
 
-    # ── 범용 Qt 스텁 (서브클래싱 불필요한 클래스) ────────────────────
+    # ── Generic Qt stub (classes that do not require subclassing) ────────
     class _QtAny:
         def __init__(self, *a, **kw): pass
         def __call__(self, *a, **kw): return _QtAny()
         def __getattr__(self, n):
             if n.startswith('__'): raise AttributeError(n)
-            return _QtAny()  # 중첩 속성 접근 (Qt.ItemDataRole.UserRole 등) 지원
+            return _QtAny()  # supports nested attribute access (e.g. Qt.ItemDataRole.UserRole)
         def __int__(self): return 0
         def __float__(self): return 0.0
         def __bool__(self): return True
@@ -164,7 +164,7 @@ def _install_qt_mock():
         def __str__(self): return ''
         def __repr__(self): return '_QtAny()'
 
-    # ── 서브클래싱 가능한 기본 계층 ──────────────────────────────────
+    # ── Subclassable base hierarchy ──────────────────────────────────────
     _QObject               = _qcls('QObject')
     _QThread               = _qcls('QThread',               _QObject)
     _QWidget               = _qcls('QWidget',               _QObject)
@@ -249,9 +249,9 @@ def _install_qt_mock():
                'QTextCharFormat', 'QFontMetrics', 'QTextOption', 'QTextDocument',
                'QFontDatabase', 'QTextCursor']:
         setattr(qtgui, _n, _qcls(_n))
-    qtgui.QColor = _QColor  # 숫자 반환 필요한 특수 스텁
+    qtgui.QColor = _QColor  # special stub that needs to return numeric values
 
-    # ── PySide6 패키지 등록 ───────────────────────────────────────────
+    # ── Register PySide6 package ─────────────────────────────────────────
     pyside6           = ModuleType('PySide6')
     pyside6.QtCore    = qtcore
     pyside6.QtWidgets = qtwidgets
@@ -262,14 +262,14 @@ def _install_qt_mock():
     sys.modules['PySide6.QtGui']     = qtgui
 
 
-# PySide6 미설치 환경이면 mock 주입 (설치된 경우 그대로 사용)
+# Inject mock if PySide6 is not installed (use the real one when available)
 try:
     import PySide6 as _pyside6_available  # noqa: F401
 except ImportError:
     _install_qt_mock()
 
 
-# ── EPUB 변환 / 모듈 심볼 추출 ────────────────────────────────────────
+# ── EPUB conversion / module symbol extraction ───────────────────────────
 try:
     with open(_MAIN_PY, encoding='utf-8') as _f:
         _src = _f.read()
@@ -289,9 +289,9 @@ except Exception as _e:
     txt_to_epub = epub_to_text = None
     _alchemy_detect_enc = _build_help_html = _APP_VERSION = None
     _ConfigManager = None
-    print(f'[경고] FileNexusSuite 로드 실패: {_e}')
+    print(f'[Warning] Failed to load FileNexusSuite: {_e}')
 
-# ── Text Fixer 핵심 로직 ───────────────────────────────────────────────
+# ── Text Fixer core logic ────────────────────────────────────────────
 import re as _re
 
 _SENT_END = frozenset('.!?…。！？‥\u201c\u201d\u2018\u2019」』）)}>]"\'')
@@ -404,36 +404,36 @@ def _run_fix(text, do_mid=True, do_blank=True, max_blank=1,
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §샘플 데이터 — 테스트 전용 중립 텍스트 (CC0 공용 저작물)
+# §Sample data — neutral test-only text (CC0 public domain)
 # ════════════════════════════════════════════════════════════════════════
-# 이 영역의 텍스트는 실제 저작물이 아닌 순수 테스트 샘플입니다.
-# - 서사·캐릭터·세계관·작품 구조 없음 (의도적 중립 구성)
-# - 각 상수는 특정 테스트 기능 검증용 (OCR 줄바꿈·단어 잘림·대화체 등)
-# - CC0 1.0 Universal 퍼블릭 도메인 — 자유 사용 허용
+# The texts in this section are pure test samples, not real published works.
+# - No narrative, characters, world-building, or work structure (deliberately neutral)
+# - Each constant validates a specific test feature (OCR line wrap, word splitting, dialogue, etc.)
+# - CC0 1.0 Universal public domain — free to use
 #
 # All text in this section is neutral test sample data.
 # Contains no narrative, characters, world-building, or creative work structure.
 # Licensed under CC0 1.0 Universal (Public Domain Dedication).
 
-# 타이틀 계열 (구분선 병합 방지 검증용 — 서사 요소 없음)
+# Title series (validates separator-line merge protection — no narrative elements)
 SAMPLE_KO_TITLE_LONG    = '테스트 샘플 [1] 섹션 A에서 섹션 B까지 (6)'
 SAMPLE_KO_TITLE_SHORT   = '테스트 샘플 [1]'
 SAMPLE_KO_TITLE_PLAIN   = '테스트 샘플'
 
-# OCR 스타일 줄바꿈 교정 검증 — 한국어 문장 중 "휘\n둥그레" 패턴
+# Validates OCR-style line-wrap correction — Korean sentence pattern like "휘\n둥그레"
 SAMPLE_KO_OCR_BROKEN    = ("이 문장은 테스트 목적으로 작성되었으며 중간에 의도적으로 줄바꿈이 들어가 있어 휘\n"
                           "둥그레 같은 단어가 잘린 상태를 검증한다.")
 SAMPLE_KO_OCR_SHORT     = ('첫 줄이 끝나고\n두 번째 줄이 자연스럽게 이어진다.')
 
-# 단어 잘림 테스트 — "참\n가자들" → "참가자들" (일반적 단어 잘림 패턴)
+# Word-split test — "참\n가자들" → "참가자들" (typical word-split pattern)
 SAMPLE_KO_WORD_SPLIT    = "모든 참\n가자들에게 공지를 전달했다."
 
-# 대화문 샘플 (일반적 역할만 등장, 특정 캐릭터 없음)
+# Dialogue sample (only generic roles, no specific characters)
 SAMPLE_KO_DIALOGUE_A    = '응답자가 대답했다.\n"몇 살이냐고요?"\n"열네 살입니다."'
 SAMPLE_KO_DIALOGUE_B    = ('"질문해도 될까요? 지금 몇 살인가요?"\n'
                           '"이제 열네 살입니다."')
 
-# 챕터 헤더 구조 보존 검증 — 제목은 "테스트 샘플"로 중립화
+# Validates chapter-header structure preservation — title neutralized as "테스트 샘플"
 SAMPLE_KO_CHAPTER_FULL  = ("────────────────────────────────────────────────────────\n"
                           "테스트 샘플 [1] 섹션 A에서 섹션 B까지 (6)\n"
                           "────────────────────────────────────────────────────────\n"
@@ -443,11 +443,11 @@ SAMPLE_KO_CHAPTER_SHORT = ("─────────────────�
                           "테스트 샘플 [1]\n"
                           "────────────────────────────────")
 
-# 혼합 테스트 (OCR + 빈 줄 + 대화 — 중립 표현)
+# Mixed test (OCR + blank lines + dialogue — neutral wording)
 SAMPLE_KO_MIXED         = ('응답자가 대답하자\n검사자가 메모를 멈췄다.\n\n\n'
                           '"몇 살이냐고요?"\n"열네 살입니다."')
 
-# 자동 단락 분리 검증용 — 긴 문장 여러 개가 스페이스로 연결된 형태 (서사 없음)
+# Validates auto paragraph splitting — long sentences joined by spaces (no narrative)
 SAMPLE_KO_LONG_SENTENCES = (
     "이 문장은 자동 단락 분리 기능을 검증하기 위한 테스트용 예문 중 첫 번째 문장입니다. "
     "그리고 이어지는 두 번째 문장 역시 충분한 길이를 가지도록 의도적으로 작성된 예문입니다. "
@@ -456,10 +456,10 @@ SAMPLE_KO_LONG_SENTENCES = (
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §1 HTML 유틸리티
+# §1 HTML utilities
 # ════════════════════════════════════════════════════════════════════════
 class TestDe(unittest.TestCase):
-    """_de: HTML 엔티티 디코딩"""
+    """_de: HTML entity decoding"""
     def test_amp(self):             self.assertEqual(_de('a&amp;b'), 'a&b')
     def test_lt(self):              self.assertEqual(_de('a&lt;b'), 'a<b')
     def test_gt(self):              self.assertEqual(_de('a&gt;b'), 'a>b')
@@ -477,13 +477,13 @@ class TestDe(unittest.TestCase):
     def test_none(self):            self.assertIsNone(_de(None))
     def test_no_entity(self):       self.assertEqual(_de('hello'), 'hello')
     def test_korean(self):          self.assertEqual(_de('한&amp;국'), '한&국')
-    def test_partial_entity(self):  self.assertEqual(_de('&amp'), '&amp')  # 불완전 엔티티
+    def test_partial_entity(self):  self.assertEqual(_de('&amp'), '&amp')  # incomplete entity
     def test_unicode_num(self):     self.assertEqual(_de('&#44032;'), '가')
     def test_unicode_hex(self):     self.assertEqual(_de('&#xAC00;'), '가')
     def test_chain(self):           self.assertEqual(_de('&lt;&amp;&gt;'), '<&>')
 
 class TestEx(unittest.TestCase):
-    """_ex: HTML 특수문자 이스케이프"""
+    """_ex: HTML special-character escaping"""
     def test_amp(self):     self.assertEqual(_ex('a&b'), 'a&amp;b')
     def test_lt(self):      self.assertEqual(_ex('<'), '&lt;')
     def test_gt(self):      self.assertEqual(_ex('>'), '&gt;')
@@ -498,7 +498,7 @@ class TestEx(unittest.TestCase):
         self.assertEqual(_de(_ex(s)), s)
 
 class TestStripXmlIllegal(unittest.TestCase):
-    """_strip_xml_illegal: XML 불법 문자 제거"""
+    """_strip_xml_illegal: strip XML-illegal characters"""
     def test_null(self):        self.assertEqual(_strip_xml_illegal('\x00'), '')
     def test_ctrl_08(self):     self.assertEqual(_strip_xml_illegal('\x08'), '')
     def test_ctrl_0b(self):     self.assertEqual(_strip_xml_illegal('\x0B'), '')
@@ -514,7 +514,7 @@ class TestStripXmlIllegal(unittest.TestCase):
         self.assertEqual(_strip_xml_illegal('a\x00b\x1Fc'), 'abc')
 
 class TestH2t(unittest.TestCase):
-    """_h2t: HTML→텍스트"""
+    """_h2t: HTML → text"""
     def test_br(self):          self.assertEqual(_h2t('a<br>b'), 'a\nb')
     def test_br_self_close(self):self.assertEqual(_h2t('a<br/>b'), 'a\nb')
     def test_p_tag(self):       self.assertIn('\n', _h2t('<p>a</p><p>b</p>'))
@@ -525,23 +525,23 @@ class TestH2t(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §2 자연 정렬
+# §2 Natural sort
 # ════════════════════════════════════════════════════════════════════════
 class TestNaturalSort(unittest.TestCase):
-    """natural_sort_key: 자연 정렬"""
+    """natural_sort_key: natural sort"""
     def _sorted(self, lst): return sorted(lst, key=natural_sort_key)
 
-    # 기본 숫자 순서
+    # Basic numeric order
     def test_1_before_2(self):      self.assertEqual(self._sorted(['2','1']), ['1','2'])
     def test_9_before_10(self):     self.assertEqual(self._sorted(['10','9']), ['9','10'])
     def test_1_10_100(self):        self.assertEqual(self._sorted(['100','10','1']), ['1','10','100'])
     def test_zero_pad_order(self):
-        # 같은 숫자값(1)이라 안정정렬 → 입력 순서 유지
+        # Same numeric value (1) → stable sort preserves input order
         r = self._sorted(['01','001','1'])
-        self.assertEqual(len(r), 3)  # 모두 포함
+        self.assertEqual(len(r), 3)  # all included
         self.assertEqual(set(r), {'01','001','1'})
 
-    # 혼합 (문자+숫자)
+    # Mixed (letters + numbers)
     def test_alpha_numeric(self):   self.assertEqual(self._sorted(['a2','a10','a1']), ['a1','a2','a10'])
     def test_korean_numeric(self):
         result = self._sorted(['파일10화.txt','파일2화.txt','파일1화.txt'])
@@ -554,7 +554,7 @@ class TestNaturalSort(unittest.TestCase):
         self.assertLess(r.index('시즌1 ep2'), r.index('시즌1 ep10'))
         self.assertLess(r.index('시즌1 ep10'), r.index('시즌2 ep10'))
 
-    # 엣지케이스
+    # Edge cases
     def test_empty_string(self):    self.assertEqual(self._sorted(['','a']), ['','a'])
     def test_all_alpha(self):       self.assertEqual(self._sorted(['b','a','c']), ['a','b','c'])
     def test_all_numeric(self):     self.assertEqual(self._sorted(['3','1','2']), ['1','2','3'])
@@ -568,11 +568,11 @@ class TestNaturalSort(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §3 태그 제거
+# §3 Tag removal
 # ════════════════════════════════════════════════════════════════════════
 class TestRemoveTag(unittest.TestCase):
-    """remove_tag: 파일명 태그 제거"""
-    # 위치별 기본 동작
+    """remove_tag: remove tags from filenames"""
+    # Default behavior by position
     def test_front_basic(self):     self.assertEqual(remove_tag('[BD] 파일.txt','front'), '파일.txt')
     def test_back_basic(self):      self.assertEqual(remove_tag('파일 [완결].txt','back'), '파일.txt')
     def test_both_front(self):      self.assertEqual(remove_tag('[A] 파일.txt','both'), '파일.txt')
@@ -585,7 +585,7 @@ class TestRemoveTag(unittest.TestCase):
         r = remove_tag('[BD] 파일.txt','back')
         self.assertIn('[BD]', r)
 
-    # 특정 태그 타겟
+    # Specific tag target
     def test_target_specific(self): self.assertEqual(remove_tag('[BD] 파일.txt','both','BD'), '파일.txt')
     def test_target_keep_other(self):
         r = remove_tag('[BD] 파일 [완결].txt','both','BD')
@@ -595,13 +595,13 @@ class TestRemoveTag(unittest.TestCase):
         r = remove_tag('파일 [완결].txt','both','BD')
         self.assertIn('[완결]', r)
 
-    # 확장자 보존
+    # Extension preservation
     def test_ext_preserved_txt(self):   self.assertTrue(remove_tag('[A] 파일.txt','both').endswith('.txt'))
     def test_ext_preserved_epub(self):  self.assertTrue(remove_tag('[A] 파일.epub','both').endswith('.epub'))
     def test_ext_preserved_mp4(self):   self.assertTrue(remove_tag('파일 [A].mp4','both').endswith('.mp4'))
     def test_no_ext(self):              self.assertEqual(remove_tag('[A] 파일','both'), '파일')
 
-    # 엣지케이스
+    # Edge cases
     def test_only_tag(self):        self.assertEqual(remove_tag('[A].txt','both'), '.txt')
     def test_nested_bracket(self):
         r = remove_tag('[A[B]] 파일.txt','front')
@@ -617,10 +617,10 @@ class TestRemoveTag(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §4 태그 추가
+# §4 Tag addition
 # ════════════════════════════════════════════════════════════════════════
 class TestAddTag(unittest.TestCase):
-    """add_tag: 파일명 태그 추가"""
+    """add_tag: add tags to filenames"""
     def test_front_basic(self):
         self.assertEqual(add_tag('파일.txt','BD','front'), '[BD] 파일.txt')
     def test_back_basic(self):
@@ -651,10 +651,10 @@ class TestAddTag(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §5 0 패딩 제거
+# §5 Zero-pad stripping
 # ════════════════════════════════════════════════════════════════════════
 class TestDepad(unittest.TestCase):
-    """depad: 앞자리 0 제거"""
+    """depad: strip leading zeros"""
     def test_001(self):         self.assertIn('1', depad('001화'))
     def test_001_no_extra_0(self): self.assertNotIn('001', depad('001화'))
     def test_007(self):         self.assertIn('7', depad('007.mp4'))
@@ -666,7 +666,7 @@ class TestDepad(unittest.TestCase):
     def test_ext_preserved(self):self.assertTrue(depad('001.mp4').endswith('.mp4'))
     def test_zero_only(self):
         r = depad('000')
-        # 000은 숫자 000 → 0
+        # 000 is numeric 000 → 0
         self.assertIn('0', r)
     def test_multiple_groups(self):
         r = depad('시즌001 에피소드007.txt')
@@ -680,10 +680,10 @@ class TestDepad(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §6 공통 접두사 감지
+# §6 Common prefix detection
 # ════════════════════════════════════════════════════════════════════════
 class TestDetectPrefix(unittest.TestCase):
-    """detect_prefix: 공통 접두사 감지"""
+    """detect_prefix: common prefix detection"""
     def test_basic(self):       self.assertEqual(detect_prefix(['시즌1 ep1','시즌1 ep2']), '시즌1 ep')
     def test_no_common(self):   self.assertEqual(detect_prefix(['abc','def']), '')
     def test_empty_list(self):  self.assertEqual(detect_prefix([]), '')
@@ -700,10 +700,10 @@ class TestDetectPrefix(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §7 숫자 추출
+# §7 Number extraction
 # ════════════════════════════════════════════════════════════════════════
 class TestExtractNumber(unittest.TestCase):
-    """extract_number: 첫 번째 숫자 추출"""
+    """extract_number: extract the first number"""
     def test_simple(self):          self.assertEqual(extract_number('파일01'), 1)
     def test_zero(self):            self.assertEqual(extract_number('0화'), 0)
     def test_no_number(self):       self.assertIsNone(extract_number('파일'))
@@ -717,11 +717,11 @@ class TestExtractNumber(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §8 구분선 감지
+# §8 Separator-line detection
 # ════════════════════════════════════════════════════════════════════════
 class TestIsSepLine(unittest.TestCase):
-    """_is_sep_line: 구분선 판별"""
-    # True 케이스 (구분선)
+    """_is_sep_line: detect separator lines"""
+    # True cases (separator lines)
     def test_long_dash(self):       self.assertTrue(_is_sep_line('─' * 30))
     def test_long_hyphen(self):     self.assertTrue(_is_sep_line('-' * 20))
     def test_equals(self):          self.assertTrue(_is_sep_line('=' * 10))
@@ -737,7 +737,7 @@ class TestIsSepLine(unittest.TestCase):
     def test_box_chars(self):       self.assertTrue(_is_sep_line('━━━'))
     def test_double_line(self):     self.assertTrue(_is_sep_line('═══'))
 
-    # False 케이스 (구분선 아님)
+    # False cases (not separator lines)
     def test_too_short_1(self):     self.assertFalse(_is_sep_line('-'))
     def test_too_short_2(self):     self.assertFalse(_is_sep_line('--'))
     def test_empty(self):           self.assertFalse(_is_sep_line(''))
@@ -750,11 +750,11 @@ class TestIsSepLine(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §9 Text Fixer — 줄바꿈 병합 (스마트 merge)
+# §9 Text Fixer — line-break merging (smart merge)
 # ════════════════════════════════════════════════════════════════════════
 class TestSmartMerge(unittest.TestCase):
-    """스마트 병합: 문장 끝 문자 기준"""
-    # 병합되어야 하는 경우 (중간 줄바꿈)
+    """Smart merge: based on sentence-ending characters"""
+    # Cases that should merge (mid-paragraph line break)
     def test_basic_merge(self):
         out, mid, *_ = _run_fix("첫 번째\n두 번째", do_blank=False)
         self.assertEqual(mid, 1)
@@ -768,7 +768,7 @@ class TestSmartMerge(unittest.TestCase):
         out, mid, *_ = _run_fix("앉아 \n기다렸다.", do_blank=False)
         self.assertEqual(out, "앉아 기다렸다.")
 
-    # 병합 안 되어야 하는 경우 (문장 끝)
+    # Cases that should NOT merge (sentence end)
     def test_period_no_merge(self):
         out, mid, *_ = _run_fix("문장이다.\n다음 문장.", do_blank=False)
         self.assertEqual(mid, 0)
@@ -814,7 +814,7 @@ class TestSmartMerge(unittest.TestCase):
         out, mid, *_ = _run_fix("文章。\n下一行。", do_blank=False)
         self.assertEqual(mid, 0)
 
-    # 구분선은 병합하지 않음
+    # Separator lines do not merge
     def test_sep_line_before_not_merged(self):
         inp = "────────────────\n" + SAMPLE_KO_TITLE_PLAIN
         out, mid, *_ = _run_fix(inp, do_blank=False)
@@ -840,13 +840,13 @@ class TestSmartMerge(unittest.TestCase):
         self.assertIn('다음 섹션', out)
         self.assertNotIn('────────다음', out)
 
-    # 빈 줄이 단락 경계
+    # Blank line as paragraph boundary
     def test_blank_line_separates_paragraphs(self):
         inp = "A\nB\n\nC\nD"
         out, *_ = _run_fix(inp)
         self.assertIn('\n\n', out)
 
-    # 다단락 병합
+    # Multi-paragraph merging
     def test_multi_paragraph_independent(self):
         inp = "A\nB\n\nC\nD"
         out, mid, *_ = _run_fix(inp)
@@ -854,10 +854,10 @@ class TestSmartMerge(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §10 Text Fixer — 빈 줄 축소
+# §10 Text Fixer — blank-line reduction
 # ════════════════════════════════════════════════════════════════════════
 class TestBlankCompression(unittest.TestCase):
-    """빈 줄 축소: max_blank 기준"""
+    """Blank-line reduction: based on max_blank"""
     def test_double_to_one(self):
         out, _, blank, *_ = _run_fix("A\n\n\nB", do_mid=False, max_blank=1)
         self.assertGreater(blank, 0)
@@ -900,16 +900,16 @@ class TestBlankCompression(unittest.TestCase):
         self.assertIn('\n\n\n\n', out)
 
     def test_exact_max_not_compressed(self):
-        # max_blank=2, 정확히 2개 빈줄 → 축소 안 됨
+        # max_blank=2, exactly 2 blank lines → no reduction
         out, _, blank, *_ = _run_fix("A\n\n\nB", do_mid=False, max_blank=2)
         self.assertEqual(blank, 0)
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §11 Text Fixer — 문장마다 빈 줄 삽입
+# §11 Text Fixer — insert blank line after each sentence
 # ════════════════════════════════════════════════════════════════════════
 class TestSentenceSep(unittest.TestCase):
-    """문장마다 빈 줄 삽입"""
+    """Insert blank line after each sentence"""
     def test_period_gets_blank(self):
         out, *_ = _run_fix("첫 문장.\n두 번째.", do_mid=False, do_blank=False, do_sep=True)
         self.assertIn('\n\n', out)
@@ -935,12 +935,12 @@ class TestSentenceSep(unittest.TestCase):
         self.assertNotIn('\n\n', out)
 
     def test_no_sep_without_punct(self):
-        # 마침표 없이 끝나는 줄은 빈 줄 삽입 안 됨
+        # No blank line is inserted after a line that does not end with a period
         out, *_ = _run_fix("이어지는\n문장입니다.", do_mid=False, do_blank=False, do_sep=True)
-        # 첫 줄이 마침표 없이 끝났으므로 빈줄 없음
+        # First line did not end with a period, so no blank line
         lines = out.split('\n')
         non_blank = [l for l in lines if l.strip()]
-        # 두 줄 사이에 빈 줄 없어야 함
+        # No blank line should appear between the two lines
         idx1 = lines.index('이어지는') if '이어지는' in lines else -1
         idx2 = next((i for i,l in enumerate(lines) if '문장입니다' in l), -1)
         if idx1 >= 0 and idx2 >= 0:
@@ -953,10 +953,10 @@ class TestSentenceSep(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §12 Text Fixer — 자동 단락 분리 (_split_long_line v2)
+# §12 Text Fixer — auto paragraph splitting (_split_long_line v2)
 # ════════════════════════════════════════════════════════════════════════
 class TestSplitLongLine(unittest.TestCase):
-    """_split_long_line: 2단계 자동 분리"""
+    """_split_long_line: two-stage auto splitting"""
     def test_short_not_split(self):
         r = _split_long_line("짧은 문장.", 100)
         self.assertEqual(len(r), 1)
@@ -979,7 +979,7 @@ class TestSplitLongLine(unittest.TestCase):
     def test_short_sentences_grouped(self):
         line = "짧다. 짧다. 짧다. " + "매우긴문장" * 20 + "."
         r = _split_long_line(line, 80)
-        # 짧은 문장들이 하나로 묶여야 함
+        # Short sentences should be grouped together
         self.assertGreater(len(r), 1)
         first = r[0]
         self.assertIn("짧다.", first)
@@ -1007,17 +1007,17 @@ class TestSplitLongLine(unittest.TestCase):
     def test_single_long_sentence(self):
         line = "경계없는매우긴단일문장입니다이문장은끝나지않습니다" * 5
         r = _split_long_line(line, 50)
-        self.assertEqual(len(r), 1)  # 경계 없으면 분리 안 됨
+        self.assertEqual(len(r), 1)  # no split without boundary
 
     def test_many_short_sentence(self):
-        # 10개 짧은 문장 → 합산 threshold 30 초과 시 분리
+        # 10 short sentences → split when cumulative threshold exceeds 30
         line = "짧습니다. " * 10
         r = _split_long_line(line.strip(), 30)
         self.assertGreater(len(r), 1)
 
 
 class TestAutoSplit(unittest.TestCase):
-    """do_auto_split: _run_fix 통합"""
+    """do_auto_split: integrated with _run_fix"""
     def test_long_line_gets_split(self):
         long = "첫 번째 문장입니다. " * 5 + "두 번째 문장입니다."
         out, *_ = _run_fix(long, do_mid=False, do_blank=False, do_auto_split=True, max_split_chars=60)
@@ -1038,7 +1038,7 @@ class TestAutoSplit(unittest.TestCase):
         self.assertIn('\n\n', out)
 
     def test_novel_example(self):
-        # 자동 분리 검증 — 긴 문장 여러 개 연결된 형태
+        # Validates auto-splitting — multiple long sentences joined together
         inp = SAMPLE_KO_LONG_SENTENCES
         out, *_ = _run_fix(inp, do_mid=False, do_blank=False, do_auto_split=True, max_split_chars=80)
         self.assertIn('\n\n', out)
@@ -1047,10 +1047,10 @@ class TestAutoSplit(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §13 Text Fixer — 엣지케이스
+# §13 Text Fixer — edge cases
 # ════════════════════════════════════════════════════════════════════════
 class TestFixerEdge(unittest.TestCase):
-    """Text Fixer 엣지케이스"""
+    """Text Fixer edge cases"""
     def test_empty_input(self):
         out, mid, blank, orig, new = _run_fix("")
         self.assertEqual(out, "")
@@ -1105,7 +1105,7 @@ class TestFixerEdge(unittest.TestCase):
         self.assertEqual(orig, 3)
 
     def test_stat_new_lines_after_merge(self):
-        inp = "A\nB"  # 병합되면 1줄
+        inp = "A\nB"  # becomes 1 line if merged
         _, _, _, _, new = _run_fix(inp, do_blank=False)
         self.assertEqual(new, 1)
 
@@ -1119,10 +1119,10 @@ class TestFixerEdge(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §14 Text Fixer — 실사용 시나리오 (OCR·대화문·챕터 헤더 등)
+# §14 Text Fixer — real-world scenarios (OCR, dialogue, chapter headers, etc.)
 # ════════════════════════════════════════════════════════════════════════
 class TestFixerRealWorld(unittest.TestCase):
-    """실제 사용 시나리오"""
+    """Real-world scenarios"""
     def test_ocr_linebreak_repair(self):
         inp = SAMPLE_KO_OCR_BROKEN
         out, mid, *_ = _run_fix(inp, do_blank=False)
@@ -1165,10 +1165,10 @@ class TestFixerRealWorld(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §15 Text Fixer — 옵션 조합
+# §15 Text Fixer — option combinations
 # ════════════════════════════════════════════════════════════════════════
 class TestFixerCombinations(unittest.TestCase):
-    """옵션 조합 테스트"""
+    """Option combination tests"""
     def test_merge_and_blank(self):
         inp = "A\nB\n\n\n\nC\nD"
         out, mid, blank, *_ = _run_fix(inp, do_mid=True, do_blank=True, max_blank=1)
@@ -1177,7 +1177,7 @@ class TestFixerCombinations(unittest.TestCase):
         self.assertNotIn('\n\n\n', out)
 
     def test_merge_and_auto_split(self):
-        # 병합 후 중간에 마침표 있어야 auto split 가능
+        # After merging, an interior period is required for auto split
         long_mid = "긴내용" * 10 + ". " + "이어지는내용" * 10 + "."
         inp = "문장이고\n" + long_mid + "\n두번째.\n세번째."
         out, *_ = _run_fix(inp, do_mid=True, do_blank=False,
@@ -1206,7 +1206,7 @@ class TestFixerCombinations(unittest.TestCase):
         self.assertNotIn('\n\n\n\n', out)
 
     def test_merge_then_split_pipeline(self):
-        # 병합 후 자동 분리 — 파이프라인 순서 확인
+        # Auto split after merging — verify pipeline order
         inp = "문장이고\n계속되며\n" + "긴내용" * 20 + ".\n짧다.\n짧다."
         out, *_ = _run_fix(inp, do_mid=True, do_blank=False,
                            do_auto_split=True, max_split_chars=80)
@@ -1214,11 +1214,11 @@ class TestFixerCombinations(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §16 EPUB 변환
+# §16 EPUB conversion
 # ════════════════════════════════════════════════════════════════════════
 @unittest.skipUnless(HAS_EPUB, "FileNexusSuite 로드 실패")
 class TestEpubStructure(unittest.TestCase):
-    """txt_to_epub: EPUB 구조 검증"""
+    """txt_to_epub: validate EPUB structure"""
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.txt = os.path.join(self.tmp, "test.txt")
@@ -1325,14 +1325,14 @@ class TestEpubStructure(unittest.TestCase):
         self.assertIsInstance(chapters, int)
 
     def test_empty_content(self):
-        """빈 내용 → txt_to_epub은 ValueError를 발생시켜야 한다."""
+        """Empty content → txt_to_epub must raise ValueError."""
         with self.assertRaises(ValueError):
             self._write("")
 
 
 @unittest.skipUnless(HAS_EPUB, "FileNexusSuite 로드 실패")
 class TestEpubRoundTrip(unittest.TestCase):
-    """EPUB 왕복 변환 검증"""
+    """Validate EPUB round-trip conversion"""
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
 
@@ -1375,11 +1375,11 @@ class TestEpubRoundTrip(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §17 설정 저장/복원
+# §17 Settings save/restore
 # ════════════════════════════════════════════════════════════════════════
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패")
 class TestConfig(unittest.TestCase):
-    """ConfigManager 동작 방식 검증 — JSON 저장/복원 구조 기반."""
+    """Validate ConfigManager behavior — based on JSON save/restore structure."""
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         import types
@@ -1442,10 +1442,10 @@ class TestConfig(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §18 파일시스템 통합
+# §18 Filesystem integration
 # ════════════════════════════════════════════════════════════════════════
 class TestFilesystemIntegration(unittest.TestCase):
-    """실제 파일시스템 작업 통합 테스트"""
+    """Integration tests for real filesystem operations"""
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
 
@@ -1520,12 +1520,12 @@ class TestFilesystemIntegration(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §19 회귀 테스트
+# §19 Regression tests
 # ════════════════════════════════════════════════════════════════════════
 class TestRegression(unittest.TestCase):
-    """이전 버그 재발 방지"""
+    """Prevent recurrence of past bugs"""
     def test_separator_not_merged_with_title(self):
-        """구분선이 다음 줄과 병합되지 않음 (이슈: - 는 SENT_END 아님)"""
+        """Separator line must not merge with the next line (issue: '-' is not in SENT_END)"""
         inp = "────────────────────────────────\n" + SAMPLE_KO_TITLE_SHORT + "\n────────────────────────────────"
         out, mid, *_ = _run_fix(inp, do_blank=False)
         self.assertEqual(mid, 0)
@@ -1534,13 +1534,13 @@ class TestRegression(unittest.TestCase):
         self.assertEqual(lines[1], SAMPLE_KO_TITLE_SHORT)
 
     def test_chapter_header_structure_intact(self):
-        """챕터 헤더 구조 완전 보존"""
+        """Chapter-header structure is fully preserved"""
         inp = SAMPLE_KO_CHAPTER_FULL
         out, mid, *_ = _run_fix(inp)
         self.assertEqual(mid, 0)
 
     def test_no_pyqt5_remnants(self):
-        """PyQt5 잔여 코드 없음"""
+        """No residual PyQt5 code"""
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
         self.assertNotIn('PyQt5', src)
@@ -1548,14 +1548,14 @@ class TestRegression(unittest.TestCase):
         self.assertNotIn('exec_()', src)
 
     def test_qshortcut_in_qtgui(self):
-        """QShortcut이 QtGui에서 import됨 (단축키 구현용)"""
+        """QShortcut is imported from QtGui (used for shortcut implementation)"""
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
         gui_line = next((l for l in src.splitlines() if 'from PySide6.QtGui import' in l), '')
         self.assertIn('QShortcut', gui_line)
 
     def test_qaction_not_in_qtwidgets(self):
-        """QAction이 QtWidgets에서 import 안 됨 (QtGui에도 불필요 — 미사용)"""
+        """QAction is not imported from QtWidgets (and unnecessary in QtGui — unused)"""
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
         import re
@@ -1564,7 +1564,7 @@ class TestRegression(unittest.TestCase):
             self.assertNotIn('QAction', m.group(1))
 
     def test_qprogressbar_not_locally_imported_in_textfixer(self):
-        """TextFixerPanel에서 QProgressBar 중복 로컬 import 없음"""
+        """TextFixerPanel has no duplicated local QProgressBar import"""
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
         fixer_start = src.find('class TextFixerPanel')
@@ -1575,7 +1575,7 @@ class TestRegression(unittest.TestCase):
         self.assertEqual(len(local_pb), 0)
 
     def test_epub_fstring_compat(self):
-        """EPUB f-string 내 dict 접근이 Python 3.12 호환"""
+        """dict access inside EPUB f-strings is Python 3.12-compatible"""
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
         epub_start = src.find('def txt_to_epub(')
@@ -1585,31 +1585,31 @@ class TestRegression(unittest.TestCase):
         self.assertNotIn('ch["content"]', epub_block)
 
     def test_sc_tab_fixer_in_label_keys(self):
-        """설정창 단축키 탭에 tab_5가 번역키로 연결됨"""
+        """Settings shortcut tab is wired to tab_5 via translation key"""
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
         self.assertIn("'tab_5':'sc_tab_fixer'", src)
 
     def test_sc_tab_bulk_in_label_keys(self):
-        """설정창 단축키 탭에 tab_6(Bulk Fixer)가 번역키로 연결됨"""
+        """Settings shortcut tab is wired to tab_6 (Bulk Fixer) via translation key"""
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
         self.assertIn("'tab_6':'sc_tab_bulk'", src)
 
     def test_shortcut_defs_has_tab_6(self):
-        """SHORTCUT_DEFS에 tab_6(Ctrl+6) 정의가 있어야 한다"""
+        """SHORTCUT_DEFS must define tab_6 (Ctrl+6)"""
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
         self.assertIn("'tab_6'", src)
         self.assertIn("Ctrl+6", src)
 
     def test_separator_with_trailing_space(self):
-        """trailing space 있는 구분선도 올바르게 감지"""
+        """Separator lines with trailing spaces are detected correctly"""
         self.assertTrue(_is_sep_line("──────── "))
         self.assertTrue(_is_sep_line(" ────────"))
 
     def test_blank_after_merge_pipeline(self):
-        """병합 후 빈줄 축소 파이프라인 순서"""
+        """Pipeline order: merge → blank-line reduction"""
         inp = "A\nB\n\n\n\nC\nD"
         out, mid, blank, *_ = _run_fix(inp, do_mid=True, do_blank=True, max_blank=1)
         self.assertEqual(mid, 2)
@@ -1617,7 +1617,7 @@ class TestRegression(unittest.TestCase):
         self.assertNotIn('\n\n\n', out)
 
     def test_stats_not_korean_hardcoded(self):
-        """통계 텍스트가 한국어 하드코딩 아님 (번역키 사용)"""
+        """Statistics text is not hardcoded in Korean (uses translation keys)"""
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
         self.assertNotIn("f'병합된 줄: {fixed_mid}건'", src)
@@ -1625,26 +1625,26 @@ class TestRegression(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §20 성능 테스트
+# §20 Performance tests
 # ════════════════════════════════════════════════════════════════════════
 class TestPerformance(unittest.TestCase):
-    """성능 벤치마크 (임계값 초과 시 실패)"""
+    """Performance benchmarks (fail when threshold is exceeded)"""
     def test_large_text_merge_speed(self):
-        """10,000줄 병합 — 3초 이내"""
+        """Merge 10,000 lines — under 3 seconds"""
         inp = ("중간 문장이고\n" * 4 + "완료됩니다.\n\n") * 1000
         start = time.time()
         _run_fix(inp, do_mid=True, do_blank=True)
         self.assertLess(time.time() - start, 3.0)
 
     def test_large_text_blank_speed(self):
-        """빈줄만 있는 큰 파일 — 1초 이내"""
+        """Large file with only blank lines — under 1 second"""
         inp = "\n" * 5000 + "A\n" * 1000 + "\n" * 5000
         start = time.time()
         _run_fix(inp, do_mid=False, do_blank=True, max_blank=1)
         self.assertLess(time.time() - start, 1.0)
 
     def test_auto_split_performance(self):
-        """자동 단락 분리 대용량 — 2초 이내"""
+        """Large-input auto paragraph splitting — under 2 seconds"""
         long_line = ("문장입니다. " * 10).strip()
         inp = (long_line + "\n\n") * 500
         start = time.time()
@@ -1652,7 +1652,7 @@ class TestPerformance(unittest.TestCase):
         self.assertLess(time.time() - start, 2.0)
 
     def test_sep_line_detection_speed(self):
-        """구분선 감지 1000회 — 0.1초 이내"""
+        """1000 separator-line detections — under 0.1 second"""
         start = time.time()
         for _ in range(1000):
             _is_sep_line("──────────────────────────────")
@@ -1660,7 +1660,7 @@ class TestPerformance(unittest.TestCase):
         self.assertLess(time.time() - start, 0.1)
 
     def test_natural_sort_large_list(self):
-        """1000개 파일 자연 정렬 — 0.5초 이내"""
+        """Natural sort over 1000 files — under 0.5 second"""
         files = [f"파일{i:04d}화.txt" for i in range(1000, 0, -1)]
         start = time.time()
         sorted_files = sorted(files, key=natural_sort_key)
@@ -1669,11 +1669,11 @@ class TestPerformance(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §21 경계값 분석 (BVA)
+# §21 Boundary-value analysis (BVA)
 # ════════════════════════════════════════════════════════════════════════
 class TestBoundaryValues(unittest.TestCase):
-    """경계값 분석"""
-    # max_blank 경계
+    """Boundary-value analysis"""
+    # max_blank boundary
     def test_max_blank_0_removes_all(self):
         out, _, blank, *_ = _run_fix("A\n\nB", do_mid=False, max_blank=0)
         self.assertNotIn('\n\n', out)
@@ -1693,25 +1693,25 @@ class TestBoundaryValues(unittest.TestCase):
         out, _, blank, *_ = _run_fix(inp, do_mid=False, max_blank=10)
         self.assertEqual(blank, 0)
 
-    # max_split_chars 경계
+    # max_split_chars boundary
     def test_split_at_exactly_threshold(self):
         line = "A" * 49 + ". " + "B" * 49 + "."
-        # 첫 세그먼트 길이 = 51 chars > 50 → split
+        # first segment length = 51 chars > 50 → split
         r = _split_long_line(line, 50)
         self.assertEqual(len(r), 2)
 
     def test_split_one_below_threshold(self):
         line = "A" * 48 + ". " + "B" * 48 + "."
-        # 첫 세그먼트 = 50, 두번째 = 50. 합산 100 > 50 이므로 분리
+        # first segment = 50, second = 50; cumulative 100 > 50 → split
         r = _split_long_line(line, 50)
         self.assertGreaterEqual(len(r), 1)
 
-    # 구분선 최소 길이 경계
+    # Separator-line minimum length boundary
     def test_sep_exactly_3(self):   self.assertTrue(_is_sep_line('---'))
     def test_sep_exactly_2_fail(self): self.assertFalse(_is_sep_line('--'))
     def test_sep_exactly_1_fail(self): self.assertFalse(_is_sep_line('-'))
 
-    # 빈 문자열 경계
+    # Empty-string boundary
     def test_empty_depad(self):     self.assertEqual(depad(''), '')
     def test_empty_remove_tag(self):self.assertEqual(remove_tag('','both'), '')
     def test_empty_extract_num(self):self.assertIsNone(extract_number(''))
@@ -1719,11 +1719,11 @@ class TestBoundaryValues(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가A  앱 상수 / 버전
+# §ExtraA  App constants / version
 # ════════════════════════════════════════════════════════════════════════
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패")
 class TestAppConstants(unittest.TestCase):
-    """APP_VERSION 및 라이브러리 가용성 플래그 검증."""
+    """Validate APP_VERSION and library-availability flags."""
 
     def test_version_exists(self):
         self.assertIsNotNone(_APP_VERSION)
@@ -1732,7 +1732,7 @@ class TestAppConstants(unittest.TestCase):
         self.assertIsInstance(_APP_VERSION, str)
 
     def test_version_format(self):
-        """시맨틱 버저닝 X.Y.Z 형식 확인."""
+        """Check semantic versioning X.Y.Z format."""
         parts = _APP_VERSION.split('.')
         self.assertEqual(len(parts), 3)
         for p in parts:
@@ -1756,14 +1756,14 @@ class TestAppConstants(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가B  인코딩 감지 — alchemy_detect_encoding()
+# §ExtraB  Encoding detection — alchemy_detect_encoding()
 # ════════════════════════════════════════════════════════════════════════
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패")
 class TestAlchemyDetectEncoding(unittest.TestCase):
-    """alchemy_detect_encoding() — 실제 모듈 함수 직접 검증.
+    """alchemy_detect_encoding() — directly validates the real module function.
 
-    v1.0.4: (encoding, confidence) 튜플 반환으로 변경됨.
-    이전 문자열 반환 형식도 지원하도록 헬퍼로 첫 요소만 추출."""
+    v1.0.4: switched to returning an (encoding, confidence) tuple.
+    For compatibility with the old string-return format, a helper extracts only the first element."""
 
     def setUp(self):
         self.td = tempfile.mkdtemp()
@@ -1778,7 +1778,7 @@ class TestAlchemyDetectEncoding(unittest.TestCase):
         return p
 
     def _enc(self, path):
-        """v1.0.3(str) / v1.0.4(tuple) 양쪽 호환으로 인코딩명만 추출."""
+        """Extracts only the encoding name, compatible with both v1.0.3 (str) and v1.0.4 (tuple)."""
         result = _alchemy_detect_enc(path)
         return result[0] if isinstance(result, tuple) else result
 
@@ -1805,12 +1805,12 @@ class TestAlchemyDetectEncoding(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가C  도움말 HTML — _build_help_html()
+# §ExtraC  Help HTML — _build_help_html()
 # ════════════════════════════════════════════════════════════════════════
 @unittest.skipUnless(HAS_MODULE and _build_help_html is not None,
                      "FileNexusSuite 로드 실패 또는 _build_help_html 없음")
 class TestBuildHelpHtml(unittest.TestCase):
-    """_build_help_html() — 5개 언어 도움말 생성 검증."""
+    """_build_help_html() — validate help generation for 5 languages."""
 
     def test_ko_returns_string(self):
         result = _build_help_html(_data_only=False, _lang='ko')
@@ -1853,16 +1853,16 @@ class TestBuildHelpHtml(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가D  ConfigManager — 실제 클래스 저장/로드
+# §ExtraD  ConfigManager — real class save/load
 # ════════════════════════════════════════════════════════════════════════
 @unittest.skipUnless(HAS_MODULE and _ConfigManager is not None,
                      "FileNexusSuite 로드 실패 또는 ConfigManager 없음")
 class TestConfigManagerReal(unittest.TestCase):
-    """ConfigManager 실제 클래스 — 저장/로드/get 검증."""
+    """ConfigManager real class — validate save/load/get."""
 
     def setUp(self):
         self.td = tempfile.mkdtemp()
-        # _CONFIG_PATH를 임시 디렉토리로 리디렉션
+        # Redirect _CONFIG_PATH to a temporary directory
         self._orig_path = _ns.get('_CONFIG_PATH')
         from pathlib import Path
         _ns['_CONFIG_PATH'] = Path(self.td) / 'FileNexusSuite.json'
@@ -1930,29 +1930,29 @@ class TestConfigManagerReal(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가E  depad 날짜 형식 회귀 테스트 (v0.9.0 버그픽스)
+# §ExtraE  depad date-format regression test (v0.9.0 bugfix)
 # ════════════════════════════════════════════════════════════════════════
 _depad_name_fn = _ns.get('depad_name') if HAS_MODULE else None
 
 @unittest.skipUnless(HAS_MODULE and _depad_name_fn is not None,
                      "FileNexusSuite 로드 실패")
 class TestDepadDateRegression(unittest.TestCase):
-    """depad_name() — 날짜 형식(YYYY-MM-DD) 보존 회귀 테스트.
+    """depad_name() — regression test for date-format (YYYY-MM-DD) preservation.
 
-    수정 전: \\b 패턴이 하이픈을 word boundary로 인식해
-             2024-01-01 → 2024-1-1 로 잘못 변환됨.
-    수정 후: (?<![0-9\\-]) 패턴으로 하이픈 뒤 0은 건드리지 않음.
+    Before fix: the \\b pattern treated hyphens as word boundaries,
+            so 2024-01-01 was wrongly converted to 2024-1-1.
+    After fix: the (?<![0-9\\-]) pattern leaves zeros after hyphens alone.
     """
 
     def test_date_yyyy_mm_dd_preserved(self):
-        """2024-01-01 형식 날짜는 변환하지 않아야 한다."""
+        """Dates in the 2024-01-01 form must not be converted."""
         self.assertIsNone(_depad_name_fn('2024-01-01.txt'))
 
     def test_date_mm_dd_preserved(self):
         self.assertIsNone(_depad_name_fn('01-01.txt'))
 
     def test_range_001_197_front_removed(self):
-        """사과나무 001-197화(完) — 앞의 001만 제거, 뒤 197은 유지."""
+        """"사과나무 001-197화(完)" — strip only the leading 001; keep the trailing 197."""
         result = _depad_name_fn('사과나무 001-197화(完).txt')
         self.assertIsNotNone(result)
         self.assertIn('1-197', result)
@@ -1967,17 +1967,17 @@ class TestDepadDateRegression(unittest.TestCase):
         self.assertEqual(_depad_name_fn('001화.txt'), '1화.txt')
 
     def test_no_false_removal_after_hyphen(self):
-        """하이픈 뒤 숫자 01은 제거하지 않아야 한다 → 변환 없으면 None."""
+        """A "01" right after a hyphen must not be stripped → if nothing changes, return None."""
         result = _depad_name_fn('시즌1-01화.txt')
-        # 앞에 변환할 0패딩이 없으므로 None이거나 01이 유지되어야 함
+        # No leading zero-padding to strip, so either None or "01" must be preserved
         self.assertTrue(result is None or '01' in result)
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가F  v0.10.0 회귀 — 소스 파싱 기반 (PySide6 불필요)
+# §ExtraF  v0.10.0 regression — source-parsing based (PySide6 not required)
 # ════════════════════════════════════════════════════════════════════════
 class TestV010Regression(unittest.TestCase):
-    """v0.10.0 기본 상수 회귀 테스트 — 소스 파일 직접 파싱."""
+    """v0.10.0 base-constant regression test — parse the source file directly."""
 
     def _src(self):
         with open(_MAIN_PY, encoding='utf-8') as f:
@@ -1987,14 +1987,14 @@ class TestV010Regression(unittest.TestCase):
         import re
         m = re.search(r'^APP_VERSION\s*=\s*["\']([^"\']+)["\']', self._src(), re.MULTILINE)
         self.assertIsNotNone(m, "APP_VERSION 정의 없음")
-        # v1.0.0 이상이면 OK (v1.0.1, v1.0.2, v1.0.3 등 모두 통과)
+        # v1.0.0 or higher passes (v1.0.1, v1.0.2, v1.0.3, etc. all pass)
         parts = m.group(1).split('.')
         self.assertGreaterEqual(int(parts[0]), 1, f"메이저 버전 < 1: {m.group(1)}")
 
     def test_themes_count(self):
         import re
         src = self._src()
-        # THEMES dict의 실제 키 (auto는 런타임 resolve 가상 테마)
+        # Actual keys in the THEMES dict (auto is a virtual theme resolved at runtime)
         m = re.search(r'^THEMES\s*=\s*\{(.*?)^\}', src, re.MULTILINE | re.DOTALL)
         self.assertIsNotNone(m)
         keys = re.findall(r"^\s{4}'(\w+)'\s*:\s*\{", m.group(1), re.MULTILINE)
@@ -2010,7 +2010,7 @@ class TestV010Regression(unittest.TestCase):
         self.assertEqual(keys, expected)
 
     def test_theme_name_key_has_auto(self):
-        """_THEME_NAME_KEY에 auto 포함 — 지원 테마 10개."""
+        """_THEME_NAME_KEY includes auto — 10 supported themes total."""
         import re
         src = self._src()
         m = re.search(r'_THEME_NAME_KEY\s*=\s*\{(.*?)\}', src, re.DOTALL)
@@ -2025,7 +2025,7 @@ class TestV010Regression(unittest.TestCase):
         m = re.search(r'^TRANSLATIONS\s*=\s*\{', src, re.MULTILINE)
         self.assertIsNotNone(m, "TRANSLATIONS = { 정의 없음")
         block = src[m.start():m.start()+120000]
-        # ko는 TRANSLATIONS = {'ko': 형태로 인라인, 나머지는 줄 첫머리
+        # ko is inlined as TRANSLATIONS = {'ko': ..., the others start at line head
         inline = set(re.findall(r"TRANSLATIONS\s*=\s*\{'([a-z]{2}(?:_[a-z]{2})?)'", block))
         newline = set(re.findall(r"^\s{0,1}'([a-z]{2}(?:_[a-z]{2})?)':\s*\{", block, re.MULTILINE))
         langs = inline | newline
@@ -2048,7 +2048,7 @@ class TestV010Regression(unittest.TestCase):
 
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
 class TestV010RegressionModule(unittest.TestCase):
-    """v0.10.0 모듈 로드 기반 회귀 테스트 (PySide6 필요)."""
+    """v0.10.0 module-load-based regression test (PySide6 required)."""
 
     def test_themes_count_from_ns(self):
         themes = _ns.get('THEMES', {})
@@ -2063,10 +2063,10 @@ class TestV010RegressionModule(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가G  번역 시스템 완전성
+# §ExtraG  Translation system completeness
 # ════════════════════════════════════════════════════════════════════════
 class TestTranslationCompleteness(unittest.TestCase):
-    """TRANSLATIONS — 5개 언어 키 완전성 검증 (소스 파일 직접 파싱, PySide6 불필요)."""
+    """TRANSLATIONS — validate key completeness across 5 languages (parses source directly, PySide6 not required)."""
 
     def _get_lang_keys(self, lang):
         import re
@@ -2084,39 +2084,39 @@ class TestTranslationCompleteness(unittest.TestCase):
         return set(re.findall(r"'([a-z_][a-z0-9_]*)'\s*:", m.group(1)))
 
     def test_all_langs_same_key_count(self):
-        """5언어 키 개수 검증 — zh_cn은 zh_tw fallback으로 부분집합 허용 (v1.0.9 §5.1.G).
+        """Validate key counts across 5 languages — zh_cn may be a subset thanks to zh_tw fallback (v1.0.9 §5.1.G).
 
-        ko/en/ja/zh_tw는 ko 기준과 동일 개수 (대칭).
-        zh_cn은 zh_tw와 값이 100% 동일한 키들이 제거되어 적을 수 있으나,
-        남은 키는 모두 zh_tw에 있어야 fallback 안전성이 보장됨.
+        ko/en/ja/zh_tw all have the same key count as ko (symmetric).
+        zh_cn may have fewer keys because entries 100% identical to zh_tw values are removed,
+        but every remaining key must exist in zh_tw to guarantee fallback safety.
         """
         lang_keys = {l: self._get_lang_keys(l) for l in ['ko','en','ja','zh_cn','zh_tw']}
         ko_count = len(lang_keys['ko'])
-        # ko/en/ja/zh_tw 대칭 검증
+        # ko/en/ja/zh_tw symmetry check
         for lang in ('en', 'ja', 'zh_tw'):
             with self.subTest(lang=lang):
                 self.assertEqual(len(lang_keys[lang]), ko_count,
                     f"{lang} 키 수 {len(lang_keys[lang])} ≠ ko {ko_count}")
-        # zh_cn은 zh_tw 부분집합 (fallback 안전성)
+        # zh_cn must be a subset of zh_tw (fallback safety)
         not_in_zh_tw = lang_keys['zh_cn'] - lang_keys['zh_tw']
         with self.subTest(lang='zh_cn_subset'):
             self.assertEqual(not_in_zh_tw, set(),
                 f"zh_cn 키가 zh_tw에 없음 (fallback 불가): {sorted(not_in_zh_tw)}")
 
     def test_zh_cn_fallback_to_zh_tw(self):
-        """zh_cn 사전 미정의 키는 zh_tw로 fallback되어야 함 (v1.0.9 §5.1.G).
+        """Keys missing from the zh_cn dict must fall back to zh_tw (v1.0.9 §5.1.G).
 
-        §5.1.G에서 zh_cn↔zh_tw 값 동일 키를 zh_cn에서 제거.
-        _t() / _rt() 두 함수 모두에 fallback 메커니즘이 살아있어야
-        zh_cn 사용자 동작 영향이 0으로 유지됨.
+        In §5.1.G, keys whose values match between zh_cn and zh_tw were removed from zh_cn.
+        The fallback mechanism must remain alive in both _t() and _rt()
+        so that the impact on zh_cn users stays at zero.
         """
         import re
         lang_keys = {l: self._get_lang_keys(l) for l in ['zh_cn', 'zh_tw']}
-        # 검증 대상이 존재해야 함 (정리 작업이 적용된 상태)
+        # Verify that the targets exist (cleanup must already be applied)
         missing_in_zh_cn = lang_keys['zh_tw'] - lang_keys['zh_cn']
         self.assertGreater(len(missing_in_zh_cn), 0,
             "fallback 검증 대상 키가 없음 — §5.1.G 정리가 미적용 상태?")
-        # 소스에서 zh_cn → zh_tw fallback 패턴 존재 검증 (_t와 _rt 두 곳)
+        # Verify the zh_cn → zh_tw fallback pattern exists in source (both _t and _rt)
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
         fallback_pattern = r"TRANSLATIONS\['zh_tw'\]\.get\(key\)\s+if\s+lang\s*==\s*'zh_cn'"
@@ -2129,13 +2129,13 @@ class TestTranslationCompleteness(unittest.TestCase):
         self.assertGreaterEqual(len(keys), 400)
 
     # ────────────────────────────────────────────────────────────────
-    # 탭 기반 기능 영역 invariant (v1.0.7 세션 3 재구성)
-    # 버전 스냅샷 방식(v010/v010_1/v100) 폐기 → 10개 대분류로 재조직
-    # 세부 정책은 TEST_MANAGEMENT_POLICY.md 참조
+    # Tab-based functional-area invariants (restructured in v1.0.7 session 3)
+    # Version-snapshot style (v010/v010_1/v100) is deprecated → reorganized into 10 macro-categories
+    # See TEST_MANAGEMENT_POLICY.md for the detailed policy
     # ────────────────────────────────────────────────────────────────
 
     def test_all_langs_have_common_dialog_keys(self):
-        """대분류 1 — 전 탭 공통 다이얼로그·버튼 키."""
+        """Macro-category 1 — common dialog and button keys across all tabs."""
         common_keys = [
             'dlg_ok', 'dlg_yes', 'dlg_no',
             'dlg_warning', 'dlg_error_title',
@@ -2149,7 +2149,7 @@ class TestTranslationCompleteness(unittest.TestCase):
                         f"[{lang}] '{key}' 키 없음 (common 대분류)")
 
     def test_all_langs_have_text_merger_keys(self):
-        """대분류 2 — Text Merger 탭 대표 키."""
+        """Macro-category 2 — representative keys for the Text Merger tab."""
         merger_keys = [
             'merge_status_add', 'merge_status_del', 'merge_status_clr',
             'merge_path_set', 'merge_path_reset_done',
@@ -2164,10 +2164,10 @@ class TestTranslationCompleteness(unittest.TestCase):
                         f"[{lang}] '{key}' 키 없음 (text_merger 대분류)")
 
     def test_all_langs_have_text_converter_keys(self):
-        """대분류 3 — Text Converter 탭 대표 키.
+        """Macro-category 3 — representative keys for the Text Converter tab.
 
-        주의: conv_sub_txt2epub / conv_sub_epub2txt는 L6560의
-        `_t('conv_sub_' + val)` 동적 키 생성으로 활성 사용됨 (v1.0.7 감사 수정).
+        Note: conv_sub_txt2epub / conv_sub_epub2txt are kept active by
+        the dynamic key generation `_t('conv_sub_' + val)` at L6560 (v1.0.7 audit fix).
         """
         converter_keys = [
             'conv_status_done', 'conv_status_fail',
@@ -2181,7 +2181,7 @@ class TestTranslationCompleteness(unittest.TestCase):
                         f"[{lang}] '{key}' 키 없음 (text_converter 대분류)")
 
     def test_all_langs_have_tag_editor_keys(self):
-        """대분류 4 — Tag Editor 탭 대표 키."""
+        """Macro-category 4 — representative keys for the Tag Editor tab."""
         tag_keys = [
             'tag_file_count', 'tag_count_total',
             'tag_status_found', 'tag_status_found_add', 'tag_status_found_depad',
@@ -2196,11 +2196,11 @@ class TestTranslationCompleteness(unittest.TestCase):
                         f"[{lang}] '{key}' 키 없음 (tag_editor 대분류)")
 
     def test_all_langs_have_batch_renamer_keys(self):
-        """대분류 5 — Batch Renamer 탭 대표 키.
+        """Macro-category 5 — representative keys for the Batch Renamer tab.
 
-        batch_* / rename_* 두 접두사 통합 대분류 (부록 E 참조):
-          - batch_* ← 원본 BatchRenamer 클래스명에서 유래, UI·옵션
-          - rename_* ← 원본 _do_rename/_confirm_rename 메서드에서 유래, 동작 상태·피드백
+        Macro-category that unifies the batch_* / rename_* prefixes (see Appendix E):
+          - batch_* ← named after the original BatchRenamer class, used for UI / options
+          - rename_* ← named after the original _do_rename / _confirm_rename methods, used for action state / feedback
         """
         batch_keys = [
             'rename_do', 'rename_cancel',
@@ -2216,10 +2216,10 @@ class TestTranslationCompleteness(unittest.TestCase):
                         f"[{lang}] '{key}' 키 없음 (batch_renamer 대분류)")
 
     def test_all_langs_have_text_fixer_keys(self):
-        """대분류 6 — Text Fixer 탭 대표 키.
+        """Macro-category 6 — representative keys for the Text Fixer tab.
 
-        주의: tf_dlg_overwrite는 v1.0.7 세션 2·3에서 제거된 고아 키이므로
-        invariant에서 제외됨 (_save_overwrite 데드 메서드와 함께 정리).
+        Note: tf_dlg_overwrite was an orphan key removed in v1.0.7 sessions 2 and 3,
+        so it is excluded from this invariant (cleaned up alongside the dead method _save_overwrite).
         """
         fixer_keys = [
             'tf_dlg_nofile', 'tf_dlg_noperm',
@@ -2234,7 +2234,7 @@ class TestTranslationCompleteness(unittest.TestCase):
                         f"[{lang}] '{key}' 키 없음 (text_fixer 대분류)")
 
     def test_all_langs_have_bulk_fixer_keys(self):
-        """대분류 7 — Bulk Fixer 탭 대표 키."""
+        """Macro-category 7 — representative keys for the Bulk Fixer tab."""
         bulk_keys = [
             'bulk_run', 'bulk_running',
             'bulk_status_ready', 'bulk_status_done', 'bulk_status_err',
@@ -2249,7 +2249,7 @@ class TestTranslationCompleteness(unittest.TestCase):
                         f"[{lang}] '{key}' 키 없음 (bulk_fixer 대분류)")
 
     def test_all_langs_have_settings_keys(self):
-        """대분류 8 — 설정 다이얼로그 대표 키."""
+        """Macro-category 8 — representative keys for the Settings dialog."""
         settings_keys = [
             'settings_title',
             'settings_output_dir',
@@ -2264,7 +2264,7 @@ class TestTranslationCompleteness(unittest.TestCase):
                         f"[{lang}] '{key}' 키 없음 (settings 대분류)")
 
     def test_all_langs_have_shortcut_keys(self):
-        """대분류 9 — 단축키 시스템 대표 키."""
+        """Macro-category 9 — representative keys for the shortcut system."""
         shortcut_keys = [
             'sc_none', 'sc_press',
             'sc_tab_merger', 'sc_tab_converter', 'sc_tab_tag',
@@ -2278,7 +2278,7 @@ class TestTranslationCompleteness(unittest.TestCase):
                         f"[{lang}] '{key}' 키 없음 (shortcut 대분류)")
 
     def test_all_langs_have_misc_keys(self):
-        """대분류 10 — 위 어디에도 속하지 않는 잔여 대표 키 (최소화 목표)."""
+        """Macro-category 10 — residual representative keys that fall outside the above (minimization goal)."""
         misc_keys = [
             'app_subtitle',
             'close_busy_title',
@@ -2292,23 +2292,23 @@ class TestTranslationCompleteness(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가H  retranslate 체인 무결성 (크래시 회귀 방지)
+# §ExtraH  retranslate chain integrity (prevents crash regression)
 # ════════════════════════════════════════════════════════════════════════
 class TestRetranslateIntegrity(unittest.TestCase):
-    """retranslate 메서드 내 미정의 속성 참조 회귀 테스트.
+    """Regression test for undefined attribute references inside retranslate methods.
 
-    v0.10.0 이전:
-      - TextMergerPanel.retranslate()에 _file_gb 참조 → AttributeError
-      - TextConverterPanel.retranslate()에 _btn_del_all 참조 → AttributeError
-    두 버그 모두 AppSuite.retranslate_ui()의 try-except에 걸려
-    이후 전 패널 retranslate가 실행되지 않았음.
+    Before v0.10.0:
+      - TextMergerPanel.retranslate() referenced _file_gb → AttributeError
+      - TextConverterPanel.retranslate() referenced _btn_del_all → AttributeError
+    Both bugs were caught by the try-except in AppSuite.retranslate_ui(),
+    after which retranslate stopped running for the remaining panels.
     """
 
     def _get_retranslate_body(self, class_name):
         import re
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
-        # 클래스 범위 추출
+        # Extract class scope
         cls_match = re.search(rf'^class {class_name}\b.*?(?=^class |\Z)',
                                src, re.MULTILINE | re.DOTALL)
         if not cls_match: return ''
@@ -2318,26 +2318,26 @@ class TestRetranslateIntegrity(unittest.TestCase):
         return rt_match.group(1) if rt_match else ''
 
     def test_merger_no_file_gb(self):
-        """TextMergerPanel.retranslate()에 _file_gb 참조가 없어야 한다."""
+        """TextMergerPanel.retranslate() must contain no reference to _file_gb."""
         body = self._get_retranslate_body('TextMergerPanel')
         self.assertNotIn('_file_gb', body,
             "TextMergerPanel.retranslate()에 _file_gb 잔류 — 크래시 위험")
 
     def test_converter_no_btn_del_all(self):
-        """TextConverterPanel.retranslate()에 _btn_del_all 참조가 없어야 한다."""
+        """TextConverterPanel.retranslate() must contain no reference to _btn_del_all."""
         body = self._get_retranslate_body('TextConverterPanel')
         self.assertNotIn('_btn_del_all', body,
             "TextConverterPanel.retranslate()에 _btn_del_all 잔류 — 크래시 위험")
 
     def test_merger_has_tree_header_retranslate(self):
-        """TextMergerPanel.retranslate()에 트리 헤더 갱신이 있어야 한다."""
+        """TextMergerPanel.retranslate() must update the tree header."""
         body = self._get_retranslate_body('TextMergerPanel')
         self.assertIn('setHeaderLabels', body,
             "MergeFileTree 헤더가 retranslate에서 갱신되지 않음")
 
     def test_bulk_fixer_sort_btn_uses_t(self):
-        """BulkFixerFileList가 setHeaderLabels에 _t() 키를 사용해야 한다.
-        (v0.10.1: _sort_files 제거 → QTreeWidget 헤더 클릭으로 정렬)"""
+        """BulkFixerFileList must use _t() keys in setHeaderLabels.
+        (v0.10.1: _sort_files removed → sort via QTreeWidget header click)"""
         import re
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
@@ -2352,11 +2352,11 @@ class TestRetranslateIntegrity(unittest.TestCase):
             "BulkFixerFileList에 하드코딩된 '파일명' 잔류")
 
     def test_dlg_functions_use_t_keys(self):
-        """_dlg_info/warn/error/question 버튼이 _t() 키를 사용해야 한다."""
+        """_dlg_info / warn / error / question buttons must use _t() keys."""
         import re
         with open(_MAIN_PY, encoding='utf-8') as f:
             src = f.read()
-        # _dlg_info 함수 추출
+        # Extract the _dlg_info function
         for fn in ('_dlg_info', '_dlg_warn', '_dlg_error', '_dlg_question', '_dlg_info_action'):
             fn_match = re.search(rf'^def {fn}\b.*?(?=^def |\Z)',
                                   src, re.MULTILINE | re.DOTALL)
@@ -2371,7 +2371,7 @@ class TestRetranslateIntegrity(unittest.TestCase):
                     f"{fn}()에 하드코딩 '아니오' 버튼 잔류")
 
     def test_bulk_fixer_abort_retranslate(self):
-        """BulkFixerPanel.retranslate()에 _btn_abort, _chk_keep_structure 갱신이 있어야 한다."""
+        """BulkFixerPanel.retranslate() must update _btn_abort and _chk_keep_structure."""
         body = self._get_retranslate_body('BulkFixerPanel')
         self.assertIn('_btn_abort', body,
             "BulkFixerPanel.retranslate()에 _btn_abort 갱신 없음")
@@ -2380,7 +2380,7 @@ class TestRetranslateIntegrity(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가I  BulkFixerWorker — 핵심 로직
+# §ExtraI  BulkFixerWorker — core logic
 # ════════════════════════════════════════════════════════════════════════
 _BulkFixerWorker = _ns.get('BulkFixerWorker') if HAS_MODULE else None
 _TextFixerWorker  = _ns.get('TextFixerWorker')  if HAS_MODULE else None
@@ -2388,7 +2388,7 @@ _TextFixerWorker  = _ns.get('TextFixerWorker')  if HAS_MODULE else None
 @unittest.skipUnless(HAS_MODULE and _BulkFixerWorker and _TextFixerWorker,
                      "FileNexusSuite 로드 실패 또는 BulkFixerWorker 없음")
 class TestBulkFixerWorker(unittest.TestCase):
-    """BulkFixerWorker._fix_text() — 교정 로직 단위 테스트."""
+    """BulkFixerWorker._fix_text() — unit tests for the fix logic."""
 
     def _worker(self, **kwargs):
         defaults = dict(files=[], out_dir='',
@@ -2399,7 +2399,7 @@ class TestBulkFixerWorker(unittest.TestCase):
         defaults.update(kwargs)
         return _BulkFixerWorker(**defaults)
 
-    # ── 기본 교정 ────────────────────────────────
+    # ── Basic fixes ─────────────────────────────
     def test_mid_merge(self):
         w = self._worker(do_mid=True, do_blank=False)
         out, mid, blank = w._fix_text("A\nB")
@@ -2436,53 +2436,53 @@ class TestBulkFixerWorker(unittest.TestCase):
 
     # ── lang_mode ────────────────────────────────
     def test_lang_mode_ko(self):
-        """한국어 모드: CJK 문자로만 된 줄은 병합."""
+        """Korean mode: CJK-only lines should merge."""
         w = self._worker(do_mid=True, do_blank=False, lang_mode='ko')
         out, mid, _ = w._fix_text("앞부분이고\n뒷부분이다.")
         self.assertEqual(mid, 1)
 
     def test_lang_mode_en_abbr_no_merge(self):
-        """영어 모드: 약어(Mr.) 뒤는 병합."""
+        """English mode: lines after abbreviations (Mr.) should merge."""
         w = self._worker(do_mid=True, do_blank=False, lang_mode='en')
         out, mid, _ = w._fix_text("Call Mr.\nSmith today.")
-        # Mr.는 약어 → 병합되어야 함
+        # Mr. is an abbreviation → must merge
         self.assertEqual(mid, 1)
 
     def test_lang_mode_en_sentence_end_no_merge(self):
-        """영어 모드: 문장 끝(.)은 병합 안 됨."""
+        """English mode: sentence endings (.) should not merge."""
         w = self._worker(do_mid=True, do_blank=False, lang_mode='en')
         out, mid, _ = w._fix_text("End of sentence.\nNext sentence.")
         self.assertEqual(mid, 0)
 
     def test_lang_mode_en_hyphen_join(self):
-        """영어 모드: 하이픈 단어 분리 복원."""
+        """English mode: restore hyphen-split words."""
         w = self._worker(do_mid=True, do_blank=False, lang_mode='en')
         out, mid, _ = w._fix_text("con-\ntinue")
         self.assertIn("continue", out)
 
     def test_lang_mode_auto_detects_ko(self):
-        """자동 감지: 한국어 텍스트는 ko 모드로."""
+        """Auto-detect: Korean text → ko mode."""
         w = self._worker(do_mid=True, do_blank=False, lang_mode='auto')
         out, mid, _ = w._fix_text("한국어 텍스트이다\n계속 이어진다")
         self.assertEqual(mid, 1)
 
-    # ── 저장 경로 계산 ────────────────────────────
+    # ── Output path computation ──────────────────
     def test_save_path_no_outdir(self):
-        """out_dir 미지정: 원본 위치에 [Fixed] 접두사."""
+        """out_dir not given: [Fixed] prefix at the original location."""
         w = self._worker(out_dir='')
         src = '/tmp/test.txt'
         result = w._make_save_path(src)
         self.assertEqual(result, os.path.join('/tmp', '[Fixed]test.txt'))
 
     def test_save_path_with_outdir(self):
-        """out_dir 지정: 지정 폴더에 [Fixed] 접두사."""
+        """out_dir given: [Fixed] prefix inside the specified folder."""
         w = self._worker(out_dir='/out')
         src = '/tmp/test.txt'
         result = w._make_save_path(src)
         self.assertEqual(result, os.path.join('/out', '[Fixed]test.txt'))
 
     def test_save_path_keep_structure(self):
-        """keep_structure=True: 폴더 구조 유지."""
+        """keep_structure=True: preserve folder structure."""
         files = ['/data/sub/a.txt', '/data/sub/b.txt']
         w = self._worker(files=files, out_dir='/out', keep_structure=True)
         result = w._make_save_path(files[0])
@@ -2494,7 +2494,7 @@ class TestBulkFixerWorker(unittest.TestCase):
 @unittest.skipUnless(HAS_MODULE and _BulkFixerWorker,
                      "FileNexusSuite 로드 실패")
 class TestBulkFixerFileIO(unittest.TestCase):
-    """BulkFixerWorker — 실제 파일 읽기/쓰기 통합 테스트."""
+    """BulkFixerWorker — integration test with real file read/write."""
 
     def setUp(self):
         self.td = tempfile.mkdtemp()
@@ -2552,7 +2552,7 @@ class TestBulkFixerFileIO(unittest.TestCase):
         self.assertNotIn('\n\n\n', out)
 
     def test_keep_structure_creates_subdirs(self):
-        """keep_structure=True: 하위 폴더 구조를 출력 폴더에 재현."""
+        """keep_structure=True: reproduce subfolder structure in the output folder."""
         sub = os.path.join(self.td, 'sub')
         os.makedirs(sub)
         src = self._make_file(os.path.join('sub', 'a.txt'), "A\nB")
@@ -2565,28 +2565,28 @@ class TestBulkFixerFileIO(unittest.TestCase):
         )
         out_path = w._make_save_path(src)
         self.assertIn('[Fixed]', os.path.basename(out_path))
-        # 하위 폴더가 출력 경로에 포함
+        # Subfolder must be included in the output path
         self.assertTrue(out_path.startswith(out_dir))
 
-    # ── v1.0.3 추가: 인코딩 라운드트립 회귀 방지 ─────────────────
-    # v1.0.2까지 BulkFixerWorker.run()이 UTF-16/Shift-JIS/GBK/Big5를
-    # 처리하지 못해 깨진 상태로 저장하던 버그(v1.0.3에서 alchemy_detect_encoding
-    # 재사용으로 해결)의 회귀를 방지하기 위한 테스트.
+    # ── v1.0.3 addition: prevent encoding round-trip regression ──
+    # Through v1.0.2, BulkFixerWorker.run() could not handle UTF-16/Shift-JIS/GBK/Big5
+    # and saved them in a corrupted state (fixed in v1.0.3 by reusing alchemy_detect_encoding);
+    # this test guards against that regression.
     #
-    # 주의: 이 테스트는 _fix_text()가 인코딩에 무관한 텍스트 처리 로직임을
-    # 확인하는 것이 목적. 실제 인코딩 감지는 TestAlchemyDetectEncoding에서 검증.
-    # run() 직접 실행은 QThread 라이프사이클 때문에 생략.
+    # Note: this test only confirms that _fix_text() is encoding-agnostic text processing.
+    # Real encoding detection is validated in TestAlchemyDetectEncoding.
+    # Calling run() directly is skipped because of the QThread lifecycle.
 
     def test_utf8_bom_roundtrip(self):
-        """UTF-8 BOM 파일도 정상 처리."""
+        """UTF-8 BOM files are processed correctly."""
         content = "한국어 텍스트\n두 번째 줄"
         src = self._make_file('ko.txt', content, enc='utf-8-sig')
-        # 감지 → 디코딩 → 교정 순으로 검증
-        # v1.0.6: from FileNexusSuite import 대신 _alchemy_detect_enc 사용 —
-        # FileNexusSuite 재import 시 Phase 2-a `_fns_track` 핸들러 재등록으로
-        # 위치 추적 collection이 오염되는 문제 방지 (§추가O 보호)
+        # Verify in order: detect → decode → fix
+        # v1.0.6: use _alchemy_detect_enc instead of "from FileNexusSuite import" —
+        # re-importing FileNexusSuite would re-register the Phase 2-a `_fns_track` handler,
+        # polluting the location-tracking collection — prevented here (protects §ExtraO)
         detected = _alchemy_detect_enc(src)
-        # v1.0.4: 튜플 반환 호환 (이전 str / 신규 (str, float))
+        # v1.0.4: tuple-return compatible (old str / new (str, float))
         enc = detected[0] if isinstance(detected, tuple) else detected
         self.assertEqual(enc, 'utf-8-sig')
         with open(src, 'r', encoding=enc) as f: text = f.read()
@@ -2596,14 +2596,14 @@ class TestBulkFixerFileIO(unittest.TestCase):
         self.assertIn("한국어", out)
 
     def test_utf16_le_roundtrip(self):
-        """UTF-16 LE 파일도 정상 처리 (v1.0.2 버그)."""
+        """UTF-16 LE files are processed correctly (v1.0.2 bug)."""
         content = "한국어 텍스트\n두 번째 줄"
         src = os.path.join(self.td, 'ko_utf16_le.txt')
         with open(src, 'wb') as f:
             f.write(b'\xff\xfe' + content.encode('utf-16-le'))
-        # v1.0.6: from FileNexusSuite import 제거 — Phase 2-a `_fns_track` 핸들러 재등록 방지
+        # v1.0.6: removed "from FileNexusSuite import" — prevents Phase 2-a `_fns_track` handler re-registration
         detected = _alchemy_detect_enc(src)
-        # v1.0.4: 튜플 반환 호환
+        # v1.0.4: tuple-return compatible
         enc = detected[0] if isinstance(detected, tuple) else detected
         self.assertEqual(enc, 'utf-16')
         with open(src, 'r', encoding=enc) as f: text = f.read()
@@ -2613,14 +2613,14 @@ class TestBulkFixerFileIO(unittest.TestCase):
         self.assertIn("한국어", out)
 
     def test_utf16_be_roundtrip(self):
-        """UTF-16 BE 파일도 정상 처리 (v1.0.2 버그)."""
+        """UTF-16 BE files are processed correctly (v1.0.2 bug)."""
         content = "한국어 텍스트\n두 번째 줄"
         src = os.path.join(self.td, 'ko_utf16_be.txt')
         with open(src, 'wb') as f:
             f.write(b'\xfe\xff' + content.encode('utf-16-be'))
-        # v1.0.6: from FileNexusSuite import 제거 — Phase 2-a `_fns_track` 핸들러 재등록 방지
+        # v1.0.6: removed "from FileNexusSuite import" — prevents Phase 2-a `_fns_track` handler re-registration
         detected = _alchemy_detect_enc(src)
-        # v1.0.4: 튜플 반환 호환
+        # v1.0.4: tuple-return compatible
         enc = detected[0] if isinstance(detected, tuple) else detected
         self.assertEqual(enc, 'utf-16')
         with open(src, 'r', encoding=enc) as f: text = f.read()
@@ -2630,7 +2630,7 @@ class TestBulkFixerFileIO(unittest.TestCase):
         self.assertIn("한국어", out)
 
     def test_cp949_roundtrip(self):
-        """한국어 CP949 파일도 정상 처리 (v1.0.2 에서도 정상이었음 — 회귀 방지)."""
+        """Korean CP949 files are processed correctly (this already worked in v1.0.2 — regression guard)."""
         content = "한국어 텍스트\n두 번째 줄"
         src = self._make_file('ko_cp949.txt', content, enc='cp949')
         w = _BulkFixerWorker(files=[src], out_dir='',
@@ -2640,7 +2640,7 @@ class TestBulkFixerFileIO(unittest.TestCase):
         self.assertIn("한국어", out)
 
     def test_5_languages_utf8(self):
-        """5개 언어 × UTF-8 전체 회귀 방지 검증."""
+        """Full regression check across 5 languages × UTF-8."""
         cases = {
             'ko.txt': '안녕하세요 한국어',
             'en.txt': 'Hello English',
@@ -2655,19 +2655,19 @@ class TestBulkFixerFileIO(unittest.TestCase):
                                      do_mid=False, do_blank=False, max_blank=1)
                 with open(src, 'r', encoding='utf-8') as f: text = f.read()
                 out, _, _ = w._fix_text(text)
-                # 핵심 단어가 출력에 그대로 있어야 함
+                # Key words must appear unchanged in the output
                 for keyword in content.split():
                     self.assertIn(keyword, out,
                                   f"{fname}: '{keyword}' 누락 또는 깨짐")
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가J  lang_mode — TextFixerWorker (v0.10.0 신규 파라미터)
+# §ExtraJ  lang_mode — TextFixerWorker (new parameter in v0.10.0)
 # ════════════════════════════════════════════════════════════════════════
 @unittest.skipUnless(HAS_MODULE and _TextFixerWorker,
                      "FileNexusSuite 로드 실패")
 class TestTextFixerLangMode(unittest.TestCase):
-    """TextFixerWorker.lang_mode 파라미터 테스트."""
+    """Tests for the TextFixerWorker.lang_mode parameter."""
 
     def _make_worker(self, text, lang_mode='auto', do_mid=True,
                      do_blank=False, max_blank=1):
@@ -2699,11 +2699,11 @@ class TestTextFixerLangMode(unittest.TestCase):
     def test_detect_lang_japanese(self):
         text = "これは日本語の文章です。" * 10
         lang = _TextFixerWorker._detect_lang(text)
-        self.assertEqual(lang, 'ko')  # CJK → ko 모드
+        self.assertEqual(lang, 'ko')  # CJK → ko mode
 
     def test_detect_lang_empty(self):
         lang = _TextFixerWorker._detect_lang("")
-        self.assertEqual(lang, 'ko')  # 기본값
+        self.assertEqual(lang, 'ko')  # default value
 
     def test_en_abbr_mr(self):
         self.assertTrue(_TextFixerWorker._is_en_abbr("Dr."))
@@ -2724,34 +2724,34 @@ class TestTextFixerLangMode(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가K  v0.12.0 회귀 — 소스 파싱 기반 (PySide6 불필요)
+# §ExtraK  v0.12.0 regression — source-parsing based (PySide6 not required)
 # ════════════════════════════════════════════════════════════════════════
 class TestV012Regression(unittest.TestCase):
-    """v0.12.0 주요 변경사항 회귀 테스트 — 소스 파일 직접 파싱."""
+    """Regression test for v0.12.0 major changes — parse the source file directly."""
 
     def _src(self):
         with open(_MAIN_PY, encoding='utf-8') as f:
             return f.read()
 
-    # ── 버전 ────────────────────────────────────────────────────────────
+    # ── Version ──────────────────────────────────────────────────────────
     def test_app_version_012(self):
-        """APP_VERSION이 v1.0.0 이상"""
+        """APP_VERSION is v1.0.0 or higher"""
         m = _re.search(r'^APP_VERSION\s*=\s*["\']([^"\']+)["\']', self._src(), _re.MULTILINE)
         self.assertIsNotNone(m, "APP_VERSION 정의 없음")
         parts = m.group(1).split('.')
         self.assertGreaterEqual(int(parts[0]), 1, f"메이저 버전 < 1: {m.group(1)}")
 
-    # ── SVG 아이콘 시스템 ─────────────────────────────────────────────
+    # ── SVG icon system ──────────────────────────────────────────────────
     def test_svg_paths_dict_defined(self):
-        """_SVG_PATHS 딕셔너리가 소스에 정의되어 있어야 한다."""
+        """The _SVG_PATHS dictionary must be defined in the source."""
         self.assertIn('_SVG_PATHS', self._src())
 
     def test_svg_line_icons_dict_defined(self):
-        """_SVG_LINE_ICONS 딕셔너리가 소스에 정의되어 있어야 한다."""
+        """The _SVG_LINE_ICONS dictionary must be defined in the source."""
         self.assertIn('_SVG_LINE_ICONS', self._src())
 
     def test_svg_paths_filled_keys_present(self):
-        """_SVG_PATHS에 핵심 filled 아이콘 키가 모두 있어야 한다."""
+        """_SVG_PATHS must contain every core filled-icon key."""
         src = self._src()
         for key in ('document', 'folder', 'folder_open', 'tag', 'refresh',
                     'wrench', 'magnifier', 'save', 'trash', 'broom',
@@ -2761,7 +2761,7 @@ class TestV012Regression(unittest.TestCase):
                 self.assertIn(f"'{key}'", src, f"_SVG_PATHS에 '{key}' 없음")
 
     def test_svg_line_icons_keys_present(self):
-        """_SVG_LINE_ICONS에 핵심 line 아이콘 키가 모두 있어야 한다."""
+        """_SVG_LINE_ICONS must contain every core line-icon key."""
         src = self._src()
         for key in ('document_line', 'folder_open_line', 'tag_line', 'folder_line',
                     'wrench_line', 'broom_line', 'gear_line', 'question_line',
@@ -2771,69 +2771,69 @@ class TestV012Regression(unittest.TestCase):
                 self.assertIn(f"'{key}'", src, f"_SVG_LINE_ICONS에 '{key}' 없음")
 
     def test_bulk_fixer_tab_uses_broom_line(self):
-        """Bulk Fixer 탭 아이콘이 broom_line(line 스타일)으로 변경되었어야 한다.
+        """The Bulk Fixer tab icon must have been switched to broom_line (line style).
 
-        v0.12.0: broom(filled) → broom_line(line) 교체로 다른 탭과 통일.
+        v0.12.0: replaced broom (filled) with broom_line (line) for consistency with other tabs.
         """
         src = self._src()
-        # 탭 아이콘 목록에서 broom_line이 사용되어야 함
+        # broom_line must be used in the tab-icon list
         self.assertIn("'broom_line'", src, "broom_line 키가 소스에 없음")
-        # 탭 아이콘 배열(_tab_icons)에서 broom_line이 마지막(Bulk Fixer) 자리에 있는지 확인
+        # Verify broom_line sits in the last (Bulk Fixer) slot of the _tab_icons array
         m = _re.search(r"_tab_icons\s*=\s*\[(.*?)\]", src, _re.DOTALL)
         self.assertIsNotNone(m, "_tab_icons 배열 정의 없음")
         self.assertIn('broom_line', m.group(1), "_tab_icons 배열에 broom_line 없음")
 
     def test_svg_icon_function_defined(self):
-        """_svg_icon() 함수가 소스에 정의되어 있어야 한다."""
+        """The _svg_icon() function must be defined in the source."""
         self.assertIn('def _svg_icon(', self._src())
 
     def test_svg_icon_white_disabled_pixmap(self):
-        """_svg_icon()에서 'white' 아이콘 시 Disabled 픽스맵 자동 추가 로직 존재."""
+        """_svg_icon() must auto-add a Disabled pixmap when the 'white' icon is requested."""
         src = self._src()
-        # 'white' + Disabled 조합 처리 코드 확인
+        # Verify the 'white' + Disabled handling code
         self.assertIn("color == 'white'", src)
         self.assertIn('QIcon.Mode.Disabled', src)
 
-    # ── 테마 시스템 ───────────────────────────────────────────────────
+    # ── Theme system ─────────────────────────────────────────────────────
     def test_all_themes_have_btn_border_h(self):
-        """모든 테마 딕셔너리에 BTN_BORDER_H 키가 있어야 한다 (v0.12.0 대비 개선)."""
+        """Every theme dictionary must include the BTN_BORDER_H key (improvement over v0.12.0)."""
         src = self._src()
         m = _re.search(r'^THEMES\s*=\s*\{(.*?)^\}', src, _re.MULTILINE | _re.DOTALL)
         self.assertIsNotNone(m, "THEMES 정의 없음")
         theme_block = m.group(1)
-        # 각 테마 블록 내에 BTN_BORDER_H가 있어야 함
+        # Each theme block must contain BTN_BORDER_H
         self.assertGreater(
             theme_block.count("'BTN_BORDER_H'"), 0,
             "THEMES 안에 BTN_BORDER_H가 하나도 없음"
         )
-        # 테마 수만큼 있어야 함 (9개 테마)
+        # Must appear once per theme (9 themes total)
         theme_count = len(_re.findall(r"^\s{4}'(\w+)'\s*:\s*\{", theme_block, _re.MULTILINE))
         btn_border_h_count = theme_block.count("'BTN_BORDER_H'")
         self.assertEqual(btn_border_h_count, theme_count,
             f"BTN_BORDER_H 수({btn_border_h_count}) ≠ 테마 수({theme_count})")
 
     def test_themes_count_9(self):
-        """THEMES 딕셔너리에 테마가 9개 있어야 한다 (auto는 런타임 resolve 가상 테마)."""
+        """The THEMES dictionary must contain 9 themes (auto is a virtual theme resolved at runtime)."""
         src = self._src()
         m = _re.search(r'^THEMES\s*=\s*\{(.*?)^\}', src, _re.MULTILINE | _re.DOTALL)
         self.assertIsNotNone(m)
         keys = _re.findall(r"^\s{4}'(\w+)'\s*:\s*\{", m.group(1), _re.MULTILINE)
         self.assertEqual(len(keys), 9, f"THEMES 키 수 불일치: {keys}")
 
-    # ── 번역 — 이모지 제거 확인 ───────────────────────────────────────
+    # ── Translation — emoji-removal check ────────────────────────────────
     def test_btn_add_file_no_emoji(self):
-        """btn_add_file 번역값에서 이모지가 제거되었어야 한다 (v0.12.0 정리)."""
+        """Emojis must have been stripped from the btn_add_file translation values (v0.12.0 cleanup)."""
         src = self._src()
-        # 'btn_add_file' 키의 값을 추출해 이모지 유니코드 범위 확인
+        # Extract the value of the 'btn_add_file' key and check emoji Unicode ranges
         m = _re.search(r"'btn_add_file'\s*:\s*'([^']+)'", src)
         if m:
             val = m.group(1)
-            # 일반 이모지 범위 (U+1F300–U+1FFFF)
+            # General emoji range (U+1F300–U+1FFFF)
             has_emoji = any(0x1F300 <= ord(c) <= 0x1FFFF for c in val)
             self.assertFalse(has_emoji, f"btn_add_file 값에 이모지 포함: {repr(val)}")
 
     def test_btn_add_folder_no_emoji(self):
-        """btn_add_folder 번역값에서 이모지가 제거되었어야 한다."""
+        """Emojis must have been stripped from the btn_add_folder translation values."""
         src = self._src()
         m = _re.search(r"'btn_add_folder'\s*:\s*'([^']+)'", src)
         if m:
@@ -2841,11 +2841,11 @@ class TestV012Regression(unittest.TestCase):
             has_emoji = any(0x1F300 <= ord(c) <= 0x1FFFF for c in val)
             self.assertFalse(has_emoji, f"btn_add_folder 값에 이모지 포함: {repr(val)}")
 
-    # ── 로그 시스템 ───────────────────────────────────────────────────
+    # ── Logging system ───────────────────────────────────────────────────
     def test_crash_log_max_3(self):
-        """crash 로그 최대 보관 수가 3개로 줄었어야 한다 (v0.12.0: 20→3)."""
+        """Crash-log retention must have been reduced to 3 (v0.12.0: 20 → 3)."""
         src = self._src()
-        # 크래시 로그 cleanup 로직에서 3 또는 -3 슬라이싱이 사용되는지 확인
+        # Verify the crash-log cleanup uses 3 or -3 slicing
         self.assertTrue(
             _re.search(r'crash.*\b3\b', src, _re.IGNORECASE) is not None or
             'sorted_logs[3:]' in src or 'sorted_logs[-3:]' in src or
@@ -2857,61 +2857,61 @@ class TestV012Regression(unittest.TestCase):
         )
 
     def test_session_log_auto_delete_on_normal_exit(self):
-        """정상 종료 시 세션 로그 자동 삭제 로직이 있어야 한다."""
+        """On normal shutdown, session logs must be auto-deleted."""
         src = self._src()
         self.assertIn('session', src.lower())
-        # closeEvent에서 세션 로그 파일을 닫거나 삭제하는 코드
+        # Code in closeEvent that closes or deletes the session log file
         self.assertTrue(
             'session_log' in src or '_session_log_fp' in src,
             "세션 로그 관련 코드가 소스에 없음"
         )
 
-    # ── _svg_html_img 보존 ────────────────────────────────────────────
+    # ── _svg_html_img preservation ───────────────────────────────────────
     def test_svg_html_img_preserved_unused(self):
-        """_svg_html_img()가 미사용 상태로 보존되어 있어야 한다."""
+        """_svg_html_img() must remain preserved even though unused."""
         self.assertIn('def _svg_html_img(', self._src())
 
 
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
 class TestV012RegressionModule(unittest.TestCase):
-    """v0.12.0 모듈 로드 기반 회귀 테스트 (PySide6 필요)."""
+    """v0.12.0 module-load-based regression test (PySide6 required)."""
 
     def test_svg_paths_is_dict(self):
-        """_SVG_PATHS가 dict 타입이어야 한다."""
+        """_SVG_PATHS must be of type dict."""
         svg_paths = _ns.get('_SVG_PATHS')
         self.assertIsNotNone(svg_paths, "_SVG_PATHS가 namespace에 없음")
         self.assertIsInstance(svg_paths, dict)
 
     def test_svg_line_icons_is_dict(self):
-        """_SVG_LINE_ICONS가 dict 타입이어야 한다."""
+        """_SVG_LINE_ICONS must be of type dict."""
         svg_line = _ns.get('_SVG_LINE_ICONS')
         self.assertIsNotNone(svg_line, "_SVG_LINE_ICONS가 namespace에 없음")
         self.assertIsInstance(svg_line, dict)
 
     def test_svg_paths_has_all_filled_keys(self):
-        """_SVG_PATHS에 17개 이상의 filled 아이콘이 있어야 한다."""
+        """_SVG_PATHS must contain 17 or more filled icons."""
         svg_paths = _ns.get('_SVG_PATHS', {})
         self.assertGreaterEqual(len(svg_paths), 17,
             f"_SVG_PATHS 항목 수 부족: {len(svg_paths)}")
 
     def test_svg_line_icons_has_all_line_keys(self):
-        """_SVG_LINE_ICONS에 14개 이상의 line 아이콘이 있어야 한다."""
+        """_SVG_LINE_ICONS must contain 14 or more line icons."""
         svg_line = _ns.get('_SVG_LINE_ICONS', {})
         self.assertGreaterEqual(len(svg_line), 14,
             f"_SVG_LINE_ICONS 항목 수 부족: {len(svg_line)}")
 
     def test_broom_line_in_svg_line_icons(self):
-        """_SVG_LINE_ICONS에 broom_line 키가 있어야 한다 (Bulk Fixer 탭 아이콘)."""
+        """_SVG_LINE_ICONS must contain the broom_line key (Bulk Fixer tab icon)."""
         svg_line = _ns.get('_SVG_LINE_ICONS', {})
         self.assertIn('broom_line', svg_line)
 
     def test_broom_in_svg_paths(self):
-        """_SVG_PATHS에 broom 키가 있어야 한다 (filled 스타일 보존)."""
+        """_SVG_PATHS must contain the broom key (filled style preserved)."""
         svg_paths = _ns.get('_SVG_PATHS', {})
         self.assertIn('broom', svg_paths)
 
     def test_all_themes_have_btn_border_h_key(self):
-        """모든 테마 딕셔너리에 BTN_BORDER_H 키가 있어야 한다."""
+        """Every theme dictionary must include the BTN_BORDER_H key."""
         themes = _ns.get('THEMES', {})
         for name, t in themes.items():
             with self.subTest(theme=name):
@@ -2919,32 +2919,32 @@ class TestV012RegressionModule(unittest.TestCase):
                     f"테마 '{name}'에 BTN_BORDER_H 없음")
 
     def test_themes_count_module(self):
-        """THEMES에 테마가 9개 있어야 한다."""
+        """THEMES must contain 9 themes."""
         themes = _ns.get('THEMES', {})
         self.assertEqual(len(themes), 9, f"테마 수 불일치: {sorted(themes.keys())}")
 
     def test_app_version_from_ns(self):
-        """namespace에서 가져온 APP_VERSION이 v1.0.0 이상이어야 한다."""
+        """The APP_VERSION pulled from the namespace must be v1.0.0 or higher."""
         ver = _ns.get('APP_VERSION')
         self.assertIsNotNone(ver, "APP_VERSION 없음")
-        # v1.0.0 이상이면 OK
+        # v1.0.0 or higher passes
         parts = ver.split('.')
         self.assertGreaterEqual(int(parts[0]), 1, f"메이저 버전 < 1: {ver}")
 
     def test_svg_icon_callable(self):
-        """_svg_icon 함수가 namespace에 존재하고 호출 가능해야 한다."""
+        """The _svg_icon function must exist in the namespace and be callable."""
         fn = _ns.get('_svg_icon')
         self.assertIsNotNone(fn, "_svg_icon이 namespace에 없음")
         self.assertTrue(callable(fn))
 
     def test_svg_html_img_callable(self):
-        """_svg_html_img 함수가 namespace에 보존되어 있어야 한다."""
+        """The _svg_html_img function must remain in the namespace."""
         fn = _ns.get('_svg_html_img')
         self.assertIsNotNone(fn, "_svg_html_img이 namespace에 없음")
         self.assertTrue(callable(fn))
 
     def test_translations_btn_keys_no_emoji(self):
-        """번역 키 btn_add_file / btn_add_folder 값에 이모지가 없어야 한다."""
+        """Translation values for btn_add_file / btn_add_folder must contain no emojis."""
         translations = _ns.get('TRANSLATIONS', {})
         ko = translations.get('ko', {})
         for key in ('btn_add_file', 'btn_add_folder', 'btn_del_sel', 'btn_del_all'):
@@ -2956,45 +2956,45 @@ class TestV012RegressionModule(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가L  v1.0.0 회귀 — 소스 파싱 기반 (PySide6 불필요)
+# §ExtraL  v1.0.0 regression — source-parsing based (PySide6 not required)
 # ════════════════════════════════════════════════════════════════════════
 class TestV100Regression(unittest.TestCase):
-    """v1.0.0 주요 변경사항 회귀 테스트 — 소스 파일 직접 파싱."""
+    """Regression test for v1.0.0 major changes — parse the source file directly."""
 
     def _src(self):
         with open(_MAIN_PY, encoding='utf-8') as f:
             return f.read()
 
-    # ── 버전 ────────────────────────────────────────────────────────────
+    # ── Version ──────────────────────────────────────────────────────────
     def test_app_version_100(self):
-        """APP_VERSION이 v1.0.0 이상"""
+        """APP_VERSION is v1.0.0 or higher"""
         m = _re.search(r'^APP_VERSION\s*=\s*["\']([^"\']+)["\']', self._src(), _re.MULTILINE)
         self.assertIsNotNone(m, "APP_VERSION 정의 없음")
         parts = m.group(1).split('.')
         self.assertGreaterEqual(int(parts[0]), 1, f"메이저 버전 < 1: {m.group(1)}")
 
-    # ── QPlainTextEdit 교체 ──────────────────────────────────────────
+    # ── QPlainTextEdit replacement ───────────────────────────────────────
     def test_qplaintextedit_import(self):
-        """QPlainTextEdit가 import되어 있어야 한다 (QTextEdit 대용량 한계 해결)."""
+        """QPlainTextEdit must be imported (resolves the large-input limit of QTextEdit)."""
         self.assertIn('QPlainTextEdit', self._src())
 
     def test_text_fixer_edit_uses_qplaintextedit(self):
-        """TextFixerEdit가 QPlainTextEdit 기반이어야 한다."""
+        """TextFixerEdit must be based on QPlainTextEdit."""
         src = self._src()
         m = _re.search(r'class TextFixerEdit\((\w+)\)', src)
         self.assertIsNotNone(m, "TextFixerEdit 클래스 정의 없음")
         self.assertEqual(m.group(1), 'QPlainTextEdit')
 
     def test_text_fixer_output_edit_uses_qplaintextedit(self):
-        """TextFixerOutputEdit가 QPlainTextEdit 기반이어야 한다."""
+        """TextFixerOutputEdit must be based on QPlainTextEdit."""
         src = self._src()
         m = _re.search(r'class TextFixerOutputEdit\((\w+)\)', src)
         self.assertIsNotNone(m, "TextFixerOutputEdit 클래스 정의 없음")
         self.assertEqual(m.group(1), 'QPlainTextEdit')
 
-    # ── 애니메이션 위젯 ──────────────────────────────────────────────
+    # ── Animation widget ─────────────────────────────────────────────────
     def test_scroll_hint_class(self):
-        """_ScrollHint 클래스가 정의되어 있어야 한다."""
+        """The _ScrollHint class must be defined."""
         self.assertIn('class _ScrollHint', self._src())
 
     def test_help_button_class(self):
@@ -3005,7 +3005,7 @@ class TestV100Regression(unittest.TestCase):
         """_GearButton 클래스가 정의되어 있어야 한다."""
         self.assertIn('class _GearButton', self._src())
 
-    # ── Output 폴더 전역 설정 ────────────────────────────────────────
+    # ── Output folder global settings ────────────────────────────────
     def test_output_dir_in_cfg(self):
         """_CFG에 output_dir 키가 사용되어야 한다."""
         self.assertIn("'output_dir'", self._src())
@@ -3019,7 +3019,7 @@ class TestV100Regression(unittest.TestCase):
         """os.path.commonpath 기반 상대 경로 재현 로직이 있어야 한다."""
         self.assertIn('commonpath', self._src())
 
-    # ── Bulk Fixer 프리셋 ────────────────────────────────────────────
+    # ── Bulk Fixer preset ────────────────────────────────────────────
     def test_bulk_combo_preset(self):
         """Bulk Fixer에 _combo_preset 콤보박스가 있어야 한다."""
         self.assertIn('_combo_preset', self._src())
@@ -3028,17 +3028,17 @@ class TestV100Regression(unittest.TestCase):
         """_apply_preset 메서드가 정의되어 있어야 한다."""
         self.assertIn('def _apply_preset', self._src())
 
-    # ── Bulk Fixer abort 버튼 ────────────────────────────────────────
+    # ── Bulk Fixer abort button ──────────────────────────────────────
     def test_btn_abort_widget(self):
         """_btn_abort 위젯이 있어야 한다 (btn_undo에서 분리)."""
         self.assertIn('_btn_abort', self._src())
 
-    # ── grp_title_lbl 스타일 ─────────────────────────────────────────
+    # ── grp_title_lbl style ──────────────────────────────────────────
     def test_grp_title_lbl_style(self):
         """make_style에 QLabel#grp_title_lbl 스타일이 있어야 한다."""
         self.assertIn('grp_title_lbl', self._src())
 
-    # ── 섹션 헤더 // 접두사 ──────────────────────────────────────────
+    # ── Section header // prefix ─────────────────────────────────────
     def test_section_header_prefix(self):
         """tf_grp_input/output 번역 키에 '//' 접두사가 사용되어야 한다."""
         src = self._src()
@@ -3056,7 +3056,7 @@ class TestV100RegressionModule(unittest.TestCase):
         """namespace에서 가져온 APP_VERSION이 v1.0.0 이상이어야 한다."""
         ver = _ns.get('APP_VERSION')
         self.assertIsNotNone(ver, "APP_VERSION 없음")
-        # v1.0.0 이상이면 OK (v1.0.1, v1.0.2, v1.0.3 등 모두 통과)
+        # OK if v1.0.0 or higher (v1.0.1, v1.0.2, v1.0.3, etc. all pass)
         parts = ver.split('.')
         self.assertGreaterEqual(int(parts[0]), 1, f"메이저 버전 < 1: {ver}")
 
@@ -3102,7 +3102,7 @@ class TestV100RegressionModule(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가N  v1.0.3 인코딩 감지 회귀 방지
+# §AdditionalN  v1.0.3 encoding detection regression prevention
 # ════════════════════════════════════════════════════════════════════════
 class TestV103Regression(unittest.TestCase):
     """v1.0.3 — Text Fixer·Bulk Fixer 인코딩 감지 버그 회귀 방지."""
@@ -3113,10 +3113,10 @@ class TestV103Regression(unittest.TestCase):
             cls.src = f.read()
 
     def test_no_latin_1_fallback_in_text_fixer(self):
-        """TextFixerPanel.load_file이 latin-1 폴백을 사용하지 않아야 함.
-        v1.0.2까지는 latin-1 폴백이 있어서 잘못된 인코딩의 파일도
-        무조건 디코딩 '성공'시켜 깨진 텍스트가 그대로 처리됐음."""
-        # load_file 메서드 본문 추출
+        """TextFixerPanel.load_file must NOT use a latin-1 fallback.
+        Up to v1.0.2 a latin-1 fallback existed, so files with wrong encoding would
+        be unconditionally decoded as 'successful', letting broken text through."""
+        # Extract load_file method body
         m = re.search(
             r'def load_file\(self, path: str\):(.*?)(?=\n    def |\nclass )',
             self.src, re.DOTALL)
@@ -3127,7 +3127,7 @@ class TestV103Regression(unittest.TestCase):
 
     def test_no_latin_1_in_bulk_fixer_worker(self):
         """BulkFixerWorker.run이 latin-1 폴백을 사용하지 않아야 함."""
-        # BulkFixerWorker.run 메서드 내 for enc 리스트 추출
+        # Extract for-enc list inside BulkFixerWorker.run method
         m = re.search(
             r'class BulkFixerWorker.*?def run\(self\):(.*?)(?=\n    def |\nclass )',
             self.src, re.DOTALL)
@@ -3147,10 +3147,10 @@ class TestV103Regression(unittest.TestCase):
             "BulkFixerPanel._on_file_selected에 latin-1 폴백이 남아있음 (v1.0.2 버그)")
 
     def test_alchemy_used_in_text_fixer(self):
-        """TextFixerPanel.load_file이 alchemy 기반 인코딩 감지를 사용해야 함.
+        """TextFixerPanel.load_file must use alchemy-based encoding detection.
 
-        v1.0.6 Phase 2-a부터 직접 호출 또는 safe_read_text_with_report 헬퍼 경유
-        (헬퍼 내부 L3935가 alchemy_detect_encoding을 호출) 둘 다 허용.
+        From v1.0.6 Phase 2-a, both direct call and via safe_read_text_with_report helper
+        (helper's internal L3935 invokes alchemy_detect_encoding) are accepted.
         """
         m = re.search(
             r'def load_file\(self, path: str\):(.*?)(?=\n    def |\nclass )',
@@ -3163,10 +3163,10 @@ class TestV103Regression(unittest.TestCase):
             "(직접 호출 또는 safe_read_text_with_report 헬퍼 경유)")
 
     def test_alchemy_used_in_bulk_worker(self):
-        """BulkFixerWorker.run이 alchemy 기반 인코딩 감지를 사용해야 함.
+        """BulkFixerWorker.run must use alchemy-based encoding detection.
 
-        v1.0.6 Phase 2-a부터 직접 호출 또는 safe_read_text_with_report 헬퍼 경유
-        (헬퍼 내부 L3935가 alchemy_detect_encoding을 호출) 둘 다 허용.
+        From v1.0.6 Phase 2-a, both direct call and via safe_read_text_with_report helper
+        (helper's internal L3935 invokes alchemy_detect_encoding) are accepted.
         """
         m = re.search(
             r'class BulkFixerWorker.*?def run\(self\):(.*?)(?=\n    def |\nclass )',
@@ -3179,10 +3179,10 @@ class TestV103Regression(unittest.TestCase):
             "(직접 호출 또는 safe_read_text_with_report 헬퍼 경유)")
 
     def test_alchemy_used_in_bulk_preview(self):
-        """BulkFixerPanel._on_file_selected이 alchemy 기반 인코딩 감지를 사용해야 함.
+        """BulkFixerPanel._on_file_selected must use alchemy-based encoding detection.
 
-        v1.0.6 Phase 2-a부터 직접 호출 또는 safe_read_text_with_report 헬퍼 경유
-        (헬퍼 내부 L3935가 alchemy_detect_encoding을 호출) 둘 다 허용.
+        From v1.0.6 Phase 2-a, both direct call and via safe_read_text_with_report helper
+        (helper's internal L3935 invokes alchemy_detect_encoding) are accepted.
         """
         m = re.search(
             r'def _on_file_selected\(self, cur, _prev\):(.*?)(?=\n    def |\nclass )',
@@ -3196,7 +3196,7 @@ class TestV103Regression(unittest.TestCase):
 
     def test_cjk_encodings_listed(self):
         """3곳 모두 shift_jis/gbk/big5 폴백이 추가되어야 함 (5개 언어 지원 일치)."""
-        # 간단하게 전체 소스에서 3회 이상 등장하는지만 확인
+        # Simply verify it appears 3 or more times in the entire source
         for enc in ('shift_jis', 'gbk', 'big5'):
             count = self.src.count(f"'{enc}'")
             self.assertGreaterEqual(count, 3,
@@ -3208,9 +3208,9 @@ class TestV103RegressionModule(unittest.TestCase):
     """v1.0.3 모듈 로드 기반 회귀 테스트."""
 
     def test_app_version_is_103(self):
-        """APP_VERSION이 '1.0.3' 이상이어야 한다.
-        v1.0.3에 도입된 인코딩 감지 개선 기능 회귀 검증이므로,
-        1.0.3 이상이면 충족 (V012/V100 패턴과 일관)."""
+        """APP_VERSION must be '1.0.3' or higher.
+        Verifies the encoding-detection improvement introduced in v1.0.3,
+        so 1.0.3 or higher satisfies it (consistent with V012/V100 pattern)."""
         ver = _ns.get('APP_VERSION')
         self.assertIsNotNone(ver, "APP_VERSION 정의 없음")
         parts = [int(p) for p in ver.split('.')]
@@ -3218,8 +3218,8 @@ class TestV103RegressionModule(unittest.TestCase):
             f"APP_VERSION {ver}은 1.0.3 이상이어야 함")
 
     def test_alchemy_detect_encoding_utf16_le(self):
-        """alchemy_detect_encoding이 UTF-16 LE를 정확히 감지.
-        v1.0.4: (encoding, confidence) 튜플 반환으로 변경됨 — 첫 요소 확인."""
+        """alchemy_detect_encoding correctly detects UTF-16 LE.
+        v1.0.4: changed to return an (encoding, confidence) tuple — verify first element."""
         detect = _ns.get('alchemy_detect_encoding')
         self.assertIsNotNone(detect)
         import tempfile
@@ -3228,15 +3228,15 @@ class TestV103RegressionModule(unittest.TestCase):
             path = f.name
         try:
             result = detect(path)
-            # v1.0.3까지: str, v1.0.4부터: (str, float). 두 형식 모두 호환.
+            # Up to v1.0.3: str, from v1.0.4: (str, float). Both formats compatible.
             enc = result[0] if isinstance(result, tuple) else result
             self.assertEqual(enc, 'utf-16')
         finally:
             os.unlink(path)
 
     def test_alchemy_detect_encoding_utf16_be(self):
-        """alchemy_detect_encoding이 UTF-16 BE를 정확히 감지.
-        v1.0.4: (encoding, confidence) 튜플 반환으로 변경됨 — 첫 요소 확인."""
+        """alchemy_detect_encoding correctly detects UTF-16 BE.
+        v1.0.4: changed to return an (encoding, confidence) tuple — verify first element."""
         detect = _ns.get('alchemy_detect_encoding')
         self.assertIsNotNone(detect)
         import tempfile
@@ -3252,16 +3252,16 @@ class TestV103RegressionModule(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# v1.0.4 회귀 테스트 — Text Merger 종합 개선
+# v1.0.4 regression tests — Text Merger comprehensive improvements
 # ════════════════════════════════════════════════════════════════════════
 class TestV104Regression(unittest.TestCase):
-    """v1.0.4 — Text Merger 인코딩 옵션 확장 + 사전 경고 + 신뢰도 UI + 통합.
+    """v1.0.4 — Text Merger encoding-option expansion + pre-warning + confidence UI + integration.
 
-    인수인계 후보 1/2/3/4를 모두 포함:
-      - D. _detect_encoding 통합 (alchemy 시그니처 (str, float) 확장)
-      - A. Text Merger 저장 인코딩 확장 (Shift-JIS / GBK / Big5)
-      - B. UnicodeEncodeError 사전 경고 다이얼로그
-      - C. 신뢰도 % 색상 코딩 + 툴팁
+    Covers all four handover candidates 1/2/3/4:
+      - D. _detect_encoding integration (alchemy signature expanded to (str, float))
+      - A. Text Merger save-encoding expansion (Shift-JIS / GBK / Big5)
+      - B. UnicodeEncodeError pre-warning dialog
+      - C. Confidence-% color coding + tooltip
     """
 
     @classmethod
@@ -3269,7 +3269,7 @@ class TestV104Regression(unittest.TestCase):
         with open(_MAIN_PY, encoding='utf-8') as f:
             cls.src = f.read()
 
-    # ── D: _detect_encoding 통합 ──────────────────────────────────
+    # ── D: _detect_encoding integration ──────────────────────────
     def test_alchemy_returns_tuple_in_source(self):
         """alchemy_detect_encoding 함수가 (enc, conf) 튜플 형식으로 반환해야 함."""
         m = re.search(
@@ -3277,55 +3277,55 @@ class TestV104Regression(unittest.TestCase):
             self.src, re.DOTALL)
         self.assertIsNotNone(m, "alchemy_detect_encoding 함수를 찾을 수 없음")
         body = m.group(1)
-        # return 문이 튜플 형식 ("...", ...)인지 확인 (문자열만 반환하던 v1.0.3 형식 차단)
+        # Verify return statement is tuple-shaped ("...", ...) (blocks v1.0.3 string-only form)
         self.assertIn('return ("utf-8-sig", 1.0)', body,
             "BOM 감지 시 (str, float) 튜플 반환이 아님 (v1.0.3 시그니처 잔재)")
         self.assertIn('return ("utf-16", 1.0)', body,
             "UTF-16 BOM 감지 시 (str, float) 튜플 반환이 아님")
 
     def test_text_merger_no_self_detect_encoding(self):
-        """Text Merger 패널의 _detect_encoding 메서드가 제거되었어야 함 (alchemy 통합).
-        v1.0.3까지 Text Merger는 자체 _detect_encoding을 가지고 있었으나,
-        v1.0.4에서 alchemy_detect_encoding으로 통합됨."""
-        # MergePanel 클래스 내부에 def _detect_encoding이 있으면 안 됨
+        """Text Merger panel's _detect_encoding method must be removed (alchemy integration).
+        Up to v1.0.3 Text Merger had its own _detect_encoding, but
+        in v1.0.4 it was unified into alchemy_detect_encoding."""
+        # def _detect_encoding must NOT exist inside MergePanel class
         self.assertNotIn('def _detect_encoding(self, path)', self.src,
             "Text Merger의 _detect_encoding 메서드가 아직 남아있음 (D 작업 누락)")
 
     def test_text_merger_uses_alchemy(self):
         """Text Merger 파일 추가 흐름에서 alchemy_detect_encoding을 호출해야 함."""
-        # _add_files 또는 동등한 흐름에서 alchemy 호출 확인
-        # self._detect_encoding(path) → alchemy_detect_encoding(path) 변경됐는지
+        # Verify alchemy call in _add_files or equivalent flow
+        # Whether self._detect_encoding(path) → alchemy_detect_encoding(path) change was applied
         self.assertNotIn('self._detect_encoding(path)', self.src,
             "Text Merger가 여전히 self._detect_encoding을 호출 (D 작업 누락)")
-        # 호출 패턴 변경 확인
+        # Verify call-pattern change
         m = re.search(r'enc, conf = alchemy_detect_encoding\(path\)', self.src)
         self.assertIsNotNone(m, "Text Merger _add_files에서 alchemy 호출 패턴이 안 보임")
 
     def test_alchemy_callers_unpack_tuple(self):
-        """alchemy_detect_encoding의 모든 호출부가 튜플 언패킹을 사용해야 함.
-        v1.0.4: 시그니처 변경으로 (enc, conf) 또는 (enc, _) 형식으로 받아야 함.
+        """All call sites of alchemy_detect_encoding must use tuple unpacking.
+        v1.0.4: signature change requires receiving as (enc, conf) or (enc, _).
 
-        v1.0.6 Phase 2-a: TextFixer / BulkWorker / BulkPreview 3곳의 직접 호출이
-        safe_read_text_with_report 헬퍼로 통합되어 호출 건수 감소 (6건 이상 → 4건).
-        정의 1건(L3676) + safe_read_text_with_report 내부 1건 + Text Converter +
-        Text Merger = 총 4건이 Phase 2-a 이후 정상 수치.
+        v1.0.6 Phase 2-a: direct calls in TextFixer / BulkWorker / BulkPreview (3 sites)
+        were unified through safe_read_text_with_report helper, reducing call count (6+ → 4).
+        Definition 1 (L3676) + safe_read_text_with_report internal 1 + Text Converter +
+        Text Merger = total 4 is the expected count after Phase 2-a.
         """
-        # 호출 전체 카운트 (정의 포함 — regex는 정의도 매칭)
+        # Total call count (definitions included — regex matches definitions too)
         all_calls = re.findall(r'alchemy_detect_encoding\(', self.src)
         self.assertGreaterEqual(len(all_calls), 4,
             f"alchemy_detect_encoding 호출이 4건 미만: {len(all_calls)} "
             f"(Phase 2-a 이후 정상 하한은 4 — 정의 + 헬퍼 + Converter + Merger)")
-        # 단일 변수 할당 패턴(예: detected_enc = alchemy_detect_encoding(path)) 잔재 차단
+        # Block leftover single-variable assignment patterns (e.g., detected_enc = alchemy_detect_encoding(path))
         bad = re.findall(r'^\s*[a-z_]+ = alchemy_detect_encoding\(',
                          self.src, re.MULTILINE)
         self.assertEqual(bad, [],
             f"튜플 언패킹 안 한 호출부 발견 (v1.0.3 시그니처 잔재): {bad}")
 
-    # ── A: Text Merger 인코딩 옵션 추가 ──────────────────────────
+    # ── A: Add Text Merger encoding options ──────────────────────
     def test_text_merger_combo_has_cjk_encodings(self):
-        """Text Merger 콤보박스에 Shift-JIS, GBK, Big5가 추가되어야 함.
-        v1.0.5: addItems([...]) → _ENC_ITEMS 상수로 이동. 정규식을 상수 블록 검색으로 업데이트."""
-        # v1.0.5: _ENC_ITEMS 클래스 상수에서 CJK 3종 검증
+        """Text Merger combobox must include Shift-JIS, GBK, and Big5.
+        v1.0.5: addItems([...]) moved to _ENC_ITEMS constant. Regex updated to search the constant block."""
+        # v1.0.5: Verify CJK 3 types in _ENC_ITEMS class constant
         m = re.search(r'_ENC_ITEMS\s*=\s*\[(.*?)\]', self.src, re.DOTALL)
         self.assertIsNotNone(m,
             "_ENC_ITEMS 상수를 찾을 수 없음 (v1.0.5 구조 누락)")
@@ -3337,7 +3337,7 @@ class TestV104Regression(unittest.TestCase):
 
     def test_text_merger_codec_map_has_cjk(self):
         """저장 시 라벨→codec 매핑에 신규 3개가 추가되어야 함."""
-        # _enc_codec dict에 Shift-JIS / GBK / Big5 매핑 확인
+        # Verify Shift-JIS / GBK / Big5 mapping in _enc_codec dict
         for label, codec in (("Shift-JIS", "shift_jis"),
                               ("GBK",       "gbk"),
                               ("Big5",      "big5")):
@@ -3350,12 +3350,12 @@ class TestV104Regression(unittest.TestCase):
         """MergeEncodingDelegate의 _ENC_COLOR/_ENC_LABEL에 신규 인코딩 키가 있어야 함."""
         for key in ('shift_jis', 'gbk', 'big5'):
             with self.subTest(key=key):
-                # 두 dict 모두에 키가 등장해야 하므로 최소 2회
+                # Keys must appear in both dicts, so at least 2 occurrences
                 count = self.src.count(f"'{key}':")
                 self.assertGreaterEqual(count, 2,
                     f"_ENC_COLOR/_ENC_LABEL에 '{key}' 키 누락 (현재 {count}회)")
 
-    # ── B: UnicodeEncodeError 사전 경고 ──────────────────────────
+    # ── B: UnicodeEncodeError pre-warning ────────────────────────
     def test_alchemy_check_encoding_compat_defined(self):
         """v1.0.4 신규 함수 alchemy_check_encoding_compat이 정의되어야 함."""
         self.assertIn('def alchemy_check_encoding_compat(text, codec):', self.src,
@@ -3379,15 +3379,15 @@ class TestV104Regression(unittest.TestCase):
                 self.assertGreaterEqual(count, 5,
                     f"'{key}' 키가 5개 언어 미만 정의됨 (현재 {count}회)")
 
-    # ── C: 신뢰도 색상 코딩 + 툴팁 ──────────────────────────────
+    # ── C: Confidence color coding + tooltip ─────────────────────
     def test_confidence_4_tier_color_coding(self):
         """MergeEncodingDelegate.paint에 신뢰도 4단계 색상 분기가 있어야 함."""
-        # 4가지 색상이 모두 등장하는지
+        # Whether all 4 colors appear
         for hex_color in ('#4CAF50', '#F1C40F', '#E67E22', '#E74C3C'):
             with self.subTest(color=hex_color):
                 self.assertIn(hex_color, self.src,
                     f"신뢰도 색상 {hex_color} 누락 (4단계 색상 코딩 미적용)")
-        # 임계값 분기 패턴 확인
+        # Verify threshold branching pattern
         self.assertIn('conf >= 0.90', self.src, "≥90% 분기 누락")
         self.assertIn('conf >= 0.70', self.src, "≥70% 분기 누락")
         self.assertIn('conf >= 0.50', self.src, "≥50% 분기 누락")
@@ -3398,34 +3398,34 @@ class TestV104Regression(unittest.TestCase):
         self.assertGreaterEqual(count, 5,
             f"'merge_low_conf_hint' 키가 5개 언어 미만 정의됨 (현재 {count}회)")
 
-    # ── 버그 수정 검증 (v1.0.4 초판 피드백 반영) ──────────────
+    # ── Bug-fix verification (v1.0.4 initial-release feedback) ──
     def test_dlg_question_supports_rich_text(self):
-        """_dlg_question이 rich_text 파라미터를 지원해야 함.
-        버그 1 수정: 경고 다이얼로그에서 HTML 태그(<b>, <br>, <code>)가
-        렌더링되지 않고 그대로 텍스트로 표시되던 문제 해결."""
-        # 함수 시그니처에 rich_text 파라미터 존재 확인
+        """_dlg_question must support a rich_text parameter.
+        Bug 1 fix: HTML tags (<b>, <br>, <code>) in warning dialogs were
+        displayed as plain text instead of being rendered — now fixed."""
+        # Verify rich_text parameter exists in function signature
         self.assertIn('def _dlg_question(parent, title: str, msg: str, min_width: int = 360, rich_text: bool = False)',
                       self.src,
                       "_dlg_question에 rich_text 파라미터 추가 누락")
-        # Text Merger 경고 호출부가 rich_text=True로 호출해야 함
+        # Text Merger warning call site must call with rich_text=True
         self.assertIn("_dlg_question(self, _t('merge_enc_warn_title'), warn_msg, min_width=460, rich_text=True)",
                       self.src,
                       "Text Merger 경고 다이얼로그 호출부가 rich_text=True를 전달하지 않음")
 
     def test_alchemy_fallback_covers_cjk(self):
-        """alchemy_detect_encoding의 폴백 로직에 CJK 인코딩 순차 검증이 포함되어야 함.
-        버그 2 수정: chardet이 ASCII로 시작하는 Shift-JIS 파일을 cp1006 등으로
-        오인식해도 폴백 단계에서 strict 디코딩으로 올바른 인코딩을 찾도록 강화."""
+        """alchemy_detect_encoding's fallback logic must include sequential CJK encoding probes.
+        Bug 2 fix: even when chardet misidentifies Shift-JIS files starting with ASCII as cp1006 etc.,
+        the fallback stage now uses strict decoding to find the correct encoding."""
         m = re.search(
             r'def alchemy_detect_encoding\(path\):(.*?)(?=\ndef |\nclass )',
             self.src, re.DOTALL)
         self.assertIsNotNone(m)
         body = m.group(1)
-        # 폴백 루프에 CJK 4종이 명시되어야 함 (순서 중요: cp949 → shift_jis → gbk → big5)
+        # Fallback loop must list CJK 4 types (order matters: cp949 → shift_jis → gbk → big5)
         self.assertIn('for _fallback in ("cp949", "shift_jis", "gbk", "big5"):',
                       body,
                       "alchemy 폴백 루프에 CJK 순차 검증 누락")
-        # raw.decode(_fallback) 패턴 확인
+        # Verify raw.decode(_fallback) pattern
         self.assertIn('raw.decode(_fallback)', body,
                       "alchemy 폴백 루프에서 strict 디코딩 검증 누락")
 
@@ -3435,12 +3435,12 @@ class TestV104RegressionModule(unittest.TestCase):
     """v1.0.4 모듈 로드 기반 회귀 테스트 — 런타임 동작 검증."""
 
     def test_app_version_is_104_or_later(self):
-        """APP_VERSION이 '1.0.4' 이상이어야 한다.
-        v1.0.4 시점: '정확히 1.0.4' 검증이었으나, 이후 버전(v1.0.5+)에서도 통과 가능하도록
-        '이상' 비교로 완화. 의도(v1.0.4 릴리즈 이후의 버전 번호) 유지."""
+        """APP_VERSION must be '1.0.4' or higher.
+        Originally at v1.0.4 release this checked 'exactly 1.0.4'; later relaxed to '>=' so
+        v1.0.5+ also passes. Intent preserved (any version released since v1.0.4)."""
         ver = _ns.get('APP_VERSION')
         self.assertIsNotNone(ver, "APP_VERSION 없음")
-        # '1.0.4' 이상 (문자열 비교 대신 튜플 비교로 '1.0.10' 같은 케이스도 대응)
+        # '1.0.4' or higher (use tuple compare instead of string compare to handle cases like '1.0.10')
         parts = tuple(int(p) for p in ver.split('.'))
         self.assertGreaterEqual(parts, (1, 0, 4),
             f"APP_VERSION이 v1.0.4 미만: {ver}")
@@ -3466,9 +3466,9 @@ class TestV104RegressionModule(unittest.TestCase):
             os.unlink(path)
 
     def test_check_encoding_compat_korean_to_shift_jis(self):
-        """한글 텍스트를 Shift-JIS로 저장 시도하면 손실 감지되어야 함.
-        v1.0.4 확장: SAMPLE_KO_LONG_SENTENCES(약 140자)로 확장하여 실제 사용 환경 근접.
-        v1.0.4 수정: 반환값이 5-tuple로 확장됨 (kinds, total, total_chars 추가)."""
+        """Saving Korean text as Shift-JIS must trigger loss detection.
+        v1.0.4 expansion: enlarged to SAMPLE_KO_LONG_SENTENCES (~140 chars) to approximate real usage.
+        v1.0.4 change: return value expanded to 5-tuple (kinds, total, total_chars added)."""
         check = _ns.get('alchemy_check_encoding_compat')
         self.assertIsNotNone(check, "alchemy_check_encoding_compat 함수 누락")
         has_loss, bad_kinds, bad_total, total_chars, samples = check(
@@ -3481,17 +3481,17 @@ class TestV104RegressionModule(unittest.TestCase):
         self.assertEqual(total_chars, len(SAMPLE_KO_LONG_SENTENCES),
             "total_chars가 텍스트 길이와 불일치")
         self.assertGreater(len(samples), 0, "샘플 문자가 비어있음")
-        # 긴 텍스트면 샘플 5개 슬롯이 채워져야 함 (한글은 고유 문자 종류 많음)
+        # Long text should fill all 5 sample slots (Korean has many distinct character types)
         self.assertEqual(len(samples), 5,
             f"긴 한글 텍스트인데 샘플이 5개 미만: {len(samples)}개")
 
     def test_check_encoding_compat_utf8_passthrough(self):
-        """UTF-8 인코딩은 모든 유니코드 문자를 표현 가능 → 손실 없음.
-        v1.0.4 확장: 다국어 + 이모지 조합을 풍부하게 늘려 실제 환경 근접.
-        v1.0.4 수정: 반환값이 5-tuple로 확장됨."""
+        """UTF-8 encoding can represent every Unicode character → no loss.
+        v1.0.4 expansion: richer multilingual + emoji mix to approximate real environments.
+        v1.0.4 change: return value expanded to 5-tuple."""
         check = _ns.get('alchemy_check_encoding_compat')
         self.assertIsNotNone(check)
-        # 한국어·일본어·중국어·이모지·특수문자 혼합 긴 텍스트
+        # Long text mixing Korean, Japanese, Chinese, emojis, and special characters
         text = ('안녕하세요 반갑습니다. 이것은 인코딩 호환성 검증을 위한 테스트 문장입니다. '
                 'こんにちは世界。これは日本語のサンプル文章です。テスト用に作成されました。 '
                 '你好世界。这是简体中文的测试样本。用于验证编码兼容性。 '
@@ -3506,11 +3506,11 @@ class TestV104RegressionModule(unittest.TestCase):
         self.assertEqual(samples, [])
 
     def test_check_encoding_compat_samples_limited_to_5(self):
-        """샘플 리스트는 깨질 문자가 많아도 최대 5개로 제한되어야 함 (다이얼로그 가독성).
-        v1.0.4 수정: 반환값이 5-tuple로 확장됨."""
+        """Sample list must be capped at 5 even with many breakable chars (dialog readability).
+        v1.0.4 change: return value expanded to 5-tuple."""
         check = _ns.get('alchemy_check_encoding_compat')
         self.assertIsNotNone(check)
-        # 깨질 고유 문자 수십 개 확보 (이모지 + 한글 + 일본어 + 중국어)
+        # Secure dozens of unique breakable chars (emoji + Korean + Japanese + Chinese)
         text = ('🌸🌏🎉🔥🌟🎨🎭🎪🎯🎲'
                 '안녕하세요반갑습니다테스트문장'
                 'こんにちは世界サンプル文章'
@@ -3522,43 +3522,43 @@ class TestV104RegressionModule(unittest.TestCase):
             f"샘플 개수가 5개로 제한되지 않음: {len(samples)}개")
 
     def test_check_encoding_compat_total_affected_count(self):
-        """영향받는 총 글자 수는 중복을 포함한 실제 ? 대체 개수와 일치해야 함.
-        v1.0.4 B 옵션: 사용자에게 '실제 파일의 몇 %가 깨지는지' 정확히 안내하기 위함."""
+        """Total affected character count must match the actual ? substitution count (including duplicates).
+        v1.0.4 option B: gives the user an accurate '% of the actual file that breaks'."""
         check = _ns.get('alchemy_check_encoding_compat')
         self.assertIsNotNone(check)
-        # '한' 문자가 정확히 10번 반복 + ASCII 공백
-        text = '한 ' * 10  # 총 20자 중 '한'이 10번
+        # '한' character repeats exactly 10 times + ASCII spaces
+        text = '한 ' * 10  # 20 chars total — '한' appears 10 times
         has_loss, bad_kinds, bad_total, total_chars, samples = check(text, 'cp1252')
         self.assertTrue(has_loss)
-        # cp1252는 한글 표현 불가, 공백은 표현 가능 → '한' 10번이 전부 깨짐
+        # cp1252 can't represent Hangul but can represent spaces → all 10 '한' break
         self.assertEqual(bad_kinds, 1, f"고유 종류 수가 1이 아님: {bad_kinds}")
         self.assertEqual(bad_total, 10, f"영향 총 글자 수가 10이 아님: {bad_total}")
         self.assertEqual(total_chars, 20, f"전체 글자 수가 20이 아님: {total_chars}")
-        # 실제로 replace 저장 시 ? 개수와 일치하는지 교차 검증
+        # Cross-verify it matches the ? count when actually saved with replace
         encoded = text.encode('cp1252', errors='replace')
         question_count = encoded.count(b'?')
         self.assertEqual(bad_total, question_count,
             f"bad_total({bad_total}) != 실제 ? 개수({question_count})")
 
     def test_alchemy_detect_ascii_started_shift_jis(self):
-        """ASCII로 시작하는 Shift-JIS 파일을 올바르게 감지해야 함.
-        버그 2 수정: chardet이 이런 파일을 cp1006(우르두어) 등으로 오인식하는데,
-        alchemy 폴백 단계에서 CJK 순차 strict 검증으로 구제.
+        """Shift-JIS files starting with ASCII must be detected correctly.
+        Bug 2 fix: chardet misidentifies such files as cp1006 (Urdu) and similar,
+        but alchemy's fallback stage rescues them via sequential strict CJK probing.
 
-        테스트 컨텐츠는 실제 보고된 케이스(~9KB) 수준으로 충분히 길게 구성.
-        짧은 컨텐츠는 cp949로도 우연히 decode 성공할 수 있어 의미 있는 검증이 안 됨."""
+        Test content is built long enough (~9KB) to mirror the actually reported case.
+        Short content may accidentally decode under cp949, giving no meaningful validation."""
         detect = _ns.get('alchemy_detect_encoding')
         self.assertIsNotNone(detect)
         import tempfile
-        # 실제 보고된 케이스(9552 bytes) 수준으로 충분한 일본어 본문 포함
-        # + Shift-JIS 고유 특수문자로 cp949 decode 실패 보장
+        # Includes enough Japanese text to match the actually reported case (9552 bytes)
+        # + Shift-JIS-unique punctuation guarantees cp949 decode failure
         ja_line = 'これは日本語のエンコーディングテストです。漢字・ひらがな・カタカナを含みます。\r\n'
-        special = '々ヽヾゝゞ〃仝〆〇ー「」『』〜\r\n'  # Shift-JIS 고유 심볼 (모두 인코딩 가능)
+        special = '々ヽヾゝゞ〃仝〆〇ー「」『』〜\r\n'  # Shift-JIS-unique symbols (all encodable)
         content = ('Hello. This is an English encoding test file.\r\n'
                    'For File Nexus Suite Bulk Fixer verification.\r\n'
                    '\r\n'
-                   + ja_line * 80  # ~8KB 일본어
-                   + special * 10)  # Shift-JIS 고유 문자 확실히 포함
+                   + ja_line * 80  # ~8KB of Japanese
+                   + special * 10)  # ensure Shift-JIS-unique chars included
         with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as f:
             f.write(content.encode('shift_jis'))
             path = f.name
@@ -3571,13 +3571,13 @@ class TestV104RegressionModule(unittest.TestCase):
 
 
 class TestV105Regression(unittest.TestCase):
-    """v1.0.5 — Text Merger 저장 인코딩 드롭다운 UI 사용성 개선 (소스 검증).
+    """v1.0.5 — Text Merger save-encoding dropdown UI usability improvements (source-level verification).
 
-    핵심 변경:
-      - 콤보박스: addItems(문자열) → addItem(display, userData) 패턴
-      - 내부 키(기존 8종)는 userData에 보존 → 기존 설정값 100% 호환
-      - 표시 라벨은 언어별 i18n 키 참조 (예: 'Shift-JIS (일본어)', '(日文)' 등)
-      - 도움말 라벨 신규 (merge_enc_hint): "확실하지 않으면 UTF-8을 선택하세요"
+    Key changes:
+      - Combobox: addItems(strings) → addItem(display, userData) pattern
+      - Internal keys (existing 8) preserved in userData → 100% compatible with prior settings
+      - Display labels reference per-language i18n keys (e.g., 'Shift-JIS (Japanese)', '(日文)', etc.)
+      - New help label (merge_enc_hint): "If unsure, select UTF-8"
     """
 
     @classmethod
@@ -3585,7 +3585,7 @@ class TestV105Regression(unittest.TestCase):
         with open(_MAIN_PY, encoding='utf-8') as f:
             cls.src = f.read()
 
-    # ── 클래스 상수 _ENC_ITEMS 검증 ───────────────────────────────
+    # ── Class constant _ENC_ITEMS verification ───────────────────
     def test_enc_items_constant_defined(self):
         """TextMergerPanel에 _ENC_ITEMS 클래스 상수가 정의되어야 한다."""
         self.assertIn('_ENC_ITEMS = [', self.src,
@@ -3603,28 +3603,28 @@ class TestV105Regression(unittest.TestCase):
         for key in expected_keys:
             self.assertIn(f'"{key}"', block,
                 f"_ENC_ITEMS에 내부 키 {key!r} 누락 (설정 호환성 위험)")
-        # 각 키마다 i18n 키 매핑
+        # Each key maps to an i18n key
         for i18n_key in ['merge_enc_utf8', 'merge_enc_utf8_bom', 'merge_enc_euckr',
                          'merge_enc_cp949', 'merge_enc_utf16', 'merge_enc_shiftjis',
                          'merge_enc_gbk', 'merge_enc_big5']:
             self.assertIn(f"'{i18n_key}'", block,
                 f"_ENC_ITEMS에 i18n 키 {i18n_key!r} 누락")
 
-    # ── 콤보박스 addItem 패턴 검증 ────────────────────────────────
+    # ── Combobox addItem pattern verification ────────────────────
     def test_combo_uses_add_item_with_user_data(self):
         """콤보박스 초기화는 addItem(display, userData) 패턴을 사용해야 한다."""
-        # v1.0.4의 addItems(["UTF-8", ...]) 패턴이 남아있으면 안 됨
+        # v1.0.4's addItems(["UTF-8", ...]) pattern must not remain
         self.assertNotIn(
             'self._combo_enc.addItems(["UTF-8", "UTF-8-BOM"',
             self.src,
             "v1.0.4 addItems 패턴이 아직 남아있음 (안 B 적용 누락)")
-        # 새 패턴 확인
+        # Verify the new pattern
         self.assertIn(
             'self._combo_enc.addItem(_t(_i18n_key), _enc_key)',
             self.src,
             "addItem(display, userData) 신규 패턴이 보이지 않음")
 
-    # ── 도움말 라벨 검증 ─────────────────────────────────────────
+    # ── Help-label verification ──────────────────────────────────
     def test_enc_hint_label_created(self):
         """_lbl_enc_hint QLabel이 생성되어야 한다 (콤보박스 아래 도움말)."""
         self.assertIn('self._lbl_enc_hint = QLabel(_t(\'merge_enc_hint\'))', self.src,
@@ -3640,10 +3640,10 @@ class TestV105Regression(unittest.TestCase):
         self.assertIn('self._combo_enc.setItemText(_i, _t(_i18n_key))', self.src,
             "retranslate()에서 콤보박스 아이템 라벨 갱신 로직 누락")
 
-    # ── currentText → currentData 마이그레이션 검증 ─────────────
+    # ── currentText → currentData migration verification ────────
     def test_merge_files_uses_current_data(self):
         """_merge_files()에서 currentData() 기반으로 내부 키를 가져와야 한다."""
-        # v1.0.5: currentData() or currentText() 폴백 패턴
+        # v1.0.5: currentData() or currentText() fallback pattern
         self.assertIn(
             'self._save_enc = self._combo_enc.currentData() or self._combo_enc.currentText()',
             self.src,
@@ -3651,7 +3651,7 @@ class TestV105Regression(unittest.TestCase):
 
     def test_get_config_uses_current_data(self):
         """get_config()에서 currentData() 기반으로 내부 키를 저장해야 한다."""
-        # get_config 내부의 'combo_enc': 라인에 currentData()가 있어야 함
+        # get_config's 'combo_enc': line must use currentData()
         m = re.search(
             r"'combo_enc':\s*self\._combo_enc\.currentData\(\)\s*or\s*self\._combo_enc\.currentText\(\)",
             self.src)
@@ -3659,15 +3659,15 @@ class TestV105Regression(unittest.TestCase):
             "get_config()에서 currentData 폴백 패턴이 보이지 않음")
 
     def test_apply_config_uses_find_data_with_fallback(self):
-        """apply_config()는 findData() 우선, 실패 시 findText() 폴백을 사용해야 한다.
-        이유: v1.0.4까지는 표시 텍스트(='Shift-JIS')를 저장했으므로,
-        구버전 설정 파일을 v1.0.5가 열어도 로드 실패하지 않게 이중 방어."""
+        """apply_config() must prefer findData(), falling back to findText() on miss.
+        Reason: up to v1.0.4 the display text (e.g., 'Shift-JIS') was stored, so
+        v1.0.5 must load older config files without failure — double defense."""
         self.assertIn('idx = self._combo_enc.findData(enc)', self.src,
             "apply_config()에서 findData 호출 누락")
         self.assertIn('if idx < 0: idx = self._combo_enc.findText(enc)', self.src,
             "apply_config()에서 findText 폴백 누락 (구버전 호환 위험)")
 
-    # ── 45개 번역 항목 존재 검증 ─────────────────────────────────
+    # ── Verify all 45 translation entries exist ──────────────────
     def test_all_languages_have_enc_keys(self):
         """5개 언어 사전에 9개 merge_enc_* 키가 모두 있어야 한다 (총 45개)."""
         required_keys = [
@@ -3675,18 +3675,18 @@ class TestV105Regression(unittest.TestCase):
             'merge_enc_cp949', 'merge_enc_utf16', 'merge_enc_shiftjis',
             'merge_enc_gbk', 'merge_enc_big5', 'merge_enc_hint',
         ]
-        # 각 키가 최소 5회(5개 언어) 등장해야 함
+        # Each key must appear at least 5 times (5 languages)
         for key in required_keys:
             count = len(re.findall(rf"'{key}'\s*:", self.src))
             self.assertGreaterEqual(count, 5,
                 f"키 '{key}'가 5개 언어 사전 중 {count}개에만 존재 (누락)")
 
     def test_zh_uses_rifun_not_rigoyu(self):
-        """중국어 간체/번체에서 '日文' 표기를 사용해야 한다 (v1.0.4 tip과 일관성).
-        제가 작성 중 '日语'/'日語'로 실수할 여지가 있어 명시 검증."""
-        # 간체/번체 모두 Shift-JIS 라벨은 '(日文)'
-        # '日语'나 '日語'가 쓰였다면 잘못된 번역 (v1.0.4 tip은 일관되게 '日文')
-        # 중국어 사전 블록에서만 검사 (일본어 사전의 '日本語'는 정상)
+        """Simplified/Traditional Chinese must use the '日文' label (consistent with v1.0.4 tip).
+        Explicitly verified because '日语'/'日語' could be mistakenly written."""
+        # Both Simplified and Traditional use '(日文)' for Shift-JIS
+        # '日语' or '日語' would be a wrong translation (v1.0.4 tip uses '日文' consistently)
+        # Check only inside the Chinese dict block (Japanese dict's '日本語' is fine)
         m_zh_cn = re.search(
             r"'zh_cn':\s*\{(.*?)(?='zh_tw'|\Z)", self.src, re.DOTALL)
         self.assertIsNotNone(m_zh_cn, "zh_cn 사전 블록 탐색 실패")
@@ -3705,14 +3705,14 @@ class TestV105Regression(unittest.TestCase):
         self.assertNotIn("'Shift-JIS (日語)'", zh_tw_block,
             "중국어 번체에서 '日語' 사용됨 (v1.0.4 tip과 불일치)")
 
-    # ── APP_VERSION 검증은 TestAppVersion으로 분리됨 (v1.0.7에서 버전 독립 구조 검증으로 재설계) ─────
+    # ── APP_VERSION verification split into TestAppVersion (v1.0.7 redesign as version-independent structural check) ─────
 
 
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
 class TestV105RegressionModule(unittest.TestCase):
-    """v1.0.5 모듈 로드 기반 회귀 테스트 — 런타임 동작 검증.
+    """v1.0.5 module-load-based regression tests — runtime behavior verification.
 
-    주의: APP_VERSION 검증은 TestAppVersionModule로 분리됨 (v1.0.7에서 버전 독립 구조 검증으로 재설계)
+    Note: APP_VERSION verification was split into TestAppVersionModule (redesigned in v1.0.7 as version-independent structural verification)
     """
 
     def test_translations_have_all_enc_keys(self):
@@ -3738,8 +3738,8 @@ class TestV105RegressionModule(unittest.TestCase):
                     f"[{lang_code}] '{key}' 값이 빈 문자열")
 
     def test_enc_labels_contain_internal_keys(self):
-        """각 언어의 라벨이 내부 인코딩 키를 포함해야 한다 (예: 'UTF-8 (...)').
-        이유: 사용자가 라벨을 봐도 어떤 인코딩인지 식별 가능해야 함."""
+        """Each language's label must contain the internal encoding key (e.g., 'UTF-8 (...)').
+        Reason: users must be able to identify which encoding from the label alone."""
         translations = _ns.get('TRANSLATIONS')
         key_to_enc = [
             ('merge_enc_utf8',     'UTF-8'),
@@ -3759,8 +3759,8 @@ class TestV105RegressionModule(unittest.TestCase):
                     f"[{lang_code}] '{i18n_key}' 라벨에 '{enc_name}'가 없음: {label!r}")
 
     def test_zh_labels_use_rifun(self):
-        """중국어 간체/번체에서 Shift-JIS 라벨은 '日文'을 포함해야 한다.
-        (일본어권 '日本語'와 구별되는 중국어권 관용 표기)"""
+        """Simplified/Traditional Chinese Shift-JIS label must contain '日文'.
+        (Idiomatic Chinese form, distinct from Japanese-locale '日本語')"""
         translations = _ns.get('TRANSLATIONS')
         for lang_code in ('zh_cn', 'zh_tw'):
             label = translations[lang_code].get('merge_enc_shiftjis', '')
@@ -3772,15 +3772,15 @@ class TestV105RegressionModule(unittest.TestCase):
                 f"[{lang_code}] '日語' 사용됨 (v1.0.4 tip과 불일치): {label!r}")
 
     def test_enc_items_preserves_v104_keys(self):
-        """TextMergerPanel._ENC_ITEMS의 내부 키가 v1.0.4까지의 저장값과 호환되어야 한다.
-        이 테스트는 이전 사용자의 설정 파일을 열었을 때 정상 로드됨을 보장."""
+        """TextMergerPanel._ENC_ITEMS internal keys must remain compatible with values stored up to v1.0.4.
+        This test ensures older config files still load cleanly."""
         panel_cls = _ns.get('TextMergerPanel')
         self.assertIsNotNone(panel_cls, "TextMergerPanel 클래스 누락")
         enc_items = getattr(panel_cls, '_ENC_ITEMS', None)
         self.assertIsNotNone(enc_items, "_ENC_ITEMS 상수 누락")
-        # 내부 키만 추출
+        # Extract internal keys only
         internal_keys = [k for k, _ in enc_items]
-        # v1.0.4 콤보박스 순서와 동일해야 함 (setCurrentIndex 관련 회귀 방지)
+        # Must match v1.0.4 combobox order (regression guard for setCurrentIndex)
         expected_order = ['UTF-8', 'UTF-8-BOM', 'EUC-KR', 'CP949',
                           'UTF-16', 'Shift-JIS', 'GBK', 'Big5']
         self.assertEqual(internal_keys, expected_order,
@@ -3797,30 +3797,30 @@ class TestV105RegressionModule(unittest.TestCase):
 
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
 class TestV105StatusRetranslate(unittest.TestCase):
-    """v1.0.5 — Text Merger 언어 전환 시 상태 메시지 갱신 버그 수정 검증.
+    """v1.0.5 — Text Merger status-message refresh bug fix on language switch.
 
-    배경:
-      - v1.0.4 이전부터 존재했을 가능성이 큰 기존 버그
-      - retranslate()가 `merge_status_ready` 상태일 때만 _lbl_status를 갱신했음
-      - 결과: 파일 추가 후 언어 전환하면 "26개 파일 추가됨..."이 한국어로 남음
-      - v1.0.5에서 빌드 후 실기 QA(신용우님) 중 3개 언어 스크린샷으로 발견됨
+    Background:
+      - Likely a long-standing bug from before v1.0.4
+      - retranslate() refreshed _lbl_status only when state == `merge_status_ready`
+      - Result: after adding files and switching language, "26 files added..." stayed in Korean
+      - Found in v1.0.5 post-build hands-on QA (Hanrim) via screenshots in 3 languages
 
-    수정 설계:
-      - 정적 메시지(`ready`, `clr`, `reading`, `save_err`, `path_reset_done`): 단순 재렌더
-      - 복원 가능 동적 메시지(`add`: file_list 수, `path_set`: save_dir): 원본 정보로 재구성
-      - 복원 불가 메시지(`del`, `save_done`, `bulk_scanning`): `ready`로 리셋 + 디버그 로그
+    Fix design:
+      - Static messages (`ready`, `clr`, `reading`, `save_err`, `path_reset_done`): simple re-render
+      - Restorable dynamic messages (`add`: file_list count, `path_set`: save_dir): rebuild from source info
+      - Non-restorable messages (`del`, `save_done`, `bulk_scanning`): reset to `ready` + debug log
     """
 
     @classmethod
     def setUpClass(cls):
         from PySide6.QtWidgets import QApplication
-        # 단일 QApplication 재사용 (다른 테스트와 충돌 방지)
+        # Reuse a single QApplication (avoid conflicts with other tests)
         cls.app = QApplication.instance() or QApplication([])
 
     def _make_panel(self, lang_code='ko'):
-        """테스트용 TextMergerPanel 인스턴스 생성.
-        _current_lang을 임시로 변경해 panel 구축."""
-        # _ns['_current_lang']을 직접 변경 (exec 네임스페이스 = _t의 전역 스코프)
+        """Create a TextMergerPanel instance for testing.
+        Temporarily change _current_lang while building the panel."""
+        # Directly mutate _ns['_current_lang'] (exec namespace = _t's global scope)
         _ns['_current_lang'] = lang_code
         PanelCls = _ns.get('TextMergerPanel')
         return PanelCls()
@@ -3829,19 +3829,19 @@ class TestV105StatusRetranslate(unittest.TestCase):
         """현재 언어 설정 (런타임에서 언어 전환 시뮬레이션)."""
         _ns['_current_lang'] = lang_code
 
-    # ── 정적 메시지 재렌더링 ────────────────────────────────
+    # ── Static-message re-render ────────────────────────────
     def test_status_ready_retranslates(self):
         """'ready' 상태에서 언어 전환 시 해당 언어의 'ready' 메시지로 바뀐다."""
         panel = self._make_panel('ko')
         try:
-            # 초기 상태 = ready 한국어
+            # Initial state = ready (Korean)
             translations = _ns.get('TRANSLATIONS')
             self.assertEqual(panel._lbl_status.text(), translations['ko']['merge_status_ready'])
-            # 영어로 전환
+            # Switch to English
             self._set_lang('en')
             panel._retranslate_status()
             self.assertEqual(panel._lbl_status.text(), translations['en']['merge_status_ready'])
-            # 일본어로 전환
+            # Switch to Japanese
             self._set_lang('ja')
             panel._retranslate_status()
             self.assertEqual(panel._lbl_status.text(), translations['ja']['merge_status_ready'])
@@ -3875,24 +3875,24 @@ class TestV105StatusRetranslate(unittest.TestCase):
             self._set_lang('ko')
             panel.deleteLater()
 
-    # ── 동적 메시지 복원 재렌더링 ────────────────────────────
+    # ── Dynamic-message restoration re-render ────────────────
     def test_status_add_retranslates_with_current_count(self):
-        """'merge_status_add' 상태에서 언어 전환 시 현재 file_list 수로 재구성된다.
-        이게 스크린샷에서 신용우님이 발견한 주요 버그 시나리오 (26개 파일 추가 후 언어 전환)."""
+        """In 'merge_status_add' state, language switch must rebuild from the current file_list count.
+        This is the main bug scenario Hanrim found in screenshots (26 files added, then language switched)."""
         panel = self._make_panel('ko')
         try:
             translations = _ns.get('TRANSLATIONS')
-            # file_list를 26개로 시뮬레이션 (내부 상태만, 실제 파일 객체는 불필요)
+            # Simulate file_list with 26 items (internal state only, real file objects unnecessary)
             panel.file_list = ['/dummy/path' + str(i) for i in range(26)]
-            # 파일 추가 메시지 세팅 (한국어)
+            # Set the 'files added' message (Korean)
             panel._lbl_status.setText(translations['ko']['merge_status_add'].format(n=26))
-            # 일본어로 전환
+            # Switch to Japanese
             self._set_lang('ja')
             panel._retranslate_status()
             expected = translations['ja']['merge_status_add'].format(n=26)
             self.assertEqual(panel._lbl_status.text(), expected,
                 f"언어 전환 후 파일 추가 메시지가 일본어로 재구성 안 됨")
-            # 간체로 전환
+            # Switch to Simplified Chinese
             self._set_lang('zh_cn')
             panel._retranslate_status()
             expected = translations['zh_cn']['merge_status_add'].format(n=26)
@@ -3921,17 +3921,17 @@ class TestV105StatusRetranslate(unittest.TestCase):
         panel = self._make_panel('ko')
         try:
             translations = _ns.get('TRANSLATIONS')
-            panel.save_dir = ''  # 경로 없음
+            panel.save_dir = ''  # no path
             panel._lbl_status.setText(translations['ko']['merge_path_set'].format(path='/removed/path'))
             self._set_lang('en')
             panel._retranslate_status()
-            # save_dir 빈 상태 → ready 폴백
+            # Empty save_dir → fall back to ready
             self.assertEqual(panel._lbl_status.text(), translations['en']['merge_status_ready'])
         finally:
             self._set_lang('ko')
             panel.deleteLater()
 
-    # ── 복원 불가 메시지 → ready 리셋 ───────────────────────
+    # ── Non-restorable message → reset to ready ─────────────
     def test_status_del_resets_to_ready_with_log(self):
         """'merge_status_del' 상태 (원본 개수 소실) → ready 리셋 + 디버그 로그 남김."""
         panel = self._make_panel('ko')
@@ -3960,7 +3960,7 @@ class TestV105StatusRetranslate(unittest.TestCase):
             self._set_lang('ko')
             panel.deleteLater()
 
-    # ── 방어적 처리 ─────────────────────────────────────────
+    # ── Defensive handling ──────────────────────────────────
     def test_unknown_status_text_left_untouched(self):
         """알려지지 않은 임의 텍스트는 변경하지 않는다 (방어적 처리)."""
         panel = self._make_panel('ko')
@@ -3969,30 +3969,30 @@ class TestV105StatusRetranslate(unittest.TestCase):
             panel._lbl_status.setText(arbitrary)
             self._set_lang('en')
             panel._retranslate_status()
-            # 변경되지 않음
+            # Unchanged
             self.assertEqual(panel._lbl_status.text(), arbitrary,
                 "알려지지 않은 상태 텍스트가 의도치 않게 변경됨")
         finally:
             self._set_lang('ko')
             panel.deleteLater()
 
-    # ── 패턴 매칭 유틸 단위 테스트 ─────────────────────────
+    # ── Pattern-matching utility unit tests ────────────────
     def test_match_status_template_with_placeholders(self):
         """_match_status_template이 플레이스홀더가 있는 템플릿을 정확히 인식한다."""
         panel = self._make_panel('ko')
         try:
-            # 한국어 'merge_status_add' 템플릿: "{n}개 파일 추가됨 (인코딩 자동 감지 완료)"
+            # Korean 'merge_status_add' template: "{n}개 파일 추가됨 (인코딩 자동 감지 완료)"
             self.assertTrue(
                 panel._match_status_template("26개 파일 추가됨 (인코딩 자동 감지 완료)",
                                               'merge_status_add'))
-            # 영어 템플릿
+            # English template
             self.assertTrue(
                 panel._match_status_template("26 file(s) added (encoding auto-detected)",
                                               'merge_status_add'))
-            # 매칭 안 되는 경우
+            # No-match case
             self.assertFalse(
                 panel._match_status_template("전혀 다른 텍스트", 'merge_status_add'))
-            # 다른 키의 템플릿 (merge_status_clr)은 매칭 안 돼야 함
+            # A different key's template (merge_status_clr) must not match
             self.assertFalse(
                 panel._match_status_template("26개 파일 추가됨 (인코딩 자동 감지 완료)",
                                               'merge_status_clr'))
@@ -4001,13 +4001,13 @@ class TestV105StatusRetranslate(unittest.TestCase):
 
 
 class TestV105TranslationNoDuplicates(unittest.TestCase):
-    """v1.0.5 — 번역 사전 중복 키 제거 후 재발 방지 검증.
+    """v1.0.5 — Verify no recurrence after removing duplicate keys in translation dicts.
 
-    배경:
-      - v1.0.2 인수인계에서 'zh_cn 사전 188개 키 중복' 이슈가 식별됨
-      - v1.0.5 시점 실측으로 74개 중복 라인이 잔존 (값은 전부 일치, 동작 영향 0)
-      - 모두 단순 삭제 가능이라 이번 버전에서 일괄 정리함
-      - 본 테스트는 해당 이슈가 재발하지 않도록 소스 파싱 기반으로 상시 감시
+    Background:
+      - v1.0.2 handover identified the 'zh_cn dict 188 duplicate keys' issue
+      - At v1.0.5 measurement, 74 duplicate lines remained (all values identical, zero behavior impact)
+      - All were safely deletable, so cleaned up in bulk this release
+      - This test continuously guards against recurrence via source-parsing
     """
 
     @classmethod
@@ -4016,8 +4016,8 @@ class TestV105TranslationNoDuplicates(unittest.TestCase):
             cls.src = f.read()
 
     def _count_keys_per_language(self):
-        """AST로 TRANSLATIONS의 각 언어 dict 범위를 정확히 잡고,
-        해당 범위에서 딕셔너리 키 출현 횟수를 집계."""
+        """Use AST to pin down each language's dict range in TRANSLATIONS,
+        then count dict-key occurrences within that range."""
         import ast as _ast
         tree = _ast.parse(self.src)
         lines = self.src.split('\n')
@@ -4042,12 +4042,12 @@ class TestV105TranslationNoDuplicates(unittest.TestCase):
         return per_lang
 
     def test_no_duplicate_keys_in_any_language(self):
-        """5개 언어 각각의 사전에 중복 키가 없어야 한다.
-        Python dict는 중복 키를 나중 값으로 덮어쓰기 때문에 동작상 문제는 없지만,
-        - 코드 라인 수 낭비
-        - 번역 수정 시 한 쪽만 고치면 다른 쪽이 살아남아 혼란 유발
-        - v1.0.2~v1.0.4까지 방치된 기술 부채
-        를 상시 감시하기 위해 구조 검증 테스트로 포함."""
+        """Each of the 5 language dicts must have no duplicate keys.
+        Python dicts overwrite duplicate keys with later values, so no behavior bug, but
+        - Wasted lines of code
+        - When editing translations, fixing one side leaves the other intact, causing confusion
+        - Tech debt left from v1.0.2 through v1.0.4
+        — included as a structural verification test for ongoing surveillance."""
         per_lang = self._count_keys_per_language()
         self.assertEqual(len(per_lang), 5,
             f"TRANSLATIONS에 5개 언어가 있어야 하는데 {len(per_lang)}개")
@@ -4057,40 +4057,40 @@ class TestV105TranslationNoDuplicates(unittest.TestCase):
                 f"[{lang_code}] 중복 키 {len(dups)}개 발견: {list(dups.items())[:5]}")
 
     def test_all_languages_have_similar_key_count(self):
-        """5개 언어의 고유 키 수가 비슷해야 한다 (완결성 보장).
-        큰 차이가 있으면 어떤 언어에서 번역이 누락됐다는 신호.
-        v1.0.5 중복 정리 직후 기준 391±2 정도를 허용 범위로 설정.
-        v1.0.9 §5.1.G — zh_cn은 zh_tw fallback 메커니즘으로 부분집합 허용,
-        검증 대상에서 제외하고 다른 4언어만 ≤5 차이 강제."""
+        """All 5 languages should have similar unique-key counts (completeness guarantee).
+        A large gap signals missing translations in some language.
+        Just after v1.0.5 dedup cleanup, ~391±2 was set as the allowed range.
+        v1.0.9 §5.1.G — zh_cn is allowed to be a subset (uses zh_tw fallback mechanism),
+        so excluded from this check; the other 4 languages are forced to differ by ≤5."""
         per_lang = self._count_keys_per_language()
         counts = {lang: len(c) for lang, c in per_lang.items()}
-        # zh_cn은 zh_tw fallback으로 의도적으로 작음 — 키 수 검증에서 제외
+        # zh_cn is intentionally smaller (zh_tw fallback) — excluded from key-count check
         counts_for_check = {l: c for l, c in counts.items() if l != 'zh_cn'}
         max_count = max(counts_for_check.values())
         min_count = min(counts_for_check.values())
-        # 완전 동일은 어려우니 5개 이내 차이까지 허용 (일부 언어 미번역 키가 남을 수 있음)
+        # Exact match is hard, so allow up to 5 difference (some untranslated keys may remain)
         self.assertLessEqual(max_count - min_count, 5,
             f"언어별 키 수 차이 과다 (zh_cn 제외, 허용 ≤5): "
             f"{counts_for_check}  (zh_cn={counts.get('zh_cn')} — fallback 의도)")
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가N  APP_VERSION 검증 (v1.0.6)
+# §AdditionalN  APP_VERSION verification (v1.0.6)
 # ════════════════════════════════════════════════════════════════════════
-# 버전업 시점에 APP_VERSION 상수가 정확히 갱신됐는지 검증.
-# v1.0.7 재설계 — 버전 스냅샷 방식(TestV104Regression → TestV105Regression →
-# TestV106AppVersion 이월)을 버전 독립 구조 검증으로 전환. TEST_MANAGEMENT_POLICY.md
-# §4.4 "버전 스냅샷 방식 invariant 신규 도입 금지" 원칙 적용. 매 릴리즈마다 클래스명·
-# 검증값을 이월해오던 수작업 관례를 폐기하고, APP_VERSION이 존재하며 세미버전 형식
-# (MAJOR.MINOR.PATCH)을 따르는지만 검증. v1.0.7, v1.0.8, v2.0.0 등 모든 버전에서
-# 별도 갱신 없이 통과.
+# Verify APP_VERSION constant is correctly bumped at version-up time.
+# v1.0.7 redesign — version-snapshot style (TestV104Regression → TestV105Regression →
+# TestV106AppVersion carry-over) shifted to version-independent structural verification. TEST_MANAGEMENT_POLICY.md
+# §4.4 "no new version-snapshot invariants" principle applied. Each release used to carry forward
+# class names and verification values manually — that's now retired. Just verify APP_VERSION exists
+# and follows semver (MAJOR.MINOR.PATCH). All versions (v1.0.7, v1.0.8, v2.0.0, etc.)
+# pass without additional updates.
 
 
 class TestAppVersion(unittest.TestCase):
-    """APP_VERSION 상수 구조적 검증 (v1.0.7 재설계, 버전 독립).
+    """APP_VERSION constant structural verification (v1.0.7 redesign, version-independent).
 
-    기존 이력: TestV104Regression → TestV105Regression → TestV106AppVersion (이월 방식)
-    현재 방식: 버전 독립 구조 검증 (세미버전 포맷만 검증, 구체적 값 강제 안 함)
+    Prior history: TestV104Regression → TestV105Regression → TestV106AppVersion (carry-over style)
+    Current style: version-independent structural verification (semver format only, no concrete value forced)
     """
 
     @classmethod
@@ -4133,7 +4133,7 @@ class TestAppVersionModule(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가O  Phase 2-a 인코딩 리포트 기능 (v1.0.6)
+# §AdditionalO  Phase 2-a encoding-report feature (v1.0.6)
 # ════════════════════════════════════════════════════════════════════════
 
 _safe_read_text = _ns.get('safe_read_text_with_report') if HAS_MODULE else None
@@ -4270,7 +4270,7 @@ class TestWriteEncodingReport(unittest.TestCase):
 
     def setUp(self):
         self.td = tempfile.mkdtemp()
-        # 최소 failures 리스트 (테스트용)
+        # Minimal failures list (for testing)
         self.sample_failures = [
             {'byte_pos': 10, 'bad_bytes_hex': '0xFF',
              'line': 1, 'col': 5, 'context': 'test context'}
@@ -4337,7 +4337,7 @@ class TestWriteEncodingReport(unittest.TestCase):
 
     def test_truncated_count_shown(self):
         """total > len(failures)일 때 '추적 생략' 문구 + 개수 표시."""
-        # failures=1개, total=1000 → 999개 생략
+        # failures=1, total=1000 → 999 omitted
         rp = _write_report(self.td, self._orig_file(), 'utf-8',
                            self.sample_failures, 1000, 'processed', lang='ko')
         content = open(rp, encoding='utf-8').read()
@@ -4363,55 +4363,55 @@ class TestWriteEncodingReport(unittest.TestCase):
                            self.sample_failures, 1, 'processed', lang='ko')
         with open(rp, 'rb') as f:
             raw = f.read()
-        # BOM 없음 확인
+        # Verify no BOM
         self.assertFalse(raw.startswith(b'\xef\xbb\xbf'), 'BOM이 붙어있음')
-        # UTF-8로 해독 가능
-        raw.decode('utf-8')  # 예외 던지지 않아야
+        # Decodable as UTF-8
+        raw.decode('utf-8')  # must not throw
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가P  v1.0.6 버그 수정 회귀 방지 — Bulk Fixer 미리보기 프리징
+# §AdditionalP  v1.0.6 bug-fix regression guard — Bulk Fixer preview freeze
 # ════════════════════════════════════════════════════════════════════════
-# 50만 줄급 대용량 파일에서 _on_file_selected가 12초 이상 프리징하던 버그
-# (Phase 2-a 실기 QA 중 발견, 회귀 방지 목적)
+# Bug where _on_file_selected froze for 12+ seconds on huge files (~500K lines)
+# (found during Phase 2-a hands-on QA, regression-guard purpose)
 
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패")
 class TestBulkFixerPreviewLargeFile(unittest.TestCase):
-    """v1.0.6: Bulk Fixer 미리보기가 대용량 파일에서도 빠르게 동작해야 함.
+    """v1.0.6: Bulk Fixer preview must stay fast even on huge files.
 
-    수정 전: text.splitlines(keepends=True)[:80]
-            → 27MB 전체 파싱 후 50만 객체 생성, 80개만 사용 (O(N) 낭비)
-    수정 후: text[:32768].splitlines(keepends=True)[:80]
-            → 파일 크기와 무관하게 32KB만 처리
+    Before fix: text.splitlines(keepends=True)[:80]
+            → parses all 27MB, creates 500K objects, uses only 80 (O(N) waste)
+    After fix: text[:32768].splitlines(keepends=True)[:80]
+            → processes only 32KB regardless of file size
     """
 
     def test_preview_extraction_logic_uses_head_slice(self):
         """소스에 text[:NNNNN].splitlines 패턴이 있어야 함 (회귀 방지)."""
         with open(_MAIN_PY, 'r', encoding='utf-8') as f:
             src = f.read()
-        # _on_file_selected 본체 추출 (BulkFixerPanel 내)
-        # 정규식: def _on_file_selected ... setPlainText(preview)
+        # Extract _on_file_selected body (inside BulkFixerPanel)
+        # Regex: def _on_file_selected ... setPlainText(preview)
         m = re.search(
             r'def _on_file_selected\(self, cur, _prev\):(.*?)(?=\n    def |\nclass )',
             src, re.DOTALL)
         self.assertIsNotNone(m, '_on_file_selected 메서드를 찾을 수 없음')
         body = m.group(1)
-        # 수정된 패턴 존재 확인: text[:NNNNN].splitlines
+        # Verify the fixed pattern exists: text[:NNNNN].splitlines
         self.assertRegex(body, r'text\[:\d+\]\.splitlines',
             '미리보기 헤드 슬라이스 패턴(text[:NNNNN].splitlines) 누락 — v1.0.6 수정 회귀 의심')
-        # 전체 splitlines 직접 호출(수정 전 패턴) 없어야 함
-        # 정확한 매칭: text.splitlines 앞에 [:가 없는 경우
+        # Whole-text splitlines call (pre-fix pattern) must NOT exist
+        # Precise match: text.splitlines without preceding [:
         self.assertNotRegex(body, r'(?<!\])text\.splitlines',
             '수정 전 패턴(text.splitlines 전체 호출)이 남아있음 — v1.0.6 수정 회귀')
 
 
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패")
 class TestPreviewExtractionPerformance(unittest.TestCase):
-    """v1.0.6: 미리보기 추출 로직의 성능 특성 검증 (순수 함수 단위).
+    """v1.0.6: Verify performance characteristics of preview-extraction logic (pure-function level).
 
-    _on_file_selected 내부의 preview 추출 로직을 분리 검증.
-    실제 Qt 위젯 없이 Python 레벨에서 동등 로직을 재현하여
-    파일 크기와 무관하게 일정 시간에 끝나는지 확인.
+    Isolate and verify the preview-extraction logic inside _on_file_selected.
+    Reproduce equivalent logic at the Python level without actual Qt widgets,
+    confirming it finishes in constant time regardless of file size.
     """
 
     def _extract_preview_fixed(self, text):
@@ -4420,47 +4420,47 @@ class TestPreviewExtractionPerformance(unittest.TestCase):
 
     def test_large_file_preview_under_100ms(self):
         """50만 줄 시뮬레이션에서 미리보기 추출이 100ms 이내."""
-        # 한국어 웹소설 스타일: 평균 40자 줄 × 50만 줄
+        # Korean web-novel style: avg 40-char lines × 500K lines
         line = '이것은 한국어 웹소설의 한 줄입니다. 적당한 길이의 문장입니다.\n'
-        text = line * 500000  # 약 20MB, 50만 줄
+        text = line * 500000  # ~20MB, 500K lines
         t0 = time.perf_counter()
         preview = self._extract_preview_fixed(text)
         elapsed_ms = (time.perf_counter() - t0) * 1000
         self.assertLess(elapsed_ms, 100,
             f'50만 줄 파일 미리보기 추출이 100ms 초과: {elapsed_ms:.1f}ms '
             f'(v1.0.6 버그 회귀 의심 — text[:32768].splitlines 확인 필요)')
-        # 결과도 올바른지 확인 (80줄)
+        # Verify the result is also correct (80 lines)
         self.assertLessEqual(len(preview.splitlines()), 80)
 
     def test_preview_size_consistent_across_file_sizes(self):
         """파일 크기와 무관하게 미리보기 크기가 일정 (32KB 상한)."""
-        short_text = '짧은 파일입니다.\n' * 100  # 작은 파일
-        huge_text = '큰 파일의 한 줄입니다.\n' * 1000000  # 매우 큰 파일
+        short_text = '짧은 파일입니다.\n' * 100  # small file
+        huge_text = '큰 파일의 한 줄입니다.\n' * 1000000  # very large file
 
         preview_short = self._extract_preview_fixed(short_text)
         preview_huge = self._extract_preview_fixed(huge_text)
 
-        # 작은 파일은 전체가 미리보기로 나오고, 큰 파일은 80줄만
-        # 두 경우 모두 32KB 이하여야 함
+        # Small files show full content as preview; large files show only 80 lines
+        # Both cases must stay under 32KB
         self.assertLessEqual(len(preview_short.encode('utf-8')), 32768)
         self.assertLessEqual(len(preview_huge.encode('utf-8')), 32768)
-        # 80줄 제한 확인
+        # Verify the 80-line cap
         self.assertLessEqual(len(preview_huge.splitlines()), 80)
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §추가Q  v1.0.8 SettingsDialog 구조 invariant — 페이지 lazy 재생성
+# §AdditionalQ  v1.0.8 SettingsDialog structural invariant — page lazy recreation
 # ════════════════════════════════════════════════════════════════════════
 
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
 class TestSettingsDialogStructureInvariant(unittest.TestCase):
-    """v1.0.8 옵션 C — 설정 다이얼로그 페이지 lazy 재생성 메커니즘 구조 검증.
+    """v1.0.8 Option C — structural verification of the settings-dialog page lazy-recreation mechanism.
 
-    배경: v1.0.5부터 존재한 라벨/프레임 color 잔재 버그를 v1.0.8에서 페이지
-    재생성 메커니즘으로 구조적 해결. 이 메커니즘이 향후 누군가의 실수로
-    제거되거나 약화되지 않도록 invariant로 보호한다.
+    Background: a label/frame color-leftover bug that existed since v1.0.5 was structurally
+    resolved in v1.0.8 via the page-recreation mechanism. Protected as an invariant so
+    nobody can mistakenly remove or weaken it later.
 
-    참조: TEST_MANAGEMENT_POLICY §3 4번 원칙 (신규 기능에 대한 자동 커버리지 명시),
+    Reference: TEST_MANAGEMENT_POLICY §3 principle 4 (auto-coverage explicit for new features),
     Claude_Handover v1.0.7 §5.1 / §7.8, Phase2_Completion_Record §11.3.
     """
 
@@ -4471,10 +4471,10 @@ class TestSettingsDialogStructureInvariant(unittest.TestCase):
         cls.dialog_cls = _ns.get('SettingsDialog')
 
     def test_settings_dialog_has_recreate_pages(self):
-        """SettingsDialog 클래스에 _recreate_pages 메서드가 존재해야 한다.
+        """SettingsDialog class must have a _recreate_pages method.
 
-        v1.0.8 옵션 C 핵심 메커니즘 — 페이지 재생성을 담당하는 메서드.
-        제거되면 라벨 color 잔재 버그가 부활.
+        v1.0.8 Option C core mechanism — the method responsible for page recreation.
+        Removing it revives the label color-leftover bug.
         """
         self.assertIsNotNone(self.dialog_cls, "SettingsDialog 클래스 없음")
         self.assertTrue(hasattr(self.dialog_cls, '_recreate_pages'),
@@ -4484,10 +4484,10 @@ class TestSettingsDialogStructureInvariant(unittest.TestCase):
             "SettingsDialog._recreate_pages가 callable이 아님")
 
     def test_refresh_theme_calls_recreate_pages(self):
-        """SettingsDialog._refresh_theme 본문이 self._recreate_pages()를 호출해야 한다.
+        """SettingsDialog._refresh_theme body must call self._recreate_pages().
 
-        v1.0.8 옵션 C — _refresh_theme이 페이지 내부 위젯 갱신을 _recreate_pages에
-        위임하는 구조. 호출이 빠지면 라벨 color 잔재 버그가 부활.
+        v1.0.8 Option C — _refresh_theme delegates page-internal widget refresh to
+        _recreate_pages. Missing this call revives the label color-leftover bug.
         """
         self.assertIsNotNone(self.dialog_cls, "SettingsDialog 클래스 없음")
         src = self._ins.getsource(self.dialog_cls._refresh_theme)
@@ -4496,16 +4496,16 @@ class TestSettingsDialogStructureInvariant(unittest.TestCase):
             "v1.0.8 옵션 C 메커니즘이 끊어짐")
 
     def test_retranslate_dialog_simplified(self):
-        """SettingsDialog._retranslate_dialog이 페이지 내부 위젯 attribute를
-        직접 갱신하지 않아야 한다.
+        """SettingsDialog._retranslate_dialog must NOT directly refresh page-internal
+        widget attributes.
 
-        v1.0.8 옵션 C — _retranslate_dialog은 외곽(사이드바/네비/하단 버튼)만
-        책임지고, 페이지 내부 텍스트 갱신은 _recreate_pages에 위임. 페이지 내부
-        attribute(_lang_page_title 등) 직접 setText는 v1.0.7 단순화 이전 패턴.
+        v1.0.8 Option C — _retranslate_dialog handles only the chrome (sidebar / nav /
+        bottom buttons); page-internal text refresh is delegated to _recreate_pages.
+        Direct setText on page-internal attributes (e.g., _lang_page_title) is the pre-v1.0.7 pattern.
         """
         self.assertIsNotNone(self.dialog_cls, "SettingsDialog 클래스 없음")
         src = self._ins.getsource(self.dialog_cls._retranslate_dialog)
-        # 페이지 내부 attribute 패턴들 — 이전 버전 구조의 흔적
+        # Page-internal attribute patterns — traces of older-version structure
         forbidden_attrs = [
             '_theme_page_title', '_theme_page_hint',
             '_lang_page_title', '_lang_page_desc',
@@ -4521,15 +4521,15 @@ class TestSettingsDialogStructureInvariant(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# 테스트 러너 — 자동 발견 방식 (수동 등록 불필요)
+# Test runner — auto-discovery (no manual registration needed)
 # ════════════════════════════════════════════════════════════════════════
 if __name__ == '__main__':
     import inspect as _inspect
     import sys as _sys
 
-    # stdout/stderr UTF-8 강제 (v1.0.7 CI 도입 — GitHub Actions windows-latest의
-    # 기본 콘솔 인코딩이 cp1252라 한글·이모지 출력 시 UnicodeEncodeError 발생).
-    # Python 3.7+ 표준 기능이며, 한림 로컬(Windows)·Linux·macOS 모두 무해.
+    # Force stdout/stderr to UTF-8 (introduced for v1.0.7 CI — GitHub Actions windows-latest's
+    # default console encoding is cp1252, causing UnicodeEncodeError on Korean / emoji output).
+    # Standard Python 3.7+ feature; harmless on Hanrim's local Windows / Linux / macOS.
     if hasattr(_sys.stdout, 'reconfigure'):
         _sys.stdout.reconfigure(encoding='utf-8')
     if hasattr(_sys.stderr, 'reconfigure'):
@@ -4538,11 +4538,11 @@ if __name__ == '__main__':
     loader = unittest.TestLoader()
     suite  = unittest.TestSuite()
 
-    # 현재 모듈에서 unittest.TestCase 상속 클래스 자동 수집
-    # 장점:
-    #   - 새 테스트 클래스 추가 시 수동 등록 불필요
-    #   - 누락 방지 (클래스 정의 = 자동 실행)
-    #   - 유지보수성 향상
+    # Auto-collect unittest.TestCase subclasses from the current module
+    # Benefits:
+    #   - No manual registration when adding new test classes
+    #   - Prevents omissions (class definition = automatic execution)
+    #   - Improved maintainability
     _current_module = _sys.modules[__name__]
     klasses = sorted(
         [
@@ -4550,9 +4550,9 @@ if __name__ == '__main__':
             if _inspect.isclass(obj)
             and issubclass(obj, unittest.TestCase)
             and obj is not unittest.TestCase
-            and obj.__module__ == _current_module.__name__  # 외부 import 제외
+            and obj.__module__ == _current_module.__name__  # exclude externally imported
         ],
-        key=lambda c: c.__name__  # 실행 순서 일관성
+        key=lambda c: c.__name__  # consistent execution order
     )
 
     for klass in klasses:
@@ -4568,11 +4568,11 @@ if __name__ == '__main__':
 
     print()
     print('=' * 60)
-    print(f'  총 테스트  : {total}개  ({len(klasses)}개 클래스)')
-    print(f'  \u2705 성공    : {passed}개')
-    print(f'  \u274c 실패    : {fails}개')
-    print(f'  \u2757 오류    : {errors}개')
-    print(f'  \u23ed  스킵   : {skips}개')
+    print(f'  Total tests : {total}  ({len(klasses)} classes)')
+    print(f'  \u2705 Passed     : {passed}')
+    print(f'  \u274c Failed     : {fails}')
+    print(f'  \u2757 Errors     : {errors}')
+    print(f'  \u23ed  Skipped    : {skips}')
     print('=' * 60)
 
     if fails or errors:
@@ -4584,6 +4584,6 @@ if __name__ == '__main__':
             print(f'ERROR: {e[0]}')
             for line in e[1].splitlines()[-4:]: print(f'  {line}')
 
-    # CI exit code 계약 (v1.0.7) — 실패/오류 시 non-zero 반환하여 자동 테스트 파이프라인이
-    # 통과 여부를 정확히 감지하도록 보장. 로컬 실행에서는 영향 없음.
+    # CI exit-code contract (v1.0.7) — return non-zero on failure/error so automated pipelines
+    # accurately detect pass/fail. No effect on local runs.
     _sys.exit(0 if (not fails and not errors) else 1)
