@@ -1,7 +1,7 @@
 # UTF-8
 #
-# File Nexus Suite — Windows 파일 속성 버전 정보
-# PyInstaller --version-file 옵션에 사용
+# File Nexus Suite — Windows file properties version info
+# Used with PyInstaller --version-file option
 #
 VSVersionInfo(
   ffi=FixedFileInfo(
@@ -18,10 +18,10 @@ VSVersionInfo(
     StringFileInfo(
       [
         StringTable(
-          u'041204B0',  # 한국어 (ko-KR) + Unicode
+          u'040904B0',  # English (en-US) + Unicode
           [
             StringStruct(u'CompanyName',      u'Hanrim'),
-            StringStruct(u'FileDescription',  u'File Nexus Suite — 통합 파일 작업 도구'),
+            StringStruct(u'FileDescription',  u'Six file tools unified in one Windows app'),
             StringStruct(u'FileVersion',      u'1.0.10.0'),
             StringStruct(u'InternalName',     u'FileNexusSuite'),
             StringStruct(u'LegalCopyright',   u'Copyright © 2026 Hanrim'),
@@ -32,6 +32,6 @@ VSVersionInfo(
         )
       ]
     ),
-    VarFileInfo([VarStruct(u'Translation', [0x0412, 1200])])
+    VarFileInfo([VarStruct(u'Translation', [0x0409, 1200])])
   ]
 )

@@ -2,14 +2,14 @@
 # pip install -r requirements.txt
 
 # ── Required ──────────────────────────────────────────────────────────
-PySide6>=6.4.0          # GUI 프레임워크 (QtSvg 포함, SVG 아이콘 자동 지원)
+PySide6>=6.4.0          # GUI framework (includes QtSvg for automatic SVG icon support)
 
-# ── Optional — 없어도 실행 가능, 일부 기능 제한 ───────────────────────
-chardet>=4.0.0          # 텍스트 파일 인코딩 자동 감지
-python-docx>=1.0.0      # DOCX 파일 읽기 (Text Merger)
-pdfplumber>=0.10.0      # PDF 텍스트 추출 (Text Merger)
-openpyxl>=3.1.0         # XLSX 파일 읽기 (Text Merger)
-python-hwpx>=2.9.0      # HWPX 파일 읽기 (Text Merger, v1.0.6+ 한국 문서 표준)
+# ── Optional — Works without these, with limited features ─────────────
+chardet>=4.0.0          # Automatic text file encoding detection
+python-docx>=1.0.0      # DOCX file reading (Text Merger)
+pdfplumber>=0.10.0      # PDF text extraction (Text Merger)
+openpyxl>=3.1.0         # XLSX file reading (Text Merger)
+python-hwpx>=2.9.0      # HWPX file reading (Text Merger, v1.0.6+, Korean document standard)
 
-# ── Build — 빌드 시에만 필요 ───────────────────────────────────────────
-pyinstaller>=6.0.0      # 단독 실행 파일 빌드
+# ── Build — Required only for building ────────────────────────────────
+pyinstaller>=6.0.0      # Standalone executable build

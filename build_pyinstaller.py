@@ -17,8 +17,8 @@ from pathlib import Path
 SCRIPT        = "FileNexusSuite.py"
 OUTPUT_NAME   = "FileNexusSuite"
 ICON_TMP      = "_build_icon_tmp.ico"
-VERSION_FILE  = "version_info.txt"      # Windows 파일 속성 버전 정보
-README_FILE   = "README.txt"            # 빌드 후 dist 루트에 자동 복사
+VERSION_FILE  = "version_info.txt"      # Windows file properties version info
+README_FILE   = "README.txt"            # Auto-copied to dist root after build
 DIST_DIR      = "dist"
 BUILD_DIR     = "build"
 
@@ -63,10 +63,10 @@ def check_version_file():
 
 
 def check_version_consistency(strict=False):
-    """README.txt와 APP_VERSION 버전 일관성을 검증.
+    """Verify version consistency between README.txt and APP_VERSION.
 
-    strict=True에서 mismatch 발견 시 빌드 중단(exit 1).
-    strict=False에서는 경고만 출력하고 계속 진행.
+    With strict=True, build aborts on mismatch (exit 1).
+    With strict=False, prints warning only and continues.
     """
     try:
         py_src = Path(SCRIPT).read_text(encoding="utf-8")
@@ -125,7 +125,7 @@ def run_pyinstaller(has_icon, has_version_file, upx_exe):
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--windowed",           # no console
-        "--onedir",             # folder mode (_internal/ 포함)
+        "--onedir",             # folder mode (includes _internal/)
         "--noconfirm",          # overwrite without asking
         f"--name={OUTPUT_NAME}",
         f"--distpath={DIST_DIR}",
@@ -141,7 +141,7 @@ def run_pyinstaller(has_icon, has_version_file, upx_exe):
 
     if upx_exe:
         cmd += [f"--upx-dir={UPX_DIR}"]
-        # UPX 압축 시 실패하는 DLL 제외
+        # Exclude DLLs that fail UPX compression
         upx_excludes = [
             "python3.dll", "python310.dll", "python311.dll", "python312.dll",
             "vcruntime140.dll", "vcruntime140_1.dll",
@@ -153,13 +153,13 @@ def run_pyinstaller(has_icon, has_version_file, upx_exe):
         for exc in upx_excludes:
             cmd += ["--upx-exclude", exc]
 
-    # Hidden imports — 런타임 선택적 의존성 (ImportError 처리되어 있으나 패키징 시 명시 필요)
+    # Hidden imports — runtime optional dependencies (handled with ImportError, but must be declared explicitly when packaging)
     hidden = [
-        "chardet",          # 인코딩 자동 감지
-        "docx",             # DOCX 읽기 (python-docx)
-        "pdfplumber",       # PDF 텍스트 추출
-        "openpyxl",         # XLSX 읽기
-        "PySide6.QtSvg",    # SVG 아이콘 렌더링 (선택적이나 아이콘 표시에 필요)
+        "chardet",          # Automatic encoding detection
+        "docx",             # DOCX reading (python-docx)
+        "pdfplumber",       # PDF text extraction
+        "openpyxl",         # XLSX reading
+        "PySide6.QtSvg",    # SVG icon rendering (optional, but required for icon display)
     ]
     for pkg in hidden:
         cmd += ["--hidden-import", pkg]
@@ -186,8 +186,8 @@ def run_pyinstaller(has_icon, has_version_file, upx_exe):
 
 
 def copy_readme_to_dist():
-    """빌드 후 README.txt를 dist 루트로 복사 + 버전 일관성 검증.
-    매번 수동 복사하던 작업을 자동화.
+    """Copy README.txt to dist root after build + version consistency check.
+    Automates what used to be a manual copy each time.
     """
     src = Path(README_FILE)
     if not src.exists():
