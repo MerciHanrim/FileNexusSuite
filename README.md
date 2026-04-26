@@ -37,7 +37,7 @@ File Nexus Suite integrates everyday file tasks into a single Windows desktop ap
 
 This project was developed with **AI pair programming (Claude)**. The full source code is published in this repository for open review and study.
 
-> 📖 For project origin, design philosophy, and safety architecture, see [docs/STORY.md](docs/STORY.md) *(Korean only)*.
+> 📖 For project origin, design philosophy, and safety architecture, see [docs/STORY.md](docs/STORY.md) *(English & Korean)*.
 
 ---
 
