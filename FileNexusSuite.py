@@ -6,24 +6,24 @@
 # No external icon libraries used. No additional attribution required.
 
 """
-File Nexus Suite  —  통합 파일 관리 도구
-탭 1: Text Merger     (텍스트/Word/PDF/Excel 파일 병합)
-탭 2: Text Converter  (EPUB ↔ TXT 변환)
-탭 3: Tag Editor      (파일명 [태그] 일괄 편집)
-탭 4: Batch Renamer   (폴더 & 파일 일괄 이름 변경)
-탭 5: Text Fixer      (텍스트 줄바꿈 교정)
-탭 6: Bulk Fixer      (텍스트 파일 일괄 줄바꿈 교정)
+File Nexus Suite  —  Integrated File Management Tool
+Tab 1: Text Merger     (Merge text/Word/PDF/Excel files)
+Tab 2: Text Converter  (EPUB ↔ TXT conversion)
+Tab 3: Tag Editor      (Bulk edit filename [tags])
+Tab 4: Batch Renamer   (Bulk rename folders & files)
+Tab 5: Text Fixer      (Fix text line breaks)
+Tab 6: Bulk Fixer      (Bulk fix line breaks in text files)
 
-테마: File Nexus Suite  Palette
-언어: 한국어 / English / 日本語 / 中文(简体/繁體)
+Theme: File Nexus Suite  Palette
+Languages: 한국어 / English / 日本語 / 中文(简体/繁體)
 """
 
-# ── 표준 라이브러리 ────────────────────────────
+# ── Standard Library ────────────────────────────
 import sys, os, re, zipfile, uuid, json, base64, subprocess, atexit, html
 from pathlib import Path
 from datetime import datetime
 
-# ── 선택적 라이브러리 ─────────────────────────
+# ── Optional Libraries ─────────────────────────
 
 try:
     import chardet as _chardet
@@ -71,25 +71,25 @@ from PySide6.QtGui import QColor, QPalette, QCursor, QPainter, QPen, QBrush, QFo
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle
 
 # ═══════════════════════════════════════════════
-# 앱 버전
+# App Version
 # ═══════════════════════════════════════════════
 APP_VERSION = "1.0.10"
 
 # ═══════════════════════════════════════════════
-# 절전 방지 유틸리티 (Windows 전용, 타 OS 무해 처리)
+# Sleep Prevention Utility (Windows only, no-op on other OSes)
 # ═══════════════════════════════════════════════
 def _prevent_sleep() -> None:
-    """작업 중 절전·화면 꺼짐 방지 — ES_SYSTEM_REQUIRED | ES_CONTINUOUS."""
+    """Prevent sleep/display-off during operation — ES_SYSTEM_REQUIRED | ES_CONTINUOUS."""
     try:
         import ctypes
         ctypes.windll.kernel32.SetThreadExecutionState(
             0x80000000 | 0x00000001  # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
         )
     except Exception:
-        pass  # Windows 외 환경은 무시
+        pass  # ignore on non-Windows environments
 
 def _allow_sleep() -> None:
-    """작업 완료 후 절전 방지 해제 — ES_CONTINUOUS만 전달하면 원복."""
+    """Release sleep prevention after operation — passing ES_CONTINUOUS alone restores default."""
     try:
         import ctypes
         ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)  # ES_CONTINUOUS
@@ -97,9 +97,9 @@ def _allow_sleep() -> None:
         pass
 
 # ═══════════════════════════════════════════════
-# 테마 시스템
+# Theme System
 # ═══════════════════════════════════════════════
-# 크로스 플랫폼 컬러 이모지 폰트 우선순위
+# Cross-platform color emoji font priority
 _EMOJI_FONT_FAMILY = (
     "'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',"
     "'Noto Emoji','EmojiOne Color','Twemoji Mozilla',sans-serif"
@@ -107,7 +107,7 @@ _EMOJI_FONT_FAMILY = (
 
 
 def _emoji_pix(char: str, pt: int = 16, size: int = 24) -> QPixmap:
-    """이모지를 QPixmap으로 렌더링 — 탭 QIcon용 (OS 무관 일관성)."""
+    """Render emoji as QPixmap — for tab QIcon (cross-OS consistency)."""
     pix = QPixmap(size, size); pix.fill(Qt.GlobalColor.transparent)
     p = QPainter(pix); p.setRenderHint(QPainter.TextAntialiasing)
     f = QFont(); f.setPointSize(pt)
@@ -118,15 +118,15 @@ def _emoji_pix(char: str, pt: int = 16, size: int = 24) -> QPixmap:
     p.end(); return pix
 
 
-# ── SVG 아이콘 시스템 ──────────────────────────────────────────────────────
+# ── SVG Icon System ────────────────────────────────────────────────────────
 try:
     from PySide6.QtSvg import QSvgRenderer as _QSvgRenderer
     _HAS_SVG = True
 except ImportError:
     _HAS_SVG = False
 
-# 버튼(B)용 Filled SVG path 데이터 (24×24 viewBox 기준)
-# primary 버튼: 'white' 아이콘 / secondary 버튼: ACCENT 아이콘
+# Filled SVG path data for buttons (B) (based on 24×24 viewBox)
+# primary button: 'white' icon / secondary button: ACCENT icon
 _SVG_PATHS: dict[str, str] = {
     'document':    'M6 2h9l5 5v15H6V2zm8 0v5h5',
     'folder':      'M10 4l2 2h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h6z',
@@ -147,8 +147,8 @@ _SVG_PATHS: dict[str, str] = {
     'info':        'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z',
 }
 
-# 라인(outline) 스타일 SVG — 탭(A단계) / 헤더(C단계) / 설정 네비게이션용
-# stroke 기반 또는 filled 복합 구조, {color} 플레이스홀더로 색상 치환
+# Line (outline) style SVG — for tabs (stage A) / headers (stage C) / settings navigation
+# stroke-based or filled composite structure, with {color} placeholder for color substitution
 _SVG_LINE_ICONS: dict[str, str] = {
     'document_line': (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
@@ -252,10 +252,10 @@ _SVG_LINE_ICONS: dict[str, str] = {
 
 
 def _svg_icon(key: str, color: str, size: int = 18) -> 'QIcon':
-    """SVG 아이콘 QIcon 생성 — filled(버튼) 및 line(탭/헤더) 스타일 모두 지원.
-    2x 해상도 렌더링으로 선명도 향상.
-    'white' 아이콘은 비활성화 시 MUTED 색상 픽스맵을 자동으로 추가.
-    PySide6.QtSvg 미설치 환경에서는 빈 QIcon 반환 (graceful fallback).
+    """Create QIcon from SVG — supports both filled (button) and line (tab/header) styles.
+    Rendered at 2x resolution for sharpness.
+    'white' icons automatically add a MUTED-color pixmap for disabled state.
+    Returns empty QIcon when PySide6.QtSvg is not installed (graceful fallback).
     """
     if not _HAS_SVG:
         return QIcon()
@@ -289,8 +289,8 @@ def _svg_icon(key: str, color: str, size: int = 18) -> 'QIcon':
         if pix.isNull():
             return QIcon()
         icon.addPixmap(pix, QIcon.Mode.Normal)
-        # 'white' 아이콘은 비활성화 시 MUTED 색상으로 별도 픽스맵 추가
-        # → 밝은 배경의 disabled 버튼에서도 아이콘이 보임
+        # 'white' icons get an additional MUTED-color pixmap for disabled state
+        # → keeps icons visible on disabled buttons with light backgrounds
         if color == 'white':
             dis_pix = _render(MUTED)
             if not dis_pix.isNull():
@@ -301,8 +301,8 @@ def _svg_icon(key: str, color: str, size: int = 18) -> 'QIcon':
 
 
 def _svg_icon_dual(key: str, normal_color: str, active_color: str, size: int = 18) -> 'QIcon':
-    """Normal / Active(hover) 두 가지 색상을 가진 이중 모드 SVG QIcon.
-    btn_preview 처럼 일반 상태와 hover 상태 배경색이 다른 버튼 전용.
+    """Dual-mode SVG QIcon with two colors: Normal / Active (hover).
+    For buttons like btn_preview where normal and hover background colors differ.
     """
     icon = _svg_icon(key, normal_color, size)
     if not _HAS_SVG or icon.isNull():
@@ -340,7 +340,7 @@ def _svg_icon_dual(key: str, normal_color: str, active_color: str, size: int = 1
 
 
 def _svg_html_img(key: str, color: str, size: int = 32) -> str:
-    """SVG 아이콘을 base64 PNG로 변환해 HTML <img> 태그로 반환 — Qt HTML 렌더러용."""
+    """Convert SVG icon to base64 PNG and return as an HTML <img> tag — for Qt HTML renderer."""
     try:
         icon = _svg_icon(key, color, size)
         pix = icon.pixmap(QSize(size * 2, size * 2))
@@ -356,13 +356,13 @@ def _svg_html_img(key: str, color: str, size: int = 32) -> str:
 
 
 def _hex_rgba(hex_color: str, alpha: float) -> str:
-    """hex 색상 → rgba() 문자열 변환 (make_style 내 템플릿용)."""
+    """Convert hex color → rgba() string (for templates inside make_style)."""
     r,g,b = int(hex_color[1:3],16), int(hex_color[3:5],16), int(hex_color[5:7],16)
     return f"rgba({r},{g},{b},{alpha})"
 
 
 def _accent_alpha(alpha: float = 0.12) -> str:
-    """현재 테마 ACCENT 색상의 rgba 문자열 — setStyleSheet 인라인 호출용."""
+    """rgba string of the current theme's ACCENT color — for inline setStyleSheet calls."""
     c = QColor(ACCENT)
     return f"rgba({c.red()},{c.green()},{c.blue()},{alpha})"
 
@@ -445,7 +445,7 @@ _T = THEMES['light']
 
 
 def _detect_system_theme() -> str:
-    """OS 다크모드 설정을 감지해 'light' 또는 'dark' 반환."""
+    """Detect OS dark mode setting and return 'light' or 'dark'."""
     if sys.platform == 'win32':
         try:
             import winreg
@@ -464,13 +464,13 @@ def _detect_system_theme() -> str:
             return 'dark' if 'Dark' in result.stdout else 'light'
         except Exception:
             pass
-    # fallback: Qt 팔레트 밝기로 판단
+    # fallback: judge by Qt palette brightness
     bg = QApplication.instance().palette().color(QPalette.Window)
     return 'dark' if bg.lightness() < 128 else 'light'
 
 
 def _resolve_theme(name: str) -> str:
-    """'auto'이면 OS 감지 결과로 치환, 나머지는 그대로."""
+    """If 'auto', replace with OS-detected result; otherwise return as-is."""
     return _detect_system_theme() if name == 'auto' else name
 
 
@@ -488,7 +488,7 @@ def _unpack(t=None):
 _unpack()
 
 def _combo_arrow_url(color: str) -> str:
-    """드롭다운 ▼ 화살표 SVG를 base64 데이터 URL로 반환 (이미지 파일 불필요)."""
+    """Return the dropdown ▼ arrow SVG as a base64 data URL (no image file required)."""
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6">'
            f'<path d="M0 0 L10 0 L5 6 Z" fill="{color}"/></svg>')
     b64 = base64.b64encode(svg.encode()).decode()
@@ -556,7 +556,7 @@ QPushButton {{
 QPushButton:hover {{ background:{t['BTN_HOVER']}; border-color:{t['BTN_BORDER_H']}; }}
 QPushButton:pressed {{ background:{t['BTN_PRESSED']}; }}
 QPushButton:disabled {{ background:{t['SRF2']}; border-color:{t['BORDER']}; color:{t['DISABLED']}; }}
-/* 파일/폴더 추가 버튼 — Batch Renamer, Text Merger, Bulk Fixer 공용 */
+/* File/folder add buttons — shared by Batch Renamer, Text Merger, Bulk Fixer */
 QPushButton#btn_folder_add {{
     background:{t['ACCENT']}; border:none; color:white; padding:7px 16px; font-weight:600; font-size:13px;
 }}
@@ -587,7 +587,7 @@ QPushButton#btn_rename:disabled,QPushButton#btn_frename:disabled {{
 QPushButton#btn_preview:disabled,QPushButton#btn_fpreview:disabled {{
     background:{t['SRF2']}; border-color:{t['BORDER']}; color:{t['DISABLED']};
 }}
-/* 공통 accent 버튼 */
+/* Common accent button */
 QPushButton#btn_primary {{
     background:{t['ACCENT']}; border:none; color:white;
     font-weight:600; padding:7px 16px; font-size:13px;
@@ -600,14 +600,14 @@ QPushButton#btn_merge {{
 }}
 QPushButton#btn_merge:hover {{ background:{t['ACCENT_HOVER']}; }}
 QPushButton#btn_merge:disabled {{ background:{_hex_rgba(t['ACCENT'], 0.4)}; color:rgba(255,255,255,0.45); border:none; }}
-/* 실행 취소 버튼 */
+/* Undo button */
 QPushButton#btn_undo {{
     background:{t['SURFACE']}; border:1.5px solid {t['BORDER']};
     color:{t['TEXT']}; border-radius:8px; font-weight:600;
 }}
 QPushButton#btn_undo:hover {{ background:{t['SRF2']}; border-color:{t['ACCENT']}; }}
 QPushButton#btn_undo:disabled {{ background:{t['SRF2']}; color:{t['DISABLED']}; }}
-/* 테이블/트리 */
+/* Table/tree */
 QTableWidget {{
     background:{t['SURFACE']}; border:1px solid {t['BORDER']};
     border-radius:10px; gridline-color:{t['GRIDLINE']};
@@ -758,23 +758,23 @@ STYLE = make_style(_T)
 
 
 # ═══════════════════════════════════════════════
-# 설정 저장/복원 (config.json)
+# Settings save/restore (config.json)
 # ═══════════════════════════════════════════════
 def _app_dir() -> Path:
-    """실행 파일(.exe) 또는 스크립트 위치를 반환 — PyInstaller 빌드 겸용."""
+    """Return the path of the executable (.exe) or script — also covers PyInstaller builds."""
     if getattr(sys, 'frozen', False):
-        return Path(sys.executable).parent   # 빌드된 exe 위치
-    return Path(__file__).parent             # 개발 중 스크립트 위치
+        return Path(sys.executable).parent   # built exe location
+    return Path(__file__).parent             # dev-mode script location
 
 _CONFIG_PATH = _app_dir() / "FileNexusSuite.json"
-_OUTPUT_DIR  = _app_dir() / "Output"   # 기본 출력 폴더 — Text Converter, Bulk Fixer 공용
+_OUTPUT_DIR  = _app_dir() / "Output"   # default output folder — shared by Text Converter, Bulk Fixer
 try:
     _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 except OSError:
-    pass  # 쓰기 권한 없는 환경에서는 무시
+    pass  # ignore in environments without write permission
 
 class ConfigManager:
-    """앱 설정을 JSON 파일로 저장/복원."""
+    """Save/restore app settings to/from a JSON file."""
     def __init__(self):
         self._data: dict = {}
 
@@ -802,13 +802,13 @@ class ConfigManager:
 
 _CFG = ConfigManager()
 
-# ── 전역 디버그 로그 (AppSuite가 설정, 패널에서 직접 호출) ──
+# ── Global debug log (set by AppSuite, called directly from panels) ──
 _g_log_fn = None
-_session_log_fp = None  # 세션 로그 파일 핸들
+_session_log_fp = None  # session log file handle
 
 
 def _t(key: str, **kwargs) -> str:
-    """현재 언어의 번역 문자열 반환. zh_cn은 zh_tw로 1차 fallback, 최종은 Korean fallback."""
+    """Return the translated string for the current language. zh_cn falls back to zh_tw first, then to Korean."""
     lang = _current_lang
     s = (TRANSLATIONS.get(lang, TRANSLATIONS['ko']).get(key)
          or (TRANSLATIONS['zh_tw'].get(key) if lang == 'zh_cn' else None)
@@ -817,8 +817,8 @@ def _t(key: str, **kwargs) -> str:
 
 
 def _all_translations_of(key: str) -> set:
-    """번역 키의 모든 언어 값 집합 반환.
-    retranslate() 내 status 레이블 비교에 사용 — 번역이 추가·변경돼도 자동 반영."""
+    """Return the set of all-language values for a translation key.
+    Used for status label comparison inside retranslate() — auto-reflects when translations are added or changed."""
     return {v.get(key, '') for v in TRANSLATIONS.values()
             if isinstance(v, dict) and v.get(key)}
 
@@ -831,15 +831,15 @@ _THEME_NAME_KEY = {
 }
 
 def _theme_label(theme_name: str) -> str:
-    """테마 키로 현재 언어의 이름 반환. _t() 사용으로 언어 타이밍 보장."""
+    """Return the name in the current language for a theme key. Uses _t() to guarantee language timing."""
     key = _THEME_NAME_KEY.get(theme_name, '')
     return _t(key) if key else theme_name
 
 def _glog(msg: str):
-    """어느 패널에서든 AppSuite 디버그 창에 로그를 출력하고 파일에도 기록."""
+    """Print log to the AppSuite debug window from any panel, and also write it to the file."""
     if _g_log_fn:
         _g_log_fn(msg)
-    # 세션 로그 파일에도 기록
+    # also write to the session log file
     if _session_log_fp:
         try:
             ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -848,7 +848,7 @@ def _glog(msg: str):
         except Exception:
             pass
 
-# ── 단축키 정의 (id → label, default) ──────────
+# ── Shortcut definitions (id → label, default) ──
 SHORTCUT_DEFS = {
     'tab_1': {'label': 'Text Merger 탭 전환',   'default': 'Ctrl+1'},
     'tab_2': {'label': 'Text Converter 탭 전환','default': 'Ctrl+2'},
@@ -859,7 +859,7 @@ SHORTCUT_DEFS = {
 }
 
 
-# ── 지원 언어 정의 ──────────────────────────────────
+# ── Supported languages definition ─────────────────
 TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'debug_log': 'Debug Log',
         'btn_clear': '지우기',
@@ -2936,29 +2936,29 @@ SUPPORTED_LANGUAGES = [
 
 def _setup_crash_logger():
     """
-    앱 크래시 시 에러 로그 자동 저장.
-    - 메인 스레드 + QThread 예외 모두 캡처
-    - [프로그램 폴더]/logs/ 에 저장
-    - 최근 3개 보관 후 오래된 것 자동 삭제
-    - 크래시 다이얼로그 표시 (로그 경로 안내)
+    Auto-save error log on app crash.
+    - Captures exceptions from main thread + QThread
+    - Saves to [program folder]/logs/
+    - Keeps the latest 3, auto-deletes older ones
+    - Shows crash dialog (with log path)
     """
     import traceback, platform, threading
 
-    # ── 로그 폴더 설정 ────────────────────────────────────────────────────────
-    # 프로그램 파일과 같은 폴더 내 logs 디렉토리 사용
+    # ── Log folder setup ──────────────────────────────────────────────────────
+    # Use a logs directory in the same folder as the program file
     _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 
     try:
         os.makedirs(_log_dir, exist_ok=True)
     except OSError:
-        # 쓰기 불가 시 임시 폴더 fallback
+        # fallback to temp folder if not writable
         import tempfile
         _log_dir = os.path.join(tempfile.gettempdir(), "FileNexusSuite", "logs")
         os.makedirs(_log_dir, exist_ok=True)
 
     def _write_crash_log(exc_type, exc_value, exc_tb, thread_name="MainThread"):
-        """크래시 로그 파일 저장 후 경로 반환."""
-        _session_crashed[0] = True  # 정상 종료가 아님 — 세션 로그 유지
+        """Save crash log file and return its path."""
+        _session_crashed[0] = True  # not a normal exit — keep the session log
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log_path = os.path.join(_log_dir, f"crash_{ts}.log")
         try:
@@ -2966,15 +2966,15 @@ def _setup_crash_logger():
                 f.write("=" * 70 + "\n")
                 f.write("  File Nexus Suite — Crash Report\n")
                 f.write("=" * 70 + "\n")
-                f.write(f"시각      : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"스레드    : {thread_name}\n")
+                f.write(f"Time      : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Thread    : {thread_name}\n")
                 f.write(f"OS        : {platform.platform()}\n")
                 f.write(f"Python    : {sys.version.split()[0]}\n")
-                f.write(f"언어      : {_current_lang}\n")
+                f.write(f"Language  : {_current_lang}\n")
                 f.write("=" * 70 + "\n\n")
                 f.write("[ Traceback ]\n")
                 f.write("".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
-            # 오래된 로그 정리 (최근 3개만 유지)
+            # cleanup old logs (keep only the latest 3)
             logs = sorted(
                 [os.path.join(_log_dir, f) for f in os.listdir(_log_dir) if f.startswith("crash_")],
                 key=os.path.getmtime
@@ -2987,7 +2987,7 @@ def _setup_crash_logger():
         return log_path
 
     def _show_crash_dialog(log_path, exc_type, exc_value):
-        """테마 적용된 크래시 알림 다이얼로그."""
+        """Theme-aware crash notification dialog."""
         try:
             from PySide6.QtWidgets import (QApplication, QDialog, QVBoxLayout,
                                           QHBoxLayout, QLabel, QPushButton,
@@ -2996,7 +2996,7 @@ def _setup_crash_logger():
 
             QApplication.instance() or QApplication(sys.argv)
 
-            # 테마 색상 결정
+            # determine theme colors
             try:
                 _resolved = _resolve_theme(_CFG.get("theme", "auto"))
                 _tc = THEMES.get(_resolved, THEMES["light"])
@@ -3010,7 +3010,7 @@ def _setup_crash_logger():
             bg=_tc["BG"]; surface=_tc["SURFACE"]; border=_tc["BORDER"]
             accent="#CC4444"; text=_tc["TEXT"]; muted=_tc["MUTED"]
 
-            # 언어별 문구
+            # per-language strings
             _msg_map = {
                 "ko": ("예상치 못한 오류 발생", "오류가 발생하여 프로그램이 종료됩니다.",
                        "로그 저장 위치:", "로그 폴더 열기", "확인"),
@@ -3035,14 +3035,14 @@ def _setup_crash_logger():
 
             root = QVBoxLayout(dlg); root.setContentsMargins(0,0,0,0); root.setSpacing(0)
 
-            # 상단 빨간 바
+            # top red bar
             bar = QFrame(); bar.setFixedHeight(4)
             bar.setStyleSheet(f"background:{accent};border:none;")
             root.addWidget(bar)
 
             body = QVBoxLayout(); body.setContentsMargins(28,24,28,20); body.setSpacing(10)
 
-            # 아이콘 + 타이틀
+            # icon + title
             hrow = QHBoxLayout(); hrow.setSpacing(12)
             icon_lbl = QLabel("💥"); icon_lbl.setStyleSheet("font-size:26px;")
             icon_lbl.setFixedWidth(36)
@@ -3059,7 +3059,7 @@ def _setup_crash_logger():
             main_lbl.setStyleSheet(f"font-size:13px;color:{text};")
             body.addWidget(main_lbl)
 
-            # 에러 요약
+            # error summary
             err_box = QTextEdit()
             err_box.setReadOnly(True)
             err_box.setPlainText(_err_summary)
@@ -3069,7 +3069,7 @@ def _setup_crash_logger():
                 f"color:{muted};font-size:11px;padding:4px;")
             body.addWidget(err_box)
 
-            # 로그 경로
+            # log path
             path_row = QVBoxLayout(); path_row.setSpacing(3)
             path_lbl = QLabel(_path_lbl)
             path_lbl.setStyleSheet(f"font-size:11px;color:{muted};font-weight:600;")
@@ -3080,7 +3080,7 @@ def _setup_crash_logger():
             body.addLayout(path_row)
             body.addStretch()
 
-            # 버튼 행
+            # button row
             btn_row = QHBoxLayout(); btn_row.setSpacing(10)
             open_btn = QPushButton(_open_lbl)
             open_btn.setFixedHeight(34)
@@ -3107,20 +3107,20 @@ def _setup_crash_logger():
             root.addLayout(body)
             dlg.exec()
         except Exception:
-            pass  # 다이얼로그 자체 실패 시 조용히 종료
+            pass  # silently exit if the dialog itself fails
 
-    # 재진입 방지 플래그 — dlg.exec() 중 같은 예외 재발 시 무한 팝업 루프 차단
+    # re-entry guard — blocks infinite popup loop if the same exception fires during dlg.exec()
     _excepthook_lock = [False]
-    # 크래시 발생 여부 — atexit 정리 시 세션 로그 삭제 여부 결정
+    # whether a crash occurred — decides if the session log gets deleted at atexit
     _session_crashed = [False]
 
     def _excepthook(exc_type, exc_value, exc_tb):
-        """메인 스레드 미처리 예외 핸들러."""
+        """Main thread unhandled exception handler."""
         if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
             sys.__excepthook__(exc_type, exc_value, exc_tb)
             return
         if _excepthook_lock[0]:
-            # 크래시 다이얼로그가 이미 표시 중 — 추가 팝업 없이 stderr만 출력
+            # crash dialog is already showing — write to stderr only, no extra popup
             sys.__excepthook__(exc_type, exc_value, exc_tb)
             return
         _excepthook_lock[0] = True
@@ -3132,12 +3132,12 @@ def _setup_crash_logger():
         sys.__excepthook__(exc_type, exc_value, exc_tb)
 
     def _thread_excepthook(args):
-        """QThread / 일반 스레드 미처리 예외 핸들러 (Python 3.8+)."""
+        """QThread / generic thread unhandled exception handler (Python 3.8+)."""
         if issubclass(args.exc_type, (KeyboardInterrupt, SystemExit)):
             return
         thread_name = getattr(args.thread, "name", "WorkerThread")
         _write_crash_log(args.exc_type, args.exc_value, args.exc_traceback, thread_name)
-        # 스레드 크래시는 다이얼로그 없이 로그만 저장
+        # thread crashes only write to log, no dialog
 
     sys.excepthook = _excepthook
     try:
@@ -3145,7 +3145,7 @@ def _setup_crash_logger():
     except AttributeError:
         pass
 
-    # ── 세션 로그 파일 시작 ─────────────────────────────────────────────
+    # ── Begin session log file ──────────────────────────────────────────
     global _session_log_fp
     try:
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -3154,13 +3154,13 @@ def _setup_crash_logger():
         _session_log_fp.write("=" * 70 + "\n")
         _session_log_fp.write("  File Nexus Suite — Session Log\n")
         _session_log_fp.write("=" * 70 + "\n")
-        _session_log_fp.write(f"시작 시각 : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        _session_log_fp.write(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         _session_log_fp.write(f"OS        : {platform.platform()}\n")
         _session_log_fp.write(f"Python    : {sys.version.split()[0]}\n")
         _session_log_fp.write("=" * 70 + "\n\n")
-        # v1.0.6: 헤더 강제 flush — 강제 종료/데드락 시에도 "앱이 기동은 했음" 증거 보존
+        # v1.0.6: force-flush header — preserves "app did boot" evidence even on hard kill / deadlock
         _session_log_fp.flush()
-        # 세션 로그 오래된 것 정리 (크래시 로그만 남으므로 최근 5개 유지)
+        # cleanup old session logs (only crash logs persist, so keep the latest 5)
         s_logs = sorted(
             [os.path.join(_log_dir, f) for f in os.listdir(_log_dir)
              if f.startswith("session_")],
@@ -3172,9 +3172,9 @@ def _setup_crash_logger():
     except Exception:
         _session_log_fp = None
 
-    # ── 정상 종료 시 세션 로그 자동 삭제 ───────────────────────────────
+    # ── Auto-delete session log on normal exit ──────────────────────────
     def _cleanup_session_log():
-        """정상 종료(크래시 없음) 시 세션 로그 삭제."""
+        """Delete session log on normal exit (no crash)."""
         global _session_log_fp
         if _session_log_fp is None:
             return
@@ -3195,14 +3195,14 @@ def _setup_crash_logger():
     return _log_dir
 
 def _show_already_running_popup():
-    """테마 적용된 중복 실행 알림 다이얼로그."""
+    """Theme-aware already-running notification dialog."""
     from PySide6.QtWidgets import (QApplication, QDialog, QVBoxLayout,
                                   QHBoxLayout, QLabel, QPushButton, QFrame)
     from PySide6.QtCore import Qt
 
     QApplication.instance() or QApplication(sys.argv)
 
-    # 저장된 테마 읽기
+    # read saved theme
     try:
         cfg_path = os.path.join(os.path.expanduser("~"), "AppData", "Roaming",
                                 "FileNexusSuite", "FileNexusSuite.json")
@@ -3217,7 +3217,7 @@ def _show_already_running_popup():
         _theme_name = "auto"
         _lang = "ko"
 
-    # 테마 색상 결정
+    # determine theme colors
     _resolved = _resolve_theme(_theme_name)
     _t_colors = THEMES.get(_resolved, THEMES["light"])
     bg      = _t_colors["BG"]
@@ -3226,7 +3226,7 @@ def _show_already_running_popup():
     text    = _t_colors["TEXT"]
     muted   = _t_colors["MUTED"]
 
-    # 언어별 문구
+    # per-language strings
     _msgs = {
         "ko": ("이미 실행 중", "File Nexus Suite가 이미 실행 중입니다.", "실행 중인 창을 확인해 주세요.", "확인"),
         "en": ("Already Running", "File Nexus Suite is already running.", "Please check the existing window.", "OK"),
@@ -3236,7 +3236,7 @@ def _show_already_running_popup():
     }
     _title, _main, _sub, _ok_lbl = _msgs.get(_lang, _msgs["ko"])
 
-    # 커스텀 다이얼로그 생성
+    # build custom dialog
     dlg = QDialog()
     dlg.setWindowTitle("File Nexus Suite")
     try:
@@ -3254,17 +3254,17 @@ def _show_already_running_popup():
     root.setContentsMargins(0, 0, 0, 0)
     root.setSpacing(0)
 
-    # 상단 컬러 바
+    # top color bar
     bar = QFrame(); bar.setFixedHeight(4)
     bar.setStyleSheet(f"background: {accent}; border: none;")
     root.addWidget(bar)
 
-    # 콘텐츠 영역
+    # content area
     body = QVBoxLayout()
     body.setContentsMargins(32, 28, 32, 24)
     body.setSpacing(10)
 
-    # 아이콘 + 타이틀 행
+    # icon + title row
     hrow = QHBoxLayout(); hrow.setSpacing(14)
     icon_lbl = QLabel("🔔")
     icon_lbl.setStyleSheet("font-size: 28px; background: transparent;")
@@ -3275,19 +3275,19 @@ def _show_already_running_popup():
     hrow.addWidget(title_lbl, 1)
     body.addLayout(hrow)
 
-    # 구분선
+    # separator
     sep = QFrame(); sep.setFrameShape(QFrame.HLine)
     sep.setStyleSheet(f"background: {border}; max-height: 1px; border: none;")
     body.addWidget(sep)
     body.addSpacing(4)
 
-    # 메인 메시지
+    # main message
     main_lbl = QLabel(_main)
     main_lbl.setStyleSheet(f"font-size: 13px; color: {text};")
     main_lbl.setWordWrap(True)
     body.addWidget(main_lbl)
 
-    # 서브 메시지
+    # sub message
     sub_lbl = QLabel(_sub)
     sub_lbl.setStyleSheet(f"font-size: 12px; color: {muted};")
     sub_lbl.setWordWrap(True)
@@ -3295,7 +3295,7 @@ def _show_already_running_popup():
 
     body.addStretch()
 
-    # 확인 버튼
+    # OK button
     btn_row = QHBoxLayout()
     btn_row.addStretch()
     ok_btn = QPushButton(_ok_lbl)
@@ -3318,10 +3318,10 @@ def _show_already_running_popup():
 
 def _check_single_instance():
     """
-    단일 인스턴스 보장.
-    - 이미 실행 중이면 테마 적용 팝업 1개만 표시 후 종료.
-    - 팝업이 이미 떠 있는 상태에서 추가 실행 시 팝업 중복 없이 조용히 종료.
-    - 반환값(mutex/lock)을 변수에 보관해야 GC로 해제되지 않음.
+    Ensure single instance.
+    - If already running, show one theme-aware popup and exit.
+    - If a popup is already up, additional launches exit silently without duplicating it.
+    - Store the returned mutex/lock in a variable so GC does not release it.
     """
     APP_MUTEX_NAME   = "FileNexusSuite_SingleInstance_v1"
     POPUP_MUTEX_NAME = "FileNexusSuite_PopupActive_v1"
@@ -3358,19 +3358,19 @@ def _check_single_instance():
             sys.exit(0)
 
 def _detect_os_lang() -> str:
-    """OS 기본 언어를 지원 언어 코드로 변환.
+    """Convert the OS default language to a supported language code.
 
-    우선순위:
-    1. Windows: 레지스트리 Control Panel\\International → LocaleName
-       - PyInstaller 빌드 환경에서 locale 모듈이 'Korean_Korea' 등
-         Windows 내부 형식을 반환해 'ko' 매칭 실패하는 문제 해결
-    2. locale.getlocale() — POSIX 형식 ('ko_KR' 등)
-    3. locale.getdefaultlocale() — deprecated이나 일부 환경 fallback
-    4. 모두 실패 시 'en' 반환
+    Priority:
+    1. Windows: registry Control Panel\\International → LocaleName
+       - In PyInstaller builds, the locale module returns Windows-internal forms
+         like 'Korean_Korea', breaking 'ko' matching — this fixes that
+    2. locale.getlocale() — POSIX form (e.g., 'ko_KR')
+    3. locale.getdefaultlocale() — deprecated, but a fallback for some environments
+    4. Returns 'en' if all of the above fail
     """
     code = ''
 
-    # ── 1. Windows 레지스트리 (가장 신뢰성 높음) ─────────────────────
+    # ── 1. Windows registry (most reliable) ──────────────────────────
     if sys.platform == 'win32':
         try:
             import winreg
@@ -3404,11 +3404,11 @@ def _detect_os_lang() -> str:
     if code.startswith('zh'): return 'zh_cn'
     return 'en'
 
-_current_lang = _detect_os_lang()   # 런타임 현재 언어 — OS 기본값으로 초기화
+_current_lang = _detect_os_lang()   # runtime current language — initialized from OS default
 
 
 # ═══════════════════════════════════════════════
-# Batch Renamer 헬퍼
+# Batch Renamer helpers
 # ═══════════════════════════════════════════════
 def _pad(s):
     try:
@@ -3467,14 +3467,14 @@ def natural_sort_key(path):
 _SKIP_FILES = {'desktop.ini', 'thumbs.db', 'thumbs.db:encryptable'}
 
 # ═══════════════════════════════════════════════
-# Tag Editor 핵심 로직
+# Tag Editor core logic
 # ═══════════════════════════════════════════════
 def remove_tag_from_name(filename, position="front", target_tag=None):
     name, ext = os.path.splitext(filename)
-    # \[+[^\]]+ \]+ 패턴: [tag] 및 [[tag]] 이중 대괄호 모두 처리
+    # \[+[^\]]+ \]+ pattern: handles both [tag] and [[tag]] double brackets
     _TAG = r'\[+[^\]]+\]+'
     if target_tag:
-        # 특정 태그만 제거 — 위치 무관하게 해당 태그 패턴만 제거
+        # remove only a specific tag — strip that tag pattern regardless of position
         _SPECIFIC = r'\s*\[+' + re.escape(target_tag.strip()) + r'\]+\s*'
         name = re.sub(_SPECIFIC, ' ', name).strip()
     else:
@@ -3514,8 +3514,8 @@ def add_tag_to_name(filename, tags, fmt, position, skip_exist,
 
 def depad_name(filename):
     name, ext = os.path.splitext(filename)
-    # 날짜 형식 보호: 파일명 전체가 순수 날짜 패턴이면 변경하지 않음
-    # 예: 2024-01-01, 01-01 → None (변경 없음)
+    # date-format guard: leave unchanged if the entire filename is a pure date pattern
+    # e.g., 2024-01-01, 01-01 → None (no change)
     if re.fullmatch(r'\d{4}-\d{2}-\d{2}|\d{2}-\d{2}', name):
         return None
     new = re.sub(r'(?<![0-9\-])0+(\d)', r'\1', name)
@@ -3534,21 +3534,21 @@ def apply_renames(targets):
     return success, errors
 
 # ═══════════════════════════════════════════════
-# Text Converter 핵심 로직
+# Text Converter core logic
 # ═══════════════════════════════════════════════
 def alchemy_detect_encoding(path):
-    """파일 인코딩 감지 — BOM 직접 검출 + chardet + 폴백.
+    """File encoding detection — direct BOM check + chardet + fallback.
 
-    v1.0.3: CJK 인코딩(GBK/Big5/Shift-JIS)은 임계값을 0.5로 낮춤.
-    chardet이 이들 인코딩에 대해 0.5~0.7 신뢰도를 반환하는 경우가 많아,
-    0.7 엄격 기준을 그대로 적용하면 잘못된 utf-8/cp949 폴백으로 이어짐.
+    v1.0.3: CJK encodings (GBK/Big5/Shift-JIS) use a lowered threshold of 0.5.
+    chardet often returns 0.5–0.7 confidence for these encodings, so
+    applying the strict 0.7 cutoff leads to wrong utf-8/cp949 fallbacks.
 
-    v1.0.4: (encoding, confidence) 튜플 반환으로 통합 — Text Merger가 사용하던
-    별도 _detect_encoding()을 흡수. 신뢰도는 chardet 원본값 그대로 (0~1),
-    BOM 감지 시 1.0, 폴백 시 0.0. 읽는 바이트도 8192 → 32768로 확대.
+    v1.0.4: unified to return an (encoding, confidence) tuple — absorbs the separate
+    _detect_encoding() previously used by Text Merger. Confidence is chardet's raw value (0–1),
+    1.0 on BOM detection, 0.0 on fallback. Read size raised from 8192 → 32768.
 
     Returns:
-        tuple[str, float]: (정규화된 인코딩명, 0~1 신뢰도)
+        tuple[str, float]: (normalized encoding name, 0–1 confidence)
     """
     try:
         with open(path, "rb") as f: raw = f.read(32768)
@@ -3557,68 +3557,68 @@ def alchemy_detect_encoding(path):
         if HAS_CHARDET:
             result = _chardet.detect(raw); enc = (result.get("encoding") or "utf-8").lower()
             conf = float(result.get("confidence", 0) or 0.0)
-            # CJK 인코딩은 chardet이 자주 0.5~0.7을 반환 → 임계값 완화
-            # cp932/windows-31j는 Windows의 Shift-JIS 확장 → shift_jis로 정규화
+            # chardet often returns 0.5–0.7 for CJK encodings → relaxed threshold
+            # cp932/windows-31j are Windows Shift-JIS extensions → normalize to shift_jis
             _CJK_ENCS = ("gb18030","gbk","gb2312","big5",
                          "shift_jis","shift-jis","cp932","windows-31j","euc-jp")
             if conf >= 0.7 or (conf >= 0.5 and enc in _CJK_ENCS):
                 if enc in ("utf-8","utf-8-sig","ascii"): return ("utf-8", conf)
                 if enc in ("euc-kr","euc_kr","cp949","ms949"): return ("cp949", conf)
                 if enc in ("utf-16","utf-16-le","utf-16-be"): return ("utf-16", conf)
-                # GBK/GB2312/GB18030 → gbk로 정규화 (gbk가 상위 호환)
+                # GBK/GB2312/GB18030 → normalize to gbk (gbk is a superset)
                 if enc in ("gb18030","gbk","gb2312"): return ("gbk", conf)
-                # Shift-JIS 변형 → shift_jis로 정규화 (cp932/windows-31j는 Windows 확장)
+                # Shift-JIS variants → normalize to shift_jis (cp932/windows-31j are Windows extensions)
                 if enc in ("shift_jis","shift-jis","cp932","windows-31j"): return ("shift_jis", conf)
                 return (enc, conf)
-        # v1.0.6: utf-8 strict 통과 시 0.7 부여 (이전 0.0). cp949/shift_jis 폴백과 동일한 논리.
-        # strict 통과는 손실 없이 디코딩 가능 보장 → 추천 임계 0.7 부합. 배지에 "70% UTF-8" 정직 표시.
+        # v1.0.6: assign 0.7 on utf-8 strict pass (was 0.0). Same logic as cp949/shift_jis fallback.
+        # strict pass guarantees lossless decode → meets 0.7 recommend cutoff. Badge honestly shows "70% UTF-8".
         try: raw.decode("utf-8"); return ("utf-8", 0.7)
         except UnicodeDecodeError: pass
-        # v1.0.4: chardet이 CJK 파일을 잘못 감지(예: ASCII로 시작하는 Shift-JIS → cp1006 오판)해도
-        # 구제 가능하도록 CJK 인코딩을 순차 strict 검증. cp949 → shift_jis → gbk → big5 순서.
-        # (Shift-JIS 파일은 cp949 strict 디코딩 실패하므로 우선순위 무관)
-        # v1.0.6: strict 디코딩 통과 시 신뢰도 0.7 부여 (이전엔 0.0 → 자동 추천 알고리즘이 무시했음).
-        # strict 통과는 "해당 인코딩으로 손실 없이 디코딩 가능"이 수학적으로 보장된 상태이므로
-        # 추천 임계(0.7)에 부합. 단, chardet 검증은 거치지 못했으므로 0.9(초록)는 과장 — 0.7(노랑) 적정.
+        # v1.0.4: rescue path even when chardet mis-detects CJK files (e.g., Shift-JIS that starts with ASCII → cp1006)
+        # by sequentially strict-validating CJK encodings: cp949 → shift_jis → gbk → big5.
+        # (Shift-JIS files fail cp949 strict decode, so the order is independent.)
+        # v1.0.6: assign 0.7 on strict-pass (was 0.0 → previously ignored by the auto-recommend algorithm).
+        # strict-pass mathematically guarantees "decodable losslessly with this encoding", so
+        # it meets the 0.7 recommend cutoff. But without chardet validation, 0.9 (green) overstates it — 0.7 (yellow) is appropriate.
         for _fallback in ("cp949", "shift_jis", "gbk", "big5"):
             try:
                 raw.decode(_fallback)
                 return (_fallback, 0.7)
             except UnicodeDecodeError: continue
-        return ("cp949", 0.0)  # 최후의 폴백 (v1.0.3 동작 유지)
+        return ("cp949", 0.0)  # last-resort fallback (preserves v1.0.3 behavior)
     except Exception: return ("utf-8", 0.0)
 
 
 def alchemy_check_encoding_compat(text, codec):
-    """텍스트가 codec으로 손실 없이 저장 가능한지 사전 검증 (v1.0.4 신규).
+    """Pre-validate whether text can be saved with the given codec losslessly (new in v1.0.4).
 
-    한글 텍스트를 Shift-JIS로 저장하는 등 호환되지 않는 조합에서
-    UnicodeEncodeError가 발생하기 전에 미리 경고하기 위함.
+    Catches incompatible combinations (e.g., saving Korean text as Shift-JIS) and warns
+    before a UnicodeEncodeError actually occurs.
 
-    유니코드 인코딩(UTF-8/UTF-16 계열)은 모든 유니코드 문자 표현 가능 →
-    검증 생략하고 즉시 (False, 0, 0, total, []) 반환.
+    Unicode encodings (UTF-8 / UTF-16 family) can represent every Unicode character →
+    skip validation and immediately return (False, 0, 0, total, []).
 
     Args:
-        text: 저장 대상 문자열
-        codec: Python codec 이름 (예: "shift_jis", "gbk", "big5", "cp949")
+        text: text to be saved
+        codec: Python codec name (e.g., "shift_jis", "gbk", "big5", "cp949")
 
     Returns:
         tuple[bool, int, int, int, list[str]]:
-            - 손실 여부 (True=깨질 문자 있음)
-            - 깨질 고유 문자 종 수 (예: "한"이 50번 있어도 1)
-            - 영향받는 총 글자 수 (중복 포함, 예: "한"이 50번이면 50)
-            - 전체 글자 수 (비율 계산용)
-            - 샘플 깨진 문자 최대 5개 (다이얼로그 표시용)
+            - lossy flag (True = some characters will break)
+            - count of distinct broken character kinds (e.g., 1 even if "한" appears 50 times)
+            - total affected character count (with duplicates, e.g., 50 if "한" appears 50 times)
+            - total character count (for ratio calculation)
+            - up to 5 sample broken characters (for dialog display)
     """
     total_chars = len(text)
     if codec in ("utf-8", "utf-8-sig", "utf-16", "utf-16-le", "utf-16-be"):
         return (False, 0, 0, total_chars, [])
     try:
-        text.encode(codec)  # strict 모드로 한 번에 검증 (대부분의 케이스)
+        text.encode(codec)  # validate in one shot via strict mode (most cases)
         return (False, 0, 0, total_chars, [])
     except UnicodeEncodeError:
         pass
-    # 손실 있음 → 깨질 고유 문자 집합 파악 (set으로 중복 제거 후 1회만 검증)
+    # lossy → identify the set of distinct broken characters (dedupe via set, validate once)
     bad_chars = set()
     samples = []
     for ch in set(text):
@@ -3626,16 +3626,16 @@ def alchemy_check_encoding_compat(text, codec):
         except UnicodeEncodeError:
             bad_chars.add(ch)
             if len(samples) < 5: samples.append(ch)
-    # 영향받는 총 글자 수 카운트 (전체 순회, 중복 포함)
+    # count total affected characters (full scan, duplicates included)
     bad_total_count = sum(1 for ch in text if ch in bad_chars)
     return (True, len(bad_chars), bad_total_count, total_chars, samples)
 
 
-# v1.0.6 Phase 2-a: 실패 위치 추적 상한 (이후는 카운트만 집계)
+# v1.0.6 Phase 2-a: cap on tracked failure positions (beyond this, count only)
 MAX_TRACK_FAILURES = 5000
 
-# v1.0.6 실기 QA 재최적화: 위치 추적용 thread-local 저장소 + 전역 에러 핸들러
-# (기존 O(N×K) 슬라이싱 방식 대신 codecs.register_error 활용한 단일 O(N) 패스)
+# v1.0.6 field-QA re-optimization: thread-local storage for tracking + a global error handler
+# (replaces the prior O(N×K) slicing approach with a single O(N) pass via codecs.register_error)
 import codecs as _codecs_mod
 import bisect as _bisect_mod
 import threading as _threading_mod
@@ -3644,16 +3644,16 @@ _decode_tracking_state = _threading_mod.local()
 
 
 def _fns_track_error_handler(e):
-    """FileNexusSuite 전용 에러 핸들러 — thread-local 상태에 실패 정보 수집.
+    """FileNexusSuite-dedicated error handler — collects failure info into thread-local state.
 
-    codecs.register_error('_fns_track', ...)로 한 번만 등록.
-    _decode_with_failure_tracking 내에서 thread-local에 captured 리스트 세팅 후 호출.
+    Registered once via codecs.register_error('_fns_track', ...).
+    Called from inside _decode_with_failure_tracking after setting up the captured list in thread-local.
 
     Args:
-        e: UnicodeDecodeError — e.start/e.end/e.object 접근
+        e: UnicodeDecodeError — accesses e.start / e.end / e.object
 
     Returns:
-        tuple[str, int]: (대체 문자열, 다음 디코딩 시작 위치)
+        tuple[str, int]: (replacement string, next decoding position)
     """
     captured = getattr(_decode_tracking_state, 'captured', None)
     if captured is not None and len(captured) < MAX_TRACK_FAILURES:
@@ -3664,40 +3664,40 @@ def _fns_track_error_handler(e):
     return ('\ufffd', e.end)
 
 
-# 모듈 로드 시 한 번만 등록 (핸들러 누적 방지)
+# register only once at module load (avoids handler accumulation)
 _codecs_mod.register_error('_fns_track', _fns_track_error_handler)
 
 
 def _decode_with_failure_tracking(raw: bytes, enc: str) -> tuple:
-    """바이트 시퀀스를 디코딩하면서 각 UnicodeDecodeError 위치를 추적 (v1.0.6 Phase 2-a).
+    """Decode a byte sequence while tracking each UnicodeDecodeError position (v1.0.6 Phase 2-a).
 
-    v1.0.6 재최적화 (실기 QA 중 O(N×K) 프리징 발견):
-        기존: `while pos < len: raw[pos:].decode('strict')` — 매 반복마다 슬라이스 복사 →
-              27MB 파일 + 수천 에러에서 UI 프리징 발생
-        변경: codecs.register_error 기반 커스텀 에러 핸들러 + 단일 raw.decode() 호출 →
-              C 레벨 단일 O(N) 패스
+    v1.0.6 re-optimization (O(N×K) freeze discovered during field QA):
+        before: `while pos < len: raw[pos:].decode('strict')` — slice copy per iteration →
+              UI froze on a 27MB file with thousands of errors
+        after: a custom error handler via codecs.register_error + a single raw.decode() call →
+              one O(N) pass at the C level
 
-    알고리즘:
-        1. thread-local에 captured 리스트 세팅
-        2. raw.decode(enc, errors='_fns_track') — 핸들러가 각 에러 시 captured에 수집
-        3. 디코딩된 text에서 \\ufffd 위치 검색 (str.find, C 레벨 O(N))
-        4. \\n 위치 인덱스 구축 (str.find 루프, C 레벨 O(N))
-        5. bisect로 라인/컬럼 O(log N) 조회
+    Algorithm:
+        1. set up the captured list in thread-local
+        2. raw.decode(enc, errors='_fns_track') — handler appends to captured on each error
+        3. find \\ufffd positions in the decoded text (str.find, C-level O(N))
+        4. build a \\n position index (str.find loop, C-level O(N))
+        5. resolve line/column in O(log N) via bisect
 
-    성능: 27MB + 수천 에러 시나리오 — 분 단위 → 수백 ms 이내 (수백~수천배 개선)
+    Performance: 27MB + thousands of errors — minutes → under a few hundred ms (hundreds~thousands× faster)
 
     Args:
-        raw: 원시 바이트 시퀀스
-        enc: 시도할 인코딩 이름
+        raw: raw byte sequence
+        enc: encoding name to attempt
 
     Returns:
         tuple[str | None, list, int]:
-            - text: 디코딩된 텍스트 (None이면 재앙적 실패)
-            - failures: 실패 위치 dict 리스트 (최대 MAX_TRACK_FAILURES개)
-                       각 dict: {byte_pos, bad_bytes_hex, line, col, context}
-            - total_failures: 실제 전체 실패 수 (MAX 초과분 포함)
+            - text: decoded text (None on catastrophic failure)
+            - failures: list of failure-position dicts (up to MAX_TRACK_FAILURES)
+                       each dict: {byte_pos, bad_bytes_hex, line, col, context}
+            - total_failures: actual total failure count (includes overflow beyond MAX)
     """
-    # Thread-local captured 리스트 준비
+    # prepare thread-local captured list
     captured = []
     _decode_tracking_state.captured = captured
 
@@ -3705,10 +3705,10 @@ def _decode_with_failure_tracking(raw: bytes, enc: str) -> tuple:
         try:
             text = raw.decode(enc, errors='_fns_track')
         except (LookupError, TypeError):
-            # 존재하지 않는 인코딩 등 — 재앙적 실패
+            # nonexistent encoding, etc. — catastrophic failure
             return (None, [], 0)
         except Exception:
-            # 예상치 못한 실패 → errors='replace'로 폴백 (위치 정보 손실)
+            # unexpected failure → fallback to errors='replace' (loses position info)
             try:
                 text = raw.decode(enc, errors='replace')
                 return (text, [], text.count('\ufffd'))
@@ -3717,14 +3717,14 @@ def _decode_with_failure_tracking(raw: bytes, enc: str) -> tuple:
     finally:
         _decode_tracking_state.captured = None
 
-    # 전체 실패 수: 디코딩된 text의 \ufffd 개수 (C 레벨 빠른 카운트)
+    # total failure count: number of \ufffd in the decoded text (fast C-level count)
     total_failures = text.count('\ufffd')
 
     if total_failures == 0 or not captured:
         return (text, [], total_failures)
 
-    # captured에 있는 각 에러의 char_pos(= text 내 \ufffd 위치) 찾기
-    # captured는 최대 MAX_TRACK_FAILURES개, text.find는 C 레벨이라 빠름
+    # for each error in captured, find char_pos (= position of \ufffd in text)
+    # captured holds up to MAX_TRACK_FAILURES; text.find is C-level and fast
     ufffd_positions = []
     start = 0
     for _ in range(len(captured)):
@@ -3734,7 +3734,7 @@ def _decode_with_failure_tracking(raw: bytes, enc: str) -> tuple:
         ufffd_positions.append(pos)
         start = pos + 1
 
-    # 라인 번호 조회용 \n 위치 인덱스 구축 (한 번만, O(N))
+    # build a \n position index for line lookups (built once, O(N))
     nl_positions = []
     start = 0
     while True:
@@ -3744,10 +3744,10 @@ def _decode_with_failure_tracking(raw: bytes, enc: str) -> tuple:
         nl_positions.append(pos)
         start = pos + 1
 
-    # failures 리스트 조립 (각 항목 O(log N))
+    # assemble the failures list (each entry O(log N))
     failures = []
     for cap, cp in zip(captured, ufffd_positions):
-        # 라인/컬럼 — bisect로 빠른 조회
+        # line/column — fast lookup via bisect
         line_idx = _bisect_mod.bisect_left(nl_positions, cp)
         line_num = line_idx + 1
         if line_idx > 0:
@@ -3755,7 +3755,7 @@ def _decode_with_failure_tracking(raw: bytes, enc: str) -> tuple:
         else:
             col = cp + 1
 
-        # 주변 텍스트: 앞 20자 + � + 뒤 20자 (제어문자는 공백으로 정규화)
+        # surrounding text: 20 chars before + � + 20 chars after (control chars normalized to spaces)
         ctx_start = max(0, cp - 20)
         ctx_end = min(len(text), cp + 21)  # +1 for \ufffd itself, +20 for after
         ctx = text[ctx_start:ctx_end]
@@ -3773,32 +3773,32 @@ def _decode_with_failure_tracking(raw: bytes, enc: str) -> tuple:
 
 
 def safe_read_text_with_report(path: str) -> tuple:
-    """파일을 안전하게 읽기 — strict 폴백 8개 실패 시 errors='replace'로 최종 재시도 (v1.0.6 신규).
+    """Read a file safely — if all 8 strict fallbacks fail, retry one last time with errors='replace' (new in v1.0.6).
 
-    메모장처럼 "부분적으로 깨진 파일"도 읽기 가능하게 만들어 미리보기/교정이 완전 실패하지 않도록 함.
-    깨진 바이트는 U+FFFD(Replacement Character, '�')로 대체됨 (Python errors='replace' 기본값).
+    Like Notepad, makes "partially-broken files" readable so preview/fix does not fail outright.
+    Broken bytes are replaced with U+FFFD (Replacement Character, '�') (Python errors='replace' default).
 
-    v1.0.6 Phase 2-a: 실패 위치 추적 추가 — replace 모드 시 각 오류의 바이트/라인/컬럼 정보 수집.
+    v1.0.6 Phase 2-a: failure-position tracking added — in replace mode, collects byte/line/column info for each error.
 
     Args:
-        path: 파일 경로
+        path: file path
 
     Returns:
         tuple[str | None, str, str, int, list, int]:
-            - text: 읽어들인 텍스트 (None이면 파일 접근 자체 실패)
-            - used_enc: 실제 사용된 인코딩 이름
-            - read_mode: 'strict' (정상 strict 디코딩 성공) 또는 'replace' (errors='replace' 폴백)
-            - replace_count: replace 모드 시 U+FFFD 치환된 문자 수 (strict 성공 시 0)
-            - failures: replace 모드 시 실패 위치 리스트 (최대 MAX_TRACK_FAILURES개),
-                       각 항목 dict(byte_pos, bad_bytes_hex, line, col, context). strict 성공 시 빈 리스트.
-            - total_failures: replace 모드 시 실제 전체 실패 수 (MAX_TRACK_FAILURES 초과분 포함).
-                             strict 성공 시 0.
+            - text: text read in (None if the file itself was inaccessible)
+            - used_enc: encoding name actually used
+            - read_mode: 'strict' (normal strict decode succeeded) or 'replace' (errors='replace' fallback)
+            - replace_count: in replace mode, count of U+FFFD substitutions (0 on strict success)
+            - failures: in replace mode, list of failure positions (up to MAX_TRACK_FAILURES);
+                       each entry is a dict(byte_pos, bad_bytes_hex, line, col, context). Empty list on strict success.
+            - total_failures: in replace mode, the actual total failure count (includes overflow beyond MAX_TRACK_FAILURES).
+                             0 on strict success.
     """
     try:
         detected_enc, _conf = alchemy_detect_encoding(path)
     except Exception:
         detected_enc = "utf-8"
-    # 1단계: strict 디코딩 폴백 8종 시도 (기존 로직 유지)
+    # Step 1: try the 8-way strict-decode fallback (preserves existing logic)
     candidates = (detected_enc, 'utf-8-sig', 'utf-8', 'cp949', 'euc-kr',
                   'shift_jis', 'gbk', 'big5')
     for enc in candidates:
@@ -3808,10 +3808,10 @@ def safe_read_text_with_report(path: str) -> tuple:
         except (UnicodeDecodeError, LookupError):
             continue
         except OSError:
-            # 파일 접근 불가 (권한/없음 등) — 더 시도해도 의미 없음
+            # file inaccessible (permissions / missing / etc.) — no point in trying further
             return (None, detected_enc, 'strict', 0, [], 0)
-    # 2단계: strict 전부 실패 → errors='replace'로 최종 재시도 + 위치 추적
-    # 감지 인코딩 우선, 그것도 아니면 cp949 (한글 환경 기본값)
+    # Step 2: all strict attempts failed → final retry with errors='replace' + position tracking
+    # detected encoding first; otherwise cp949 (default for Korean environments)
     replace_enc = detected_enc if detected_enc else 'cp949'
     try:
         with open(path, 'rb') as f:
@@ -3836,32 +3836,32 @@ def write_encoding_report(
     action_taken: str,
     lang: str = None,
 ):
-    """인코딩 리포트 파일 생성 (v1.0.6 Phase 2-a).
+    """Generate an encoding report file (v1.0.6 Phase 2-a).
 
-    Bulk Fixer에서 replace 모드로 처리된 파일의 사후 투명성 제공.
-    total_failures == 0이면 생성하지 않음 (정상 처리 파일).
+    Provides post-hoc transparency for files Bulk Fixer processed in replace mode.
+    Not generated when total_failures == 0 (normally processed file).
 
-    티어별 권장 조치 분기:
-    - Tier 1 (1~500): 'processed' + report_advice_tier1 (일부 손상, 검토 권장)
-    - Tier 2 (501~5000): 'processed' + report_advice_tier2 (다수 손상, 원본 확인)
-    - Tier 3 (5001+): 'skipped' + report_advice_tier3 (원본 보호 위해 스킵, Text Fixer 권장)
+    Tier-based recommended-action branches:
+    - Tier 1 (1~500): 'processed' + report_advice_tier1 (some damage, review recommended)
+    - Tier 2 (501~5000): 'processed' + report_advice_tier2 (many damaged, check original)
+    - Tier 3 (5001+): 'skipped' + report_advice_tier3 (skipped to protect original, Text Fixer recommended)
 
     Args:
-        output_dir: 리포트 저장 폴더. None 또는 유효하지 않으면 원본 파일 폴더 사용.
-        original_path: 원본 파일 경로 (리포트 메타데이터용)
-        used_enc: 디코딩에 사용된 인코딩 이름
-        failures: 실패 위치 dict 리스트 (최대 MAX_TRACK_FAILURES개)
-        total_failures: 실제 전체 실패 수
-        action_taken: 'processed' (Tier 1/2) 또는 'skipped' (Tier 3)
-        lang: 리포트 언어 코드 (None이면 현재 UI 언어)
+        output_dir: folder to save the report. If None or invalid, uses the original file's folder.
+        original_path: original file path (for report metadata)
+        used_enc: encoding name used for decoding
+        failures: list of failure-position dicts (up to MAX_TRACK_FAILURES)
+        total_failures: actual total failure count
+        action_taken: 'processed' (Tier 1/2) or 'skipped' (Tier 3)
+        lang: report language code (None uses the current UI language)
 
     Returns:
-        생성된 리포트 파일 경로. 실패 또는 total_failures==0이면 None.
+        path of the generated report file. None on failure or when total_failures == 0.
     """
     if total_failures <= 0:
         return None
 
-    # 저장 경로 결정: output_dir 있으면 그곳, 없으면 원본 파일 폴더
+    # determine save path: output_dir if given, otherwise the original file's folder
     original_dir = os.path.dirname(original_path)
     if output_dir and os.path.isdir(output_dir):
         save_dir = output_dir
@@ -3871,13 +3871,13 @@ def write_encoding_report(
     report_name = f"{fname}.encoding_report.txt"
     report_path = os.path.join(save_dir, report_name)
 
-    # 현재 언어 (리포트 생성 시점 고정)
+    # current language (frozen at report-generation time)
     if lang is None:
         lang = _current_lang
 
     def _rt(key, **kwargs):
-        """리포트 전용 번역 — lang 파라미터 기반 (워커 스레드에서 _current_lang이 바뀌어도 고정).
-        zh_cn은 zh_tw로 1차 fallback, 최종은 Korean fallback."""
+        """Report-only translator — driven by the lang parameter (stays fixed even if _current_lang changes in a worker thread).
+        zh_cn falls back to zh_tw first, then to Korean."""
         s = (TRANSLATIONS.get(lang, TRANSLATIONS['ko']).get(key)
              or (TRANSLATIONS['zh_tw'].get(key) if lang == 'zh_cn' else None)
              or TRANSLATIONS['ko'].get(key, key))
@@ -3891,7 +3891,7 @@ def write_encoding_report(
 
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # 티어 분기
+        # tier branching
         if action_taken == 'skipped':
             tier_key = 'report_advice_tier3'
         elif total_failures > 500:
@@ -3904,7 +3904,7 @@ def write_encoding_report(
 
         sep = '=' * 68
         lines = []
-        # 헤더
+        # header
         lines.append(sep)
         lines.append(f'  {_rt("report_header")}')
         lines.append(sep)
@@ -3917,14 +3917,14 @@ def write_encoding_report(
         lines.append(f'{_rt("report_time")}: {now_str}')
         lines.append('')
 
-        # 실패 위치 리스트 (최대 MAX_TRACK_FAILURES개)
+        # failure-position list (up to MAX_TRACK_FAILURES)
         for i, f in enumerate(failures, 1):
             lines.append(f'[{i}] {_rt("report_line_col", line=f["line"], col=f["col"])}')
             lines.append(f'    {_rt("report_bytes")}: {f["bad_bytes_hex"]}')
             lines.append(f'    {_rt("report_context")}: "{f["context"]}"')
             lines.append('')
 
-        # 요약 통계
+        # summary statistics
         lines.append(sep)
         lines.append(f'  {_rt("report_summary_title")}')
         lines.append(sep)
@@ -3934,7 +3934,7 @@ def write_encoding_report(
             lines.append(f'{_rt("report_truncated")}: {truncated:,}')
         lines.append('')
 
-        # 권장 조치
+        # recommended actions
         lines.append(sep)
         lines.append(f'  {_rt("report_advice_title")}')
         lines.append(sep)
@@ -3943,47 +3943,47 @@ def write_encoding_report(
 
         content = '\n'.join(lines)
 
-        # UTF-8 BOM 없이 저장 (다른 텍스트 에디터 호환)
+        # save without UTF-8 BOM (compatible with other text editors)
         with open(report_path, 'w', encoding='utf-8') as rf:
             rf.write(content)
 
         return report_path
     except Exception as e:
-        _glog(f"[Bulk Fixer] 리포트 생성 실패: {fname}: {e}")
+        _glog(f"[Bulk Fixer] failed to generate report: {fname}: {e}")
         return None
 
 
 def merger_recommend_save_encoding(enc_map: dict, conf_map: dict) -> tuple:
-    """Text Merger의 감지된 파일 인코딩들을 분석해 안전한 저장 인코딩 추천 (v1.0.6 신규).
+    """Analyze the file encodings detected by Text Merger and recommend a safe save encoding (new in v1.0.6).
 
-    A1'' 정책 (신뢰도 임계 적용):
-    - 모든 텍스트 파일이 동일한 비유니코드 인코딩으로 감지되었고,
-      모든 파일의 신뢰도가 0.7 이상이면 → 그 인코딩 추천
-    - 그 외 모든 경우 → UTF-8 추천 (안전)
-    - docx/pdf/xlsx 같은 바이너리 마커는 무시 (텍스트 추출 결과는 평문)
+    A1'' policy (confidence-threshold applied):
+    - if every text file is detected as the same non-Unicode encoding,
+      and every file's confidence is ≥ 0.7 → recommend that encoding
+    - otherwise → recommend UTF-8 (safe)
+    - binary markers like docx/pdf/xlsx are ignored (extracted text is plain)
 
-    잘못 감지된 케이스(신뢰도 < 0.7)에서는 UTF-8로 안전하게 폴백.
-    1번 원칙(정직성): "자신 없는 추천은 추천하지 않는다"
+    Misdetected cases (confidence < 0.7) safely fall back to UTF-8.
+    Principle #1 (honesty): "do not recommend what you are not confident about"
 
     Args:
-        enc_map:  {파일경로: 인코딩명}     — TextMergerPanel.enc_map
-        conf_map: {파일경로: 신뢰도(0~1)}  — TextMergerPanel.enc_confidence
+        enc_map:  {file_path: encoding_name}  — TextMergerPanel.enc_map
+        conf_map: {file_path: confidence(0~1)} — TextMergerPanel.enc_confidence
 
     Returns:
-        tuple[str, str]: (드롭다운 userData 키, 사용자 표시 이름)
-            예: ("CP949", "CP949"), ("UTF-8", "UTF-8"), ("Shift-JIS", "Shift-JIS")
+        tuple[str, str]: (dropdown userData key, user-facing display name)
+            e.g., ("CP949", "CP949"), ("UTF-8", "UTF-8"), ("Shift-JIS", "Shift-JIS")
     """
-    # 텍스트 파일만 필터링 (바이너리 마커 제외)
+    # filter to text files only (exclude binary markers)
     _BINARY_MARKERS = {"DOCX", "PDF", "XLSX"}
     text_files = {
         path: enc for path, enc in enc_map.items()
         if enc.upper() not in _BINARY_MARKERS
     }
-    # 텍스트 파일 0개면 → UTF-8 (기본 안전값)
+    # 0 text files → UTF-8 (default-safe)
     if not text_files:
         return ("UTF-8", "UTF-8")
 
-    # alchemy_detect_encoding이 정규화한 비유니코드 이름 → 드롭다운 userData 키 매핑
+    # map non-Unicode names normalized by alchemy_detect_encoding → dropdown userData keys
     _RECOMMENDABLE = {
         "cp949":     "CP949",
         "euc-kr":    "EUC-KR",
@@ -3991,19 +3991,19 @@ def merger_recommend_save_encoding(enc_map: dict, conf_map: dict) -> tuple:
         "gbk":       "GBK",
         "big5":      "Big5",
     }
-    # 모든 텍스트 파일이 같은 인코딩인지
+    # are all text files the same encoding?
     enc_set = set(e.lower() for e in text_files.values())
     if len(enc_set) != 1:
         return ("UTF-8", "UTF-8")
     only_enc = enc_set.pop()
     if only_enc not in _RECOMMENDABLE:
-        return ("UTF-8", "UTF-8")  # UTF-8/UTF-16 등은 그대로 UTF-8
+        return ("UTF-8", "UTF-8")  # UTF-8 / UTF-16 / etc. stay as UTF-8
 
-    # A1'' 핵심: 모든 파일 신뢰도 ≥ 0.7
+    # A1'' core: every file's confidence ≥ 0.7
     _MIN_CONF = 0.7
     confs = [conf_map.get(p, 0.0) for p in text_files.keys()]
     if any(c < _MIN_CONF for c in confs):
-        return ("UTF-8", "UTF-8")  # 신뢰도 부족 → 안전한 UTF-8
+        return ("UTF-8", "UTF-8")  # not confident enough → safe UTF-8
 
     rec_key = _RECOMMENDABLE[only_enc]
     return (rec_key, rec_key)
@@ -4033,7 +4033,7 @@ def _h2t(html, keep):
     return re.sub(r"[ \t]+"," ",html).strip()
 
 def epub_to_text(path, opts):
-    """EPUB → TXT 변환 (zipfile + regex 자체 구현)."""
+    """EPUB → TXT conversion (custom implementation using zipfile + regex)."""
     with zipfile.ZipFile(path,"r") as zf:
         cont = zf.read("META-INF/container.xml").decode("utf-8","replace")
         m = re.search(r'full-path\s*=\s*[^\s>]+',cont)
@@ -4099,7 +4099,7 @@ def txt_to_epub(path, out_path, meta):
             extracted = lines[0].strip()
             if extracted:
                 title = extracted
-                # 첫 줄을 제목으로 사용했으므로 본문에서 제거 (h1 + p 중복 방지)
+                # first line was used as the title, so strip it from the body (avoids h1 + p duplication)
                 p = "\n".join(lines[1:]).lstrip("\n")
         chapters.append({"title":title,"content":p})
     if not chapters: raise ValueError("No chapters found")
@@ -4141,15 +4141,15 @@ def txt_to_epub(path, out_path, meta):
 
 
 # ═══════════════════════════════════════════════
-# 위젯 클래스
+# Widget classes
 # ═══════════════════════════════════════════════
 
-# ── 도움말 버튼 (호버 시 위아래 사인파 애니메이션) ──
+# ── Help button (sine-wave up/down animation on hover) ──
 
 
 
 class _HelpButton(QPushButton):
-    """호버 시 아이콘이 위로 살짝 올라갔다 돌아오는 사인파 애니메이션 버튼."""
+    """Button with a sine-wave animation: the icon lifts slightly upward and returns on hover."""
 
     def __init__(self, parent=None):
         super().__init__("", parent)
@@ -4163,7 +4163,7 @@ class _HelpButton(QPushButton):
     def _tick(self):
         import math as _math
         self._phase += 0.12
-        self._offset = -abs(_math.sin(self._phase)) * 4  # 위쪽으로만 ±4px
+        self._offset = -abs(_math.sin(self._phase)) * 4  # upward only, ±4px
         if not self._hovered and abs(self._offset) < 0.1:
             self._timer.stop()
             self._phase = 0.0
@@ -4181,16 +4181,16 @@ class _HelpButton(QPushButton):
         super().leaveEvent(e)
 
     def paintEvent(self, e):
-        # 버튼 배경/테두리만 그리기 (아이콘 제외)
+        # paint only the button background/border (excluding the icon)
         from PySide6.QtWidgets import QStylePainter, QStyleOptionButton, QStyle
         from PySide6.QtGui import QIcon
         painter = QStylePainter(self)
         opt = QStyleOptionButton()
         self.initStyleOption(opt)
-        opt.icon = QIcon()  # 아이콘 제거 → 배경/테두리만 렌더링
+        opt.icon = QIcon()  # remove icon → render background/border only
         painter.drawControl(QStyle.ControlElement.CE_PushButton, opt)
         painter.end()
-        # 아이콘을 offset 적용해서 직접 그리기
+        # draw the icon directly with the offset applied
         icon = self.icon()
         if icon.isNull(): return
         p2 = QPainter(self)
@@ -4203,7 +4203,7 @@ class _HelpButton(QPushButton):
 
 
 class _GearButton(QPushButton):
-    """호버 시 아이콘이 시계 방향으로 살짝 회전하는 애니메이션 버튼."""
+    """Button with an animation that rotates the icon slightly clockwise on hover."""
 
     def __init__(self, parent=None):
         super().__init__("", parent)
@@ -4257,11 +4257,11 @@ class _GearButton(QPushButton):
         p2.end()
 
 
-# ── 스크롤 방향 힌트 오버레이 ───────────────────
+# ── Scroll-direction hint overlay ───────────────
 class _ScrollHint(QLabel):
-    """삼각형 3개 + 그라데이션으로 스크롤 방향을 알리는 오버레이 위젯.
-    사인파 기반 이동(±3px) + 페이드(alpha 32~255) 애니메이션으로 스크롤 가능함을 연출.
-    paintEvent에서 전역 ACCENT를 직접 읽으므로 테마 변경 시 update()만 호출하면 됨."""
+    """Overlay widget that signals scroll direction with three triangles + a gradient.
+    Conveys scrollability via sine-wave motion (±3px) + fade (alpha 32~255) animation.
+    paintEvent reads the global ACCENT directly, so calling update() on theme change is enough."""
     def __init__(self, direction='up', parent=None):
         super().__init__(parent)
         self._direction = direction
@@ -4295,7 +4295,7 @@ class _ScrollHint(QLabel):
 
         dy = -offset if is_up else offset
 
-        # ── 그라데이션 배경 ──────────────────────────
+        # ── Gradient background ──────────────────────
         grad = QLinearGradient(0, 0, 0, h)
         base_alpha = int(32 + fade * 24)
         c_solid = QColor(ac); c_solid.setAlpha(base_alpha)
@@ -4306,7 +4306,7 @@ class _ScrollHint(QLabel):
             grad.setColorAt(0.0, c_clear); grad.setColorAt(1.0, c_solid)
         painter.fillRect(self.rect(), QBrush(grad))
 
-        # ── 삼각형 3개 (수평 중앙 정렬, 오른쪽으로 갈수록 불투명) ──
+        # ── Three triangles (horizontally centered, more opaque toward the right) ──
         tw, th = 9, 5
         gap    = 8
         n      = 3
@@ -4338,7 +4338,7 @@ class _ScrollHint(QLabel):
 
 
 class ScrollHintArea(QScrollArea):
-    """스크롤 위치에 따라 _ScrollHint 오버레이를 표시하는 QScrollArea."""
+    """QScrollArea that shows a _ScrollHint overlay based on scroll position."""
     def __init__(self, parent=None):
         super().__init__(parent)
         self._hint_top = _ScrollHint('up',   self)
@@ -4348,7 +4348,7 @@ class ScrollHintArea(QScrollArea):
         self.verticalScrollBar().valueChanged.connect(self._sync)
 
     def refresh_style(self):
-        """테마 전환 시 호출 — paintEvent가 ACCENT를 직접 읽으므로 repaint만 트리거."""
+        """Called on theme change — since paintEvent reads ACCENT directly, just trigger a repaint."""
         self._hint_top.update()
         self._hint_bot.update()
 
@@ -4494,7 +4494,7 @@ class MergeDropZone(QLabel):
         else: e.ignore()
 
 class MergeFileTree(QTreeWidget):
-    """Text Merger 전용 QTreeWidget — 외부 파일 드롭 + 내부 순서 드래그 지원."""
+    """Text Merger's dedicated QTreeWidget — supports external file drops + internal reorder drags."""
     files_dropped = Signal(list)
     order_changed = Signal()
 
@@ -4506,8 +4506,8 @@ class MergeFileTree(QTreeWidget):
         self.setUniformRowHeights(True)
         self.setAlternatingRowColors(True)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        # InternalMove 대신 DragDrop 사용 — InternalMove + e.ignore() 조합 시
-        # Qt가 소스 아이템을 삭제하는 버그 회피
+        # Use DragDrop instead of InternalMove — when combining InternalMove + e.ignore(),
+        # avoids the bug where Qt deletes the source item
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.setAcceptDrops(True)
@@ -4528,8 +4528,8 @@ class MergeFileTree(QTreeWidget):
         else: super().dragMoveEvent(e)
 
     def startDrag(self, supported_actions):
-        """CopyAction 강제 — Qt의 MoveAction 자동 소스 삭제 차단.
-        실제 이동은 dropEvent에서 수동 처리."""
+        """Force CopyAction — blocks Qt's MoveAction auto-deletion of the source.
+        The actual move is handled manually in dropEvent."""
         super().startDrag(Qt.DropAction.CopyAction)
 
     def dropEvent(self, e):
@@ -4537,13 +4537,13 @@ class MergeFileTree(QTreeWidget):
             paths = [u.toLocalFile() for u in e.mimeData().urls() if u.isLocalFile()]
             self.files_dropped.emit(paths); e.acceptProposedAction()
         elif e.source() is self:
-            # 내부 드래그 — DragDrop 모드에서 수동 처리
+            # internal drag — handled manually in DragDrop mode
             dragged = self.selectedItems()
             if not dragged:
                 e.accept(); return
             target = self.itemAt(e.pos())
             if target is None:
-                # 빈 영역에 드롭 → 맨 끝으로 이동
+                # drop in empty area → move to the very end
                 src_rows = sorted([self.indexOfTopLevelItem(i) for i in dragged], reverse=True)
                 saved = []
                 for row in src_rows:
@@ -4556,7 +4556,7 @@ class MergeFileTree(QTreeWidget):
                 self.order_changed.emit()
                 return
             if target in dragged:
-                e.accept(); return  # 자기 자신에 드롭 — 아무것도 안 함
+                e.accept(); return  # dropped on itself — do nothing
             target_row = self.indexOfTopLevelItem(target)
             drop_above = e.pos().y() < self.visualItemRect(target).center().y()
             src_rows = sorted([self.indexOfTopLevelItem(i) for i in dragged], reverse=True)
@@ -4577,16 +4577,16 @@ class MergeFileTree(QTreeWidget):
         else:
             e.ignore()
 
-# ── Text Converter DropZone (v1.0.6 §5.2 #7 신규) ───
+# ── Text Converter DropZone (new in v1.0.6 §5.2 #7) ───
 class TextConverterDropZone(QLabel):
-    """Text Converter 전용 드래그 앤 드롭 존 (v1.0.6 #7 신규).
+    """Drag-and-drop zone dedicated to Text Converter (new in v1.0.6 #7).
 
-    BulkFixerDropZone 패턴 복제하되 Text Converter 고유 요구사항 반영:
-    - mode에 따라 .txt(txt2epub) / .epub(epub2txt) 동적 허용
-    - 폴더 드롭 미지원 (Text Converter는 _btn_add_folder 없는 기존 정책 유지)
-    - 모드 전환 시 텍스트/아이콘 즉시 갱신
+    Mirrors the BulkFixerDropZone pattern but with Text Converter-specific requirements:
+    - dynamically allows .txt (txt2epub) / .epub (epub2txt) based on mode
+    - folder drops not supported (Text Converter keeps the existing no-_btn_add_folder policy)
+    - text/icon refreshes immediately on mode switch
     """
-    files_dropped = Signal(list)   # mode에 맞는 확장자 파일 목록
+    files_dropped = Signal(list)   # list of files with extensions matching the mode
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -4600,7 +4600,7 @@ class TextConverterDropZone(QLabel):
         self.set_idle()
 
     def set_mode(self, mode: str):
-        """모드 전환 — 드롭존 텍스트/아이콘 즉시 갱신."""
+        """Mode switch — refresh dropzone text/icon immediately."""
         self._mode = mode
         self.set_idle()
 
@@ -4646,13 +4646,13 @@ class TextConverterDropZone(QLabel):
         self.set_idle()
 
     def _has_valid(self, mime):
-        """mode에 맞는 확장자 파일이 하나라도 있는지 확인. 폴더는 모두 거부."""
+        """Check whether at least one file with a mode-matching extension is present. All folders are rejected."""
         if not mime.hasUrls(): return False
         ext = ".epub" if self._mode == "epub2txt" else ".txt"
         for u in mime.urls():
             if not u.isLocalFile(): continue
             p = u.toLocalFile()
-            if os.path.isdir(p): continue  # 폴더는 허용 안 함
+            if os.path.isdir(p): continue  # folders not allowed
             if p.lower().endswith(ext): return True
         return False
 
@@ -4676,7 +4676,7 @@ class TextConverterDropZone(QLabel):
         for url in e.mimeData().urls():
             if not url.isLocalFile(): continue
             p = url.toLocalFile()
-            if os.path.isdir(p): continue  # 폴더 무시 (미지원)
+            if os.path.isdir(p): continue  # ignore folders (not supported)
             if p.lower().endswith(ext):
                 valid_files.append(p)
         if valid_files:
@@ -4688,25 +4688,25 @@ class TextConverterDropZone(QLabel):
 
 # ── Text Converter FileList ─────────────────────
 class TextConverterFileList(QTreeWidget):
-    """Text Converter 전용 파일 목록 — 파일명|경로 2컬럼, 헤더 클릭 정렬.
+    """Text Converter-dedicated file list — 2 columns (filename|path), header-click sort.
 
-    v1.0.6 #7: InternalMove → DragDrop 모드로 전환. 외부 드롭은 TextConverterDropZone이 담당.
-    이 위젯은 내부 재정렬 전용. BulkFixerFileList 패턴 복제.
+    v1.0.6 #7: switched from InternalMove → DragDrop. External drops are handled by TextConverterDropZone.
+    This widget is for internal reordering only. Mirrors the BulkFixerFileList pattern.
     """
     files_changed = Signal(int)
-    order_changed = Signal()  # v1.0.6 #7: 드래그 재정렬 완료 시그널
+    order_changed = Signal()  # v1.0.6 #7: signal fired when drag-reorder completes
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._files = []; self._mode = "txt2epub"
-        self._sort_asc = False  # 첫 클릭 시 오름차순
+        self._sort_asc = False  # ascending on first click
         self.setColumnCount(2)
         self.setHeaderLabels([_t('tag_col_filename'), _t('tag_col_path')])
         self.setRootIsDecorated(False)
         self.setUniformRowHeights(True)
         self.setAlternatingRowColors(True)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        # v1.0.6 #7: DragDrop 모드 (InternalMove + e.ignore() 조합의 Qt 자동 삭제 버그 회피)
+        # v1.0.6 #7: DragDrop mode (avoids the Qt auto-delete bug from combining InternalMove + e.ignore())
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.setAcceptDrops(True)
@@ -4718,8 +4718,8 @@ class TextConverterFileList(QTreeWidget):
         hdr.setSectionResizeMode(1, QHeaderView.Interactive)
         self.setColumnWidth(1, 180)
         hdr.setSortIndicatorShown(True)
-        # v1.0.6 #7: setSortingEnabled(False) 시 헤더 클릭이 비활성화되는 Qt 동작 대응
-        # — BulkFixerFileList에서 검증된 패턴 복제
+        # v1.0.6 #7: workaround for Qt disabling header clicks when setSortingEnabled(False)
+        # — mirrors the pattern validated in BulkFixerFileList
         hdr.setSectionsClickable(True)
         hdr.sectionClicked.connect(self._on_header_clicked)
 
@@ -4734,13 +4734,13 @@ class TextConverterFileList(QTreeWidget):
         self._files.sort(key=natural_sort_key, reverse=not ascending)
         self._rebuild()
 
-    # v1.0.6: 순수 파일 경로 저장용 UserRole (toolTip 오염 방지 — MergeEncodingDelegate와 동일 정책)
+    # v1.0.6: UserRole for storing the pure file path (avoids toolTip pollution — same policy as MergeEncodingDelegate)
     _PATH_ROLE = Qt.ItemDataRole.UserRole + 4
 
     def _make_item(self, path):
         item = QTreeWidgetItem([os.path.basename(path), os.path.dirname(path)])
         item.setToolTip(0, path); item.setToolTip(1, path)
-        item.setData(0, self._PATH_ROLE, path)  # v1.0.6: 순수 경로
+        item.setData(0, self._PATH_ROLE, path)  # v1.0.6: pure path
         return item
 
     def _rebuild(self):
@@ -4794,7 +4794,7 @@ class TextConverterFileList(QTreeWidget):
         else: super().keyPressEvent(e)
 
     def _sync(self):
-        # v1.0.6: _PATH_ROLE 우선 조회, 구버전 호환 폴백
+        # v1.0.6: prefer _PATH_ROLE; fall back for backwards compatibility
         def _p(it):
             v = it.data(0, self._PATH_ROLE)
             return v if v else it.toolTip(0)
@@ -4802,12 +4802,12 @@ class TextConverterFileList(QTreeWidget):
                        for i in range(self.topLevelItemCount())]
 
     def startDrag(self, supported_actions):
-        """v1.0.6 #7: CopyAction 강제 — Qt의 MoveAction 자동 소스 삭제 차단.
-        실제 이동은 dropEvent에서 수동 처리. (BulkFixerFileList 패턴)"""
+        """v1.0.6 #7: force CopyAction — blocks Qt's MoveAction auto-deletion of the source.
+        The actual move is handled manually in dropEvent. (Mirrors the BulkFixerFileList pattern.)"""
         super().startDrag(Qt.DropAction.CopyAction)
 
     def dragEnterEvent(self, e):
-        # v1.0.6 #7: 내부 재정렬만 허용 (외부 드롭은 TextConverterDropZone이 처리)
+        # v1.0.6 #7: internal reorder only (external drops are handled by TextConverterDropZone)
         if e.source() is self: e.acceptProposedAction()
         else: e.ignore()
 
@@ -4816,7 +4816,7 @@ class TextConverterFileList(QTreeWidget):
         else: e.ignore()
 
     def dropEvent(self, e):
-        """v1.0.6 #7: 수동 내부 재정렬 (BulkFixerFileList 패턴 복제)."""
+        """v1.0.6 #7: manual internal reorder (mirrors the BulkFixerFileList pattern)."""
         if e.source() is not self:
             e.ignore(); return
         dragged = self.selectedItems()
@@ -4824,7 +4824,7 @@ class TextConverterFileList(QTreeWidget):
             e.accept(); return
         target = self.itemAt(e.pos())
         if target is None:
-            # 빈 영역에 드롭 → 맨 끝으로 이동
+            # drop in empty area → move to the very end
             src_rows = sorted([self.indexOfTopLevelItem(i) for i in dragged], reverse=True)
             saved = []
             for row in src_rows:
@@ -4838,7 +4838,7 @@ class TextConverterFileList(QTreeWidget):
             self.order_changed.emit()
             return
         if target in dragged:
-            e.accept(); return  # 자기 자신에 드롭 — 무시
+            e.accept(); return  # dropped on itself — ignore
         target_row = self.indexOfTopLevelItem(target)
         drop_above = e.pos().y() < self.visualItemRect(target).center().y()
         src_rows = sorted([self.indexOfTopLevelItem(i) for i in dragged], reverse=True)
@@ -4861,10 +4861,10 @@ class TextConverterFileList(QTreeWidget):
 # ── Text Converter Worker ───────────────────────
 class ConvertWorker(QThread):
     sig_progress      = Signal(int)
-    sig_file_progress = Signal(int, str)      # 현재 파일 진행률 (0–100, 파일명)
+    sig_file_progress = Signal(int, str)      # current file progress (0–100, filename)
     sig_log           = Signal(str, str)
     sig_done          = Signal(bool, int, int, str)
-    sig_files         = Signal(list)  # 변환 완료 파일 목록 (undo용)
+    sig_files         = Signal(list)  # list of converted files (for undo)
     def __init__(self,files,mode,opts,odir):
         super().__init__(); self.files=files; self.mode=mode; self.opts=opts; self.odir=odir
     def run(self):
@@ -4906,7 +4906,7 @@ class ConvertWorker(QThread):
 
 
 # ═══════════════════════════════════════════════
-# 탭 1: Batch Renamer 패널
+# Tab 1: Batch Renamer panel
 # ═══════════════════════════════════════════════
 class BatchRenamerPanel(QWidget):
     def __init__(self, parent=None):
@@ -4918,7 +4918,7 @@ class BatchRenamerPanel(QWidget):
     def _build(self):
         outer=QVBoxLayout(self); outer.setContentsMargins(0,0,0,0); outer.setSpacing(0)
 
-        # ── 탭 바 (Tag Editor 스타일 통일) ──────
+        # ── Tab bar (unified Tag Editor style) ──
         tab_bar=QWidget(); tab_bar.setFixedHeight(50)
         tbl=QHBoxLayout(tab_bar); tbl.setContentsMargins(8,0,0,0); tbl.setSpacing(0)
         self._main_tab_btns={}
@@ -4931,7 +4931,7 @@ class BatchRenamerPanel(QWidget):
         sep=QFrame(); sep.setFrameShape(QFrame.HLine); sep.setObjectName("tab_sep")
         outer.addWidget(sep)
 
-        # ── 탭 콘텐츠 스택 ───────────────────────
+        # ── Tab content stack ────────────────────
         self._main_stack=QStackedWidget()
         self._main_stack.addWidget(self._build_folder_tab())   # index 0
         self._main_stack.addWidget(self._build_file_tab())     # index 1
@@ -4941,16 +4941,16 @@ class BatchRenamerPanel(QWidget):
         self._update_main_tab_style()
 
     def _undo(self):
-        """마지막 이름 변경 작업을 1회 복구."""
+        """Undo the last rename operation once."""
         if not self._undo_data: return
         kind, undo_map = self._undo_data
         errors=[]; done=0
-        # undo 전 — 변경된 경로(cur)가 열린 Explorer 창 닫기
+        # before undo — close any Explorer window holding the changed path (cur)
         undo_folders = [cur for cur, _ in undo_map]
         closed_folders = self._close_explorer_for_paths(undo_folders)
-        _glog(f"↩ [Batch Renamer] 실행 취소 — {len(undo_map)}개")
-        # reversed: undo_map은 깊은→얕은 순으로 저장됨
-        # 복구는 얕은(부모)→깊은(자식) 순으로 해야 경로가 유효
+        _glog(f"↩ [Batch Renamer] undo — {len(undo_map)} item(s)")
+        # reversed: undo_map is stored from deepest → shallowest
+        # undo must go shallow (parent) → deep (child) so paths stay valid
         pending_undo = []
         for cur, orig in reversed(undo_map):
             try:
@@ -4963,14 +4963,14 @@ class BatchRenamerPanel(QWidget):
             except OSError as e:
                 if getattr(e, 'winerror', None) == 5:
                     pending_undo.append((cur, orig))
-                    _glog(f"  ⏳ {os.path.basename(cur)}: 잠금 — 재시도 예약")
+                    _glog(f"  ⏳ {os.path.basename(cur)}: locked — retry queued")
                 else:
                     errors.append(f"{os.path.basename(cur)}: {e}")
                     _glog(f"  ❌ {os.path.basename(cur)}: {e}")
-        # WinError 5 실패 항목 — 2초 대기 후 재시도
+        # WinError 5 failures — retry after a 2-second wait
         if pending_undo:
             import time
-            _glog(f"  ⏳ [재시도] {len(pending_undo)}개 — 2초 대기")
+            _glog(f"  ⏳ [retry] {len(pending_undo)} item(s) — waiting 2 seconds")
             time.sleep(2.0)
             for attempt in range(5):
                 still = []
@@ -4978,7 +4978,7 @@ class BatchRenamerPanel(QWidget):
                     try:
                         if os.path.exists(cur):
                             os.rename(cur, orig); done += 1
-                            _glog(f"  ✅ {os.path.basename(cur)}  →  {os.path.basename(orig)} (재시도 {attempt+1})")
+                            _glog(f"  ✅ {os.path.basename(cur)}  →  {os.path.basename(orig)} (retry {attempt+1})")
                         else:
                             errors.append(f"{os.path.basename(cur)}: file not found")
                     except OSError as e:
@@ -4991,24 +4991,24 @@ class BatchRenamerPanel(QWidget):
                 time.sleep(1.0)
             for cur, orig in pending_undo:
                 errors.append(f"{os.path.basename(cur)}: access denied — close Explorer and try again")
-                _glog(f"  ❌ {os.path.basename(cur)}: 최종 실패")
+                _glog(f"  ❌ {os.path.basename(cur)}: final failure")
         self._undo_data = None
         for attr in ('_f_btn_undo', '_p_btn_undo'):
             if hasattr(self, attr): getattr(self, attr).setEnabled(False)
-        # undo 완료 후 그룹 데이터·테이블·버튼 모두 초기화
-        # — _f_groups가 남아있으면 드롭존이 새 드래그를 거부하는 문제 방지
+        # after undo, reset group data, table, and buttons
+        # — prevents the issue where the dropzone refuses new drags if _f_groups remain
         if hasattr(self, '_f_clear'): self._f_clear()
         if hasattr(self, '_p_clear'): self._p_clear()
         msg = _t('tag_apply_done', n=done, label=_t('dlg_undo'))
         if errors: msg += f'  {_t("dlg_done_err")} ×{len(errors)}'
-        _glog(f"  완료: {msg}")
+        _glog(f"  done: {msg}")
         if errors: _dlg_warn(self, _t('dlg_undo'), msg + "\n\n" + "\n".join(errors[:10]))
         else: _dlg_info(self, _t('dlg_undo'), msg)
-        # 복구 완료 후 닫았던 탐색기 창 재오픈
+        # after undo, reopen any Explorer windows that were closed
         self._reopen_explorer(closed_folders)
 
     def refresh_btn_styles(self):
-        """테마 전환 시 QSS 캐스케이드가 닿지 않는 버튼을 직접 갱신."""
+        """On theme change, directly refresh buttons that the QSS cascade does not reach."""
         folder_ss = (f"QPushButton{{background:{ACCENT};border:none;color:white;"
                      f"padding:9px 16px;font-weight:600;border-radius:8px;}}"
                      f"QPushButton:hover{{background:{ACCENT_HOVER};}}"
@@ -5028,7 +5028,7 @@ class BatchRenamerPanel(QWidget):
         if hasattr(self, '_p_btn_clear'): self._p_btn_clear.setStyleSheet(secondary_ss)
         if hasattr(self, '_f_btn_undo'): self._f_btn_undo.setStyleSheet(secondary_ss)
         if hasattr(self, '_p_btn_undo'): self._p_btn_undo.setStyleSheet(secondary_ss)
-        # SVG 아이콘 색상 갱신 (secondary 버튼만 — primary는 white 고정)
+        # refresh SVG icon colors (secondary buttons only — primary stays white)
         _isz = QSize(20,20)
         for attr in ('_f_btn_preview', '_p_btn_preview'):
             if hasattr(self, attr): getattr(self, attr).setIcon(_svg_icon_dual('magnifier', ACCENT, 'white')); getattr(self, attr).setIconSize(_isz)
@@ -5049,7 +5049,7 @@ class BatchRenamerPanel(QWidget):
         self._main_stack.setCurrentIndex(0 if key=="folder" else 1)
         self._update_main_tab_style()
 
-    # ── 폴더 탭 ───────────────────────────────
+    # ── Folder tab ────────────────────────────
     def _build_folder_tab(self):
         w=QWidget(); lay=QHBoxLayout(w); lay.setContentsMargins(0,8,0,0); lay.setSpacing(0)
         sp=QSplitter(Qt.Orientation.Horizontal); sp.setHandleWidth(1)
@@ -5061,7 +5061,7 @@ class BatchRenamerPanel(QWidget):
         btn_add=QPushButton(_t("batch_btn_folder_pick")); btn_add.setObjectName("btn_folder_add")
         btn_add.setIcon(_svg_icon('folder_open', 'white')); btn_add.setIconSize(QSize(20,20))
         btn_add.clicked.connect(self._f_pick)
-        self._f_btn_add = btn_add  # 테마 갱신용 참조 보관
+        self._f_btn_add = btn_add  # keep reference for theme refresh
         self._f_lbl_count=QLabel(_t("batch_count_folder", g=0, f=0)); self._f_lbl_count.setObjectName("count_lbl")
         btn_clear=QPushButton(_t('btn_del_all')); self._f_btn_clear=btn_clear; btn_clear.setMinimumWidth(80); btn_clear.setFixedHeight(36); btn_clear.clicked.connect(self._f_clear)
         br.addWidget(btn_add); br.addStretch(); br.addWidget(self._f_lbl_count); br.addWidget(btn_clear)
@@ -5087,13 +5087,13 @@ class BatchRenamerPanel(QWidget):
         self._f_btn_undo.clicked.connect(self._undo)
         ar.addWidget(self._f_btn_preview, 1); ar.addWidget(self._f_btn_rename, 1); ar.addWidget(self._f_btn_undo, 1)
         ll.addLayout(ar); sp.addWidget(left)
-        # 우측 설정
+        # right-side settings
         rs=ScrollHintArea(); self._sa_folder=rs
         rs.setWidgetResizable(True); rs.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff); rs.setFixedWidth(330)
         rw=QWidget(); rl=QVBoxLayout(rw); rl.setContentsMargins(12,6,8,40); rl.setSpacing(8)
 
-        # 옵션 탭 바 (Tag Editor 스타일)
-        # ── 접이식 사용법 (기본: 접힌 상태) ─────────────────────────────
+        # option tab bar (Tag Editor style)
+        # ── Collapsible usage hint (default: collapsed) ─────────────────
         self._f_hint_open = False
         self._f_hint_btn = QPushButton(f"  {_t('batch_usage_title')}  ▼")
         self._f_hint_btn.setFixedHeight(28)
@@ -5213,7 +5213,7 @@ class BatchRenamerPanel(QWidget):
         v4.addWidget(self._rb_numonly); v4.addWidget(self._rb_keep); v4.addWidget(self._sep_w)
         lay.addWidget(g4); lay.addStretch(); return w
 
-    # ── 파일 탭 ───────────────────────────────
+    # ── File tab ──────────────────────────────
     def _build_file_tab(self):
         w=QWidget(); lay=QHBoxLayout(w); lay.setContentsMargins(0,8,0,0); lay.setSpacing(0)
         sp=QSplitter(Qt.Orientation.Horizontal); sp.setHandleWidth(1)
@@ -5223,7 +5223,7 @@ class BatchRenamerPanel(QWidget):
         br2=QHBoxLayout(); br2.setSpacing(8)
         btn_fadd=QPushButton(_t("batch_btn_file_pick")); btn_fadd.setObjectName("btn_file_add"); btn_fadd.clicked.connect(self._p_pick)
         btn_fadd.setIcon(_svg_icon('folder_open', 'white')); btn_fadd.setIconSize(QSize(20,20))
-        self._p_btn_fadd = btn_fadd  # 테마 갱신용 참조 보관
+        self._p_btn_fadd = btn_fadd  # keep reference for theme refresh
         self._p_lbl_count=QLabel(_t("batch_count_file", g=0, f=0)); self._p_lbl_count.setObjectName("count_lbl")
         btn_fclear=QPushButton(_t('btn_del_all')); self._p_btn_clear=btn_fclear; btn_fclear.setMinimumWidth(80); btn_fclear.setFixedHeight(36); btn_fclear.clicked.connect(self._p_clear)
         br2.addWidget(btn_fadd); br2.addStretch(); br2.addWidget(self._p_lbl_count); br2.addWidget(btn_fclear)
@@ -5248,11 +5248,11 @@ class BatchRenamerPanel(QWidget):
         self._p_btn_undo.clicked.connect(self._undo)
         ar2.addWidget(self._p_btn_preview, 1); ar2.addWidget(self._p_btn_rename, 1); ar2.addWidget(self._p_btn_undo, 1)
         ll.addLayout(ar2); sp.addWidget(left)
-        # 우측 설정
+        # right-side settings
         fs=ScrollHintArea(); self._sa_file=fs
         fs.setWidgetResizable(True); fs.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff); fs.setFixedWidth(330)
         fw=QWidget(); frl=QVBoxLayout(fw); frl.setContentsMargins(12,4,8,40); frl.setSpacing(6)
-        # ── 접이식 사용법 (기본: 접힌 상태) ─────────────────────────────
+        # ── Collapsible usage hint (default: collapsed) ─────────────────
         self._p_hint_open = False
         self._p_hint_btn = QPushButton(f"  {_t('batch_usage_title')}  ▼")
         self._p_hint_btn.setFixedHeight(28)
@@ -5278,14 +5278,14 @@ class BatchRenamerPanel(QWidget):
 
         fmt=QLabel(f"<b>{_t('batch_file_fmt_label')}</b><br><span style='color:{ACCENT};font-size:13px;'>{_t('batch_file_fmt_pattern')}</span>"); self._fmt_lbl=fmt
         fmt.setObjectName("fmt_box"); fmt.setTextFormat(Qt.TextFormat.RichText); fmt.setWordWrap(True); frl.addWidget(fmt)
-        # 접두사
+        # prefix
         gp=QGroupBox(_t("batch_file_pfx")); self._gp=gp; vp=QVBoxLayout(gp); vp.setContentsMargins(10,6,10,8); vp.setSpacing(4)
         self._p_rb_folder=QRadioButton(_t("batch_file_pfx_folder")); self._p_rb_custom=QRadioButton(_t("batch_file_pfx_custom")); self._p_rb_folder.setChecked(True)
         bgf=QButtonGroup(self); bgf.addButton(self._p_rb_folder); bgf.addButton(self._p_rb_custom)
         self._p_custom_pfx=QLineEdit(); self._p_custom_pfx.setPlaceholderText(_t("batch_file_pfx_ph")); self._p_custom_pfx.setEnabled(False)
         self._p_rb_custom.toggled.connect(self._p_custom_pfx.setEnabled)
         vp.addWidget(self._p_rb_folder); vp.addWidget(self._p_rb_custom); vp.addWidget(self._p_custom_pfx); frl.addWidget(gp)
-        # 구분자 + 시작 번호 (한 행)
+        # separator + start number (single row)
         gs_row=QGroupBox(_t("batch_file_sep_start")); self._gs_row=gs_row; hs=QHBoxLayout(gs_row); hs.setContentsMargins(10,6,10,8); hs.setSpacing(10)
         self._lbl_p_sep=QLabel(_t("batch_file_sep")); self._lbl_p_sep.setObjectName("field_lbl"); hs.addWidget(self._lbl_p_sep)
         self._p_sep=QLineEdit("-"); self._p_sep.setMaximumWidth(50); hs.addWidget(self._p_sep)
@@ -5293,7 +5293,7 @@ class BatchRenamerPanel(QWidget):
         self._p_rb_s0=QRadioButton(_t("batch_file_from0")); self._p_rb_s1=QRadioButton(_t("batch_file_from1")); self._p_rb_s1.setChecked(True)
         bgs=QButtonGroup(self); bgs.addButton(self._p_rb_s0); bgs.addButton(self._p_rb_s1)
         hs.addWidget(self._p_rb_s0); hs.addWidget(self._p_rb_s1); hs.addStretch(); frl.addWidget(gs_row)
-        # 번호 자릿수 (2×2)
+        # number digits (2×2)
         gpd=QGroupBox(_t("batch_file_digits")); self._gpd=gpd; gd=QVBoxLayout(gpd); gd.setContentsMargins(10,6,10,8); gd.setSpacing(3)
         self._p_rb_auto=QRadioButton(_t("batch_file_auto")); self._p_rb_nopad=QRadioButton(_t("batch_file_nopad"))
         self._p_rb_pad2=QRadioButton(_t("batch_file_2d"));  self._p_rb_pad3=QRadioButton(_t("batch_file_3d"))
@@ -5302,7 +5302,7 @@ class BatchRenamerPanel(QWidget):
         dr1=QHBoxLayout(); dr1.addWidget(self._p_rb_auto);  dr1.addWidget(self._p_rb_nopad); dr1.addStretch()
         dr2=QHBoxLayout(); dr2.addWidget(self._p_rb_pad2); dr2.addWidget(self._p_rb_pad3);  dr2.addStretch()
         gd.addLayout(dr1); gd.addLayout(dr2); frl.addWidget(gpd)
-        # 파일 필터
+        # file filter
         gfl=QGroupBox(_t("batch_file_filter")); self._gfl=gfl; vfl=QVBoxLayout(gfl); vfl.setContentsMargins(10,6,10,8); vfl.setSpacing(4)
         self._p_rb_all=QRadioButton(_t("batch_file_all")); self._p_rb_ext=QRadioButton(_t("batch_file_ext")); self._p_rb_all.setChecked(True)
         bge=QButtonGroup(self); bge.addButton(self._p_rb_all); bge.addButton(self._p_rb_ext)
@@ -5312,7 +5312,7 @@ class BatchRenamerPanel(QWidget):
         frl.addStretch()
         fs.setWidget(fw); sp.addWidget(fs); sp.setSizes([700,300]); lay.addWidget(sp); return w
 
-    # ── 폴더 탭 로직 ──────────────────────────
+    # ── Folder tab logic ──────────────────────
     def _f_on_dropped(self,dirs): self._f_ingest(dirs)
     def _f_pick(self):
         path=QFileDialog.getExistingDirectory(self,_t("batch_btn_folder_pick"),"",QFileDialog.ShowDirsOnly)
@@ -5326,14 +5326,14 @@ class BatchRenamerPanel(QWidget):
                 parent=os.path.normpath(parent)
                 if any(g["parent"]==parent for g in self._f_groups): return
                 try: entries=os.listdir(parent)
-                except OSError as exc: _dlg_warn(self, _t('dlg_ok'), str(exc)); _glog(f"❌ 폴더 읽기 실패: {parent} — {exc}"); return
+                except OSError as exc: _dlg_warn(self, _t('dlg_ok'), str(exc)); _glog(f"❌ failed to read folder: {parent} — {exc}"); return
                 children=sorted([os.path.join(parent,d) for d in entries
                                  if os.path.isdir(os.path.join(parent,d)) and not d.startswith('.')],
                                 key=natural_sort_key)
                 if not children: return
                 self._f_groups.append({"parent":parent,"children":children}); added+=1
-                _glog(f"📁 [Batch/폴더] 그룹 추가: {parent}  ({len(children)}개 하위 폴더)")
-                # 하위 폴더 중 또 하위 폴더가 있는 것도 재귀 탐색
+                _glog(f"📁 [Batch/Folder] add group: {parent}  ({len(children)} subfolder(s))")
+                # recursively descend into subfolders that contain further subfolders
                 for child in children:
                     _ingest_one(child)
 
@@ -5342,7 +5342,7 @@ class BatchRenamerPanel(QWidget):
                 before=len(self._f_groups)
                 _ingest_one(parent)
                 if len(self._f_groups)==before:
-                    # 이 폴더에서 아무것도 추가 안 됐으면 경고
+                    # warn if nothing was added from this folder
                     _dlg_info(self, _t('dlg_ok'), f"{_t('rename_no_subfolders')}\n{parent}")
         finally:
             QApplication.restoreOverrideCursor()
@@ -5382,7 +5382,7 @@ class BatchRenamerPanel(QWidget):
     def _f_do_preview(self):
         self._f_preview=self._f_calc_preview(); self._f_refresh(True); self._f_btn_rename.setEnabled(bool(self._f_preview))
         total=sum(len(g["children"]) for g in self._f_groups)
-        _glog(f"🔍 [Batch/폴더] 미리보기 — 그룹 {len(self._f_groups)}개, 폴더 {total}개 → 변경 {len(self._f_preview)}개")
+        _glog(f"🔍 [Batch/Folder] preview — {len(self._f_groups)} group(s), {total} folder(s) → {len(self._f_preview)} change(s)")
     def _f_refresh(self,preview):
         pm=dict(self._f_preview) if preview else {}
         total=sum(len(g["children"]) for g in self._f_groups)
@@ -5406,9 +5406,9 @@ class BatchRenamerPanel(QWidget):
                     tbl.setItem(row,0,oi); tbl.setItem(row,1,ari); tbl.setItem(row,2,nwi); tbl.setRowHeight(row,34); row+=1
         finally: tbl.blockSignals(False); tbl.setUpdatesEnabled(True)
     def _close_explorer_for_groups(self):
-        """대상 폴더 경로가 열린 Explorer 창을 PowerShell COM으로 탐지 후 닫음.
-        Windows 전용 — 다른 플랫폼에서는 무동작.
-        반환값: 닫은 창의 폴더 경로 목록 (완료 후 재오픈용)"""
+        """Detect Explorer windows holding the target folder path via PowerShell COM and close them.
+        Windows-only — no-op on other platforms.
+        Returns: list of folder paths from closed windows (for re-opening after completion)."""
         if sys.platform != 'win32': return []
         target_paths = set()
         for g in self._f_groups:
@@ -5446,14 +5446,14 @@ class BatchRenamerPanel(QWidget):
             subprocess.run(["powershell", "-NoProfile", "-Command", ps_close],
                            capture_output=True, timeout=5)
             import time; time.sleep(0.5)
-            _glog(f"  🗙 탐색기 창 {len(overlap_urls)}개 닫음")
+            _glog(f"  🗙 closed {len(overlap_urls)} Explorer window(s)")
             return overlap_folders
         except Exception as e:
-            _glog(f"  ⚠ Explorer 창 닫기 실패: {e}"); return []
+            _glog(f"  ⚠ failed to close Explorer windows: {e}"); return []
 
     @staticmethod
     def _reopen_explorer(folders):
-        """닫았던 Explorer 창을 동일 경로(또는 부모)로 재오픈."""
+        """Re-open previously closed Explorer windows at the same path (or parent)."""
         if sys.platform != 'win32' or not folders: return
         try:
             import time; time.sleep(0.5)
@@ -5461,7 +5461,7 @@ class BatchRenamerPanel(QWidget):
                           key=lambda p: p.count(os.sep))
             opened = set()
             for folder in norm:
-                # 이름 변경으로 경로가 사라진 경우 부모 폴더로 fallback
+                # fall back to the parent folder if the path disappeared due to renaming
                 target = folder
                 while target and not os.path.exists(target):
                     target = os.path.dirname(target)
@@ -5471,14 +5471,14 @@ class BatchRenamerPanel(QWidget):
                     subprocess.Popen(['explorer', target])
                     opened.add(target)
                     time.sleep(0.2)
-                    _glog(f"  📂 탐색기 재오픈: {target}")
-            _glog(f"  📂 탐색기 총 {len(opened)}개 창 재오픈")
+                    _glog(f"  📂 Explorer reopened: {target}")
+            _glog(f"  📂 reopened {len(opened)} Explorer window(s) total")
         except Exception as e:
-            _glog(f"  ⚠ Explorer 재오픈 실패: {e}")
+            _glog(f"  ⚠ failed to reopen Explorer: {e}")
 
     def _close_explorer_for_paths(self, paths):
-        """경로 목록 기준으로 열린 Explorer 창 탐지 후 닫음 (undo용).
-        반환값: 닫은 창의 폴더 경로 목록"""
+        """Detect and close Explorer windows based on a path list (for undo).
+        Returns: list of folder paths from closed windows."""
         if sys.platform != 'win32' or not paths: return []
         target_paths = {os.path.normpath(p) for p in paths}
         try:
@@ -5511,10 +5511,10 @@ class BatchRenamerPanel(QWidget):
             subprocess.run(["powershell", "-NoProfile", "-Command", ps_close],
                            capture_output=True, timeout=5)
             import time; time.sleep(0.5)
-            _glog(f"  🗙 탐색기 창 {len(overlap_urls)}개 닫음")
+            _glog(f"  🗙 closed {len(overlap_urls)} Explorer window(s)")
             return overlap_folders
         except Exception as e:
-            _glog(f"  ⚠ Explorer 창 닫기 실패: {e}"); return []
+            _glog(f"  ⚠ failed to close Explorer windows: {e}"); return []
 
     def _f_do_rename(self):
         if not self._f_preview: _dlg_warn(self, _t('dlg_ok'), _t('rename_no_preview')); return
@@ -5523,12 +5523,12 @@ class BatchRenamerPanel(QWidget):
         col=self._check_cols(pairs)
         if col: _dlg_error(self, _t('rename_collision'), "\n".join(col[:10])); return
         if not self._confirm(len(pairs),pairs): return
-        # ── 대상 폴더가 열린 Explorer 창 자동 닫기 ─────────────────────
+        # ── Auto-close Explorer windows holding the target folder ─────
         closed_folders = self._close_explorer_for_groups()
-        _glog(f"▶ [Batch/폴더] 이름 변경 실행 — {len(pairs)}개")
+        _glog(f"▶ [Batch/Folder] running rename — {len(pairs)} item(s)")
         errors,done=[],0; rm=dict(self._f_preview); undo_map=[]
-        pending=[]  # WinError 5 실패 항목 — 전체 완료 후 일괄 재시도
-        # 깊은 폴더(자식)부터 실행 — 상위 먼저 변경 시 하위 경로 무효화 방지
+        pending=[]  # WinError 5 failures — bulk-retried after full completion
+        # process deepest (children) first — renaming parents first would invalidate child paths
         for grp in reversed(self._f_groups):
             nc=[]
             for cp in grp["children"]:
@@ -5541,18 +5541,18 @@ class BatchRenamerPanel(QWidget):
                     _glog(f"  ✅ {os.path.basename(cp)}  →  {nn}")
                 except OSError as e:
                     if getattr(e,'winerror',None)==5:
-                        # ACCESS_DENIED — 나중에 일괄 재시도
+                        # ACCESS_DENIED — bulk-retry later
                         pending.append((cp,np2,nn)); nc.append(cp)
-                        _glog(f"  ⏳ {os.path.basename(cp)}: 잠금 — 재시도 예약")
+                        _glog(f"  ⏳ {os.path.basename(cp)}: locked — retry queued")
                     else:
                         errors.append(f"{os.path.basename(cp)}: {e}"); nc.append(cp)
                         _glog(f"  ❌ {os.path.basename(cp)}: {e}")
             grp["children"]=nc
 
-        # ── 일괄 재시도 (최대 5회, 1회당 최대 1초 대기) ────────────────
+        # ── Bulk retry (up to 5 rounds, up to 1 second wait per round) ──
         if pending:
             import time
-            _glog(f"  ⏳ [재시도] {len(pending)}개 항목 — 2초 대기 후 재시도")
+            _glog(f"  ⏳ [retry] {len(pending)} item(s) — wait 2s then retry")
             time.sleep(2.0)
             for attempt in range(5):
                 still=[]
@@ -5560,8 +5560,8 @@ class BatchRenamerPanel(QWidget):
                     try:
                         os.rename(cp,np2); done+=1
                         undo_map.append((np2,cp))
-                        _glog(f"  ✅ {os.path.basename(cp)}  →  {nn} (재시도 {attempt+1})")
-                        # grp["children"] 갱신
+                        _glog(f"  ✅ {os.path.basename(cp)}  →  {nn} (retry {attempt+1})")
+                        # refresh grp["children"]
                         for g in self._f_groups:
                             if cp in g["children"]:
                                 g["children"][g["children"].index(cp)]=np2; break
@@ -5576,18 +5576,18 @@ class BatchRenamerPanel(QWidget):
                 time.sleep(1.0)
             for cp,np2,nn in pending:
                 errors.append(f"{os.path.basename(cp)}: access denied — close Explorer and try again")
-                _glog(f"  ❌ {os.path.basename(cp)}: 최종 실패")
-        _glog(f"  완료: 성공 {done}개 / 실패 {len(errors)}개")
+                _glog(f"  ❌ {os.path.basename(cp)}: final failure")
+        _glog(f"  done: {done} succeeded / {len(errors)} failed")
         if done > 0:
             self._undo_data = ('rename', undo_map)
             self._f_btn_undo.setEnabled(True)
             if hasattr(self, '_p_btn_undo'): self._p_btn_undo.setEnabled(False)
         self._f_preview=[]; self._f_refresh(False); self._f_btn_rename.setEnabled(False)
         self._show_result(done,errors,_t("batch_sub_folder"))
-        # 이름 변경 완료 후 닫았던 탐색기 창 재오픈
+        # after rename, reopen any Explorer windows that were closed
         self._reopen_explorer(closed_folders)
 
-    # ── 파일 탭 로직 ──────────────────────────
+    # ── File tab logic ────────────────────────
     def _p_on_dropped(self,dirs): self._p_ingest(dirs)
     def _p_pick(self):
         path=QFileDialog.getExistingDirectory(self,_t("batch_btn_file_pick"),"",QFileDialog.ShowDirsOnly)
@@ -5598,30 +5598,30 @@ class BatchRenamerPanel(QWidget):
         try:
             for folder in folder_paths:
                 folder=os.path.normpath(folder)
-                # ── 1단계: 직접 파일 확인 ─────────────────────────────────
+                # ── Step 1: check for direct files ────────────────────────
                 try: entries=os.listdir(folder)
-                except OSError as exc: _dlg_warn(self, _t('dlg_ok'), str(exc)); _glog(f"❌ 폴더 읽기 실패: {folder} — {exc}"); continue
+                except OSError as exc: _dlg_warn(self, _t('dlg_ok'), str(exc)); _glog(f"❌ failed to read folder: {folder} — {exc}"); continue
                 files=sorted([os.path.join(folder,f) for f in entries
                               if os.path.isfile(os.path.join(folder,f))
                               and not f.startswith('.') and f.lower() not in _SKIP_FILES],
                              key=natural_sort_key)
                 if files:
-                    # 직접 파일 있음 → 기존 방식으로 1개 그룹 추가
+                    # direct files exist → add a single group using the existing approach
                     if not any(g["folder"]==folder for g in self._p_groups):
                         self._p_groups.append({"folder":folder,"files":files}); added+=1
-                        _glog(f"📁 [Batch/파일] 그룹 추가: {folder}  ({len(files)}개 파일)")
+                        _glog(f"📁 [Batch/File] add group: {folder}  ({len(files)} file(s))")
                 else:
-                    # ── 2단계: 직접 파일 없음 → 하위 폴더 재귀 탐색 ────────
+                    # ── Step 2: no direct files → recursively descend into subfolders ──
                     sub_added=0
                     for root, dirs, filenames in os.walk(folder):
                         dirs.sort(key=lambda d: natural_sort_key(os.path.join(root, d)))
-                        if root == folder: continue  # 최상위는 이미 파일 없음 확인
+                        if root == folder: continue  # already confirmed top-level has no files
                         sub_files=sorted([os.path.join(root,f) for f in filenames
                                          if not f.startswith('.') and f.lower() not in _SKIP_FILES],
                                         key=natural_sort_key)
                         if sub_files and not any(g["folder"]==root for g in self._p_groups):
                             self._p_groups.append({"folder":root,"files":sub_files}); sub_added+=1
-                            _glog(f"📁 [Batch/파일] 하위 그룹 추가: {root}  ({len(sub_files)}개 파일)")
+                            _glog(f"📁 [Batch/File] add sub-group: {root}  ({len(sub_files)} file(s))")
                     if sub_added==0:
                         _dlg_info(self, _t('dlg_ok'), f"{_t('rename_no_files')}\n{folder}")
                     else:
@@ -5657,7 +5657,7 @@ class BatchRenamerPanel(QWidget):
     def _p_do_preview(self):
         self._p_preview=self._p_calc_preview(); self._p_refresh(True); self._p_btn_rename.setEnabled(bool(self._p_preview))
         total=sum(len(self._p_filtered(g["files"])) for g in self._p_groups)
-        _glog(f"🔍 [Batch/파일] 미리보기 — 그룹 {len(self._p_groups)}개, 파일 {total}개 → 변경 {len(self._p_preview)}개")
+        _glog(f"🔍 [Batch/File] preview — {len(self._p_groups)} group(s), {total} file(s) → {len(self._p_preview)} change(s)")
     def _p_refresh(self,preview):
         pm=dict(self._p_preview) if preview else {}
         total=sum(len(self._p_filtered(g["files"])) for g in self._p_groups)
@@ -5686,7 +5686,7 @@ class BatchRenamerPanel(QWidget):
         col=self._check_cols(pairs)
         if col: _dlg_error(self, _t('rename_collision'), "\n".join(col[:10])); return
         if not self._confirm(len(pairs),pairs): return
-        _glog(f"▶ [Batch/파일] 이름 변경 실행 — {len(pairs)}개")
+        _glog(f"▶ [Batch/File] running rename — {len(pairs)} item(s)")
         errors,done=[],0; rm=dict(self._p_preview); undo_map=[]
         for grp in self._p_groups:
             nf=[]
@@ -5697,7 +5697,7 @@ class BatchRenamerPanel(QWidget):
                 try: os.rename(fp,np2); nf.append(np2); done+=1; undo_map.append((np2,fp)); _glog(f"  ✅ {os.path.basename(fp)}  →  {nn}")
                 except OSError as e: errors.append(f"{os.path.basename(fp)}: {e}"); nf.append(fp); _glog(f"  ❌ {os.path.basename(fp)}: {e}")
             grp["files"]=nf
-        _glog(f"  완료: 성공 {done}개 / 실패 {len(errors)}개")
+        _glog(f"  done: {done} succeeded / {len(errors)} failed")
         if done > 0:
             self._undo_data = ('rename', undo_map)
             self._p_btn_undo.setEnabled(True)
@@ -5705,7 +5705,7 @@ class BatchRenamerPanel(QWidget):
         self._p_preview=[]; self._p_refresh(False); self._p_btn_rename.setEnabled(False)
         self._show_result(done,errors,_t("batch_sub_file"))
 
-    # ── 공통 유틸 ─────────────────────────────
+    # ── Common utilities ──────────────────────
     def _check_cols(self,pairs):
         errs=[]; bp={}
         for o,n in pairs: bp.setdefault(os.path.dirname(o),[]).append((o,n))
@@ -5744,7 +5744,7 @@ class BatchRenamerPanel(QWidget):
             rl.addWidget(ol); rl.addWidget(al); rl.addWidget(nl,stretch=1); ll.addWidget(rw)
         if len(pairs)>20: ml=QLabel(f"  … +{len(pairs)-20} more"); ml.setStyleSheet(f"color:{MUTED};font-size:12px;padding:6px 8px;background:transparent;"); ll.addWidget(ml)
         ll.addStretch(); scroll.setWidget(lw); root.addWidget(scroll)
-        # 탐색기 열림 경고
+        # warning that Explorer is open
         warn_lbl = QLabel(_t('rename_explorer_warn'))
         warn_lbl.setWordWrap(True)
         warn_lbl.setStyleSheet(
@@ -5774,14 +5774,14 @@ class BatchRenamerPanel(QWidget):
             btn.clicked.connect(dlg.accept)
         else:
             il=QLabel("⚠️"); il.setAlignment(Qt.AlignmentFlag.AlignCenter); il.setStyleSheet("font-size:36px;background:transparent;"); root.addWidget(il)
-            # 전체 시도 수 포함 표시
+            # show total attempt count
             sl=QLabel(
                 f"<span style='font-size:13px;color:{MUTED};'>{total} total  </span>"
                 f"<b style='font-size:14px;color:{TEXT};'>{done} ok</b>"
                 f"<span style='font-size:13px;color:#C0392B;'>  /  {len(errors)} failed</span>"
             )
             sl.setTextFormat(Qt.TextFormat.RichText); sl.setAlignment(Qt.AlignmentFlag.AlignCenter); root.addWidget(sl)
-            # 실패 설명
+            # failure description
             note=QLabel(_t("dlg_rename_partial_note"))
             note.setStyleSheet(f"font-size:11px;color:{MUTED};")
             note.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -5796,25 +5796,25 @@ class BatchRenamerPanel(QWidget):
 
 
     def retranslate(self):
-        # 메인 탭
+        # main tab
         for key, text in [("folder", _t('batch_sub_folder')), ("file", _t('batch_sub_file'))]:
             if key in self._main_tab_btns: self._main_tab_btns[key].setText(text)
-        # 옵션 탭
+        # option tab
         for key, text in [("smart", _t('batch_opt_smart')), ("seq", _t('batch_opt_seq'))]:
             if key in self._opt_tab_btns: self._opt_tab_btns[key].setText(text)
-        # 폴더 탭
+        # folder tab
         self._f_btn_add.setText(_t('batch_btn_folder_pick'))
         if hasattr(self,"_f_btn_clear"): self._f_btn_clear.setText(_t("batch_del_all"))
         self._f_table.setHorizontalHeaderLabels([_t('batch_col_folder'), _t('batch_col_arrow'), _t('batch_col_new')])
         self._f_btn_preview.setText(_t('btn_preview'))
         self._f_btn_rename.setText(_t('batch_btn_rename'))
-        # 파일 탭
+        # file tab
         self._p_btn_fadd.setText(_t('batch_btn_file_pick'))
         if hasattr(self,"_p_btn_clear"): self._p_btn_clear.setText(_t("batch_del_all"))
         self._p_table.setHorizontalHeaderLabels([_t('batch_col_file'), _t('batch_col_arrow'), _t('batch_col_file_new')])
         self._p_btn_preview.setText(_t('btn_preview'))
         self._p_btn_rename.setText(_t('batch_btn_rename'))
-        # 스마트 탭 GroupBox
+        # Smart tab GroupBox
         self._g_smart_pfx.setTitle(_t('batch_smart_pfx'))
         self._lbl_smart_pfx.setText(_t('batch_smart_prefix'))
         self._lbl_smart_sfx.setText(_t('batch_smart_suffix'))
@@ -5831,7 +5831,7 @@ class BatchRenamerPanel(QWidget):
         self._sq_suffix.setPlaceholderText(_t("sq_suffix_ph"))
         if hasattr(self,"_p_custom_pfx"): self._p_custom_pfx.setPlaceholderText(_t("batch_file_pfx_ph"))
         if hasattr(self,"_p_ext_input"): self._p_ext_input.setPlaceholderText(_t("batch_file_ext_ph"))
-        # 순차 탭 GroupBox
+        # Sequential tab GroupBox
         self._g_seq_reset.setTitle(_t('batch_seq_reset'))
         self._rb_seq_global.setText(_t('batch_seq_global'))
         self._rb_seq_reset.setText(_t('batch_seq_pergroup'))
@@ -5850,7 +5850,7 @@ class BatchRenamerPanel(QWidget):
         self._rb_numonly.setText(_t('batch_seq_numonly'))
         self._rb_keep.setText(_t('batch_seq_keep'))
         self._lbl_sq_sep.setText(_t('batch_seq_sep'))
-        # 파일 탭 오른쪽 패널
+        # File tab right-side panel
         self._gp.setTitle(_t('batch_file_pfx'))
         self._p_rb_folder.setText(_t('batch_file_pfx_folder'))
         self._p_rb_custom.setText(_t('batch_file_pfx_custom'))
@@ -5867,28 +5867,28 @@ class BatchRenamerPanel(QWidget):
         self._gfl.setTitle(_t('batch_file_filter'))
         self._p_rb_all.setText(_t('batch_file_all'))
         self._p_rb_ext.setText(_t('batch_file_ext'))
-        # 카운트 라벨
+        # count label
         _f_total = sum(len(g["children"]) for g in self._f_groups)
         _p_total = sum(len(self._p_filtered(g["files"])) for g in self._p_groups)
         self._f_lbl_count.setText(_t("batch_count_folder", g=len(self._f_groups), f=_f_total))
         self._p_lbl_count.setText(_t("batch_count_file", g=len(self._p_groups), f=_p_total))
-        # 출력 형식 라벨
+        # output format label
         if hasattr(self,"_fmt_lbl"): self._fmt_lbl.setText(f"<b>{_t('batch_file_fmt_label')}</b><br><span style='color:{ACCENT};font-size:13px;'>{_t('batch_file_fmt_pattern')}</span>")
-        # 힌트 박스
+        # hint box
         self._hint_folder.setText(_t("batch_hint_folder"))
         self._hint_file.setText(_t("batch_hint_file"))
-        # 접이식 버튼 텍스트 갱신
+        # refresh collapsible button text
         f_arrow = "▲" if self._f_hint_open else "▼"
         self._f_hint_btn.setText(f"  {_t('batch_usage_title')}  {f_arrow}")
         p_arrow = "▲" if self._p_hint_open else "▼"
         self._p_hint_btn.setText(f"  {_t('batch_usage_title')}  {p_arrow}")
-        # 드롭존 문구 갱신
+        # refresh dropzone wording
         if hasattr(self,"_f_drop"): self._f_drop.set_idle()
         if hasattr(self,"_p_drop"): self._p_drop.set_idle()
         if hasattr(self,"_f_btn_undo"): self._f_btn_undo.setText(_t('btn_undo'))
         if hasattr(self,"_p_btn_undo"): self._p_btn_undo.setText(_t('btn_undo'))
 
-    # ── 설정 저장/복원 ─────────────────────────
+    # ── Settings save/restore ─────────────────
     def get_config(self) -> dict:
         return {
             'main_tab': self._cur_main_tab,
@@ -5956,7 +5956,7 @@ class BatchRenamerPanel(QWidget):
 
 
 # ═══════════════════════════════════════════════
-# 탭 2: Text Converter 패널
+# Tab 2: Text Converter panel
 # ═══════════════════════════════════════════════
 class TextConverterPanel(QWidget):
     def __init__(self, parent=None):
@@ -5971,7 +5971,7 @@ class TextConverterPanel(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ── 모드 탭 바 (Tag Editor 스타일 통일) ──
+        # ── Mode tab bar (unified Tag Editor style) ──
         self._tab_bar = QWidget(); self._tab_bar.setFixedHeight(58)
         tbl = QHBoxLayout(self._tab_bar)
         tbl.setContentsMargins(8, 0, 0, 0)
@@ -5989,35 +5989,35 @@ class TextConverterPanel(QWidget):
         sep = QFrame(); sep.setFrameShape(QFrame.HLine); sep.setObjectName("tab_sep")
         root.addWidget(sep)
 
-        # ── 2단 본문 ───────────────────────────
+        # ── Two-pane body ─────────────────────
         body = QWidget()
         body_lay = QHBoxLayout(body)
         body_lay.setContentsMargins(16, 14, 16, 14)
         body_lay.setSpacing(16)
 
-        # ── 왼쪽: 드롭존 + 파일 목록 + 조작 버튼 (v1.0.6 #7) ──
+        # ── Left: dropzone + file list + control buttons (v1.0.6 #7) ──
         left = QWidget()
         left_lay = QVBoxLayout(left)
         left_lay.setContentsMargins(0, 0, 0, 0)
         left_lay.setSpacing(10)
 
-        # v1.0.6 #7: 드롭존 (상단) — 외부 파일 드롭 전용, mode 기반 동적 전환
+        # v1.0.6 #7: dropzone (top) — external file drops only, dynamic mode-based switching
         self._drop_zone = TextConverterDropZone()
         self._drop_zone.files_dropped.connect(self._on_files_dropped)
         left_lay.addWidget(self._drop_zone)
 
-        # 파일 목록 타이틀 (BulkFixer 패턴)
+        # file-list title (BulkFixer pattern)
         self._lbl_file_list = QLabel(_t('conv_file_list'))
         self._lbl_file_list.setObjectName("grp_title_lbl")
         left_lay.addWidget(self._lbl_file_list)
 
-        # _flist 먼저 생성 — 상·하단 버튼의 connect()가 참조하기 때문
+        # create _flist first — top/bottom button connect() calls reference it
         self._flist = TextConverterFileList()
         self._flist.setMinimumHeight(200)
         self._lbl_cnt = QLabel(""); self._lbl_cnt.setObjectName("count_lbl")
         self._flist.files_changed.connect(lambda n: self._lbl_cnt.setText(_t("conv_file_count", n=n)))
 
-        # 상단 버튼 행: 파일 추가 / 전체 삭제 (BulkFixer 패턴)
+        # top button row: add file / delete all (BulkFixer pattern)
         top_row = QHBoxLayout(); top_row.setSpacing(6)
         self._btn_add = QPushButton(_t('btn_add_file'))
         self._btn_add.setObjectName("btn_primary")
@@ -6033,10 +6033,10 @@ class TextConverterPanel(QWidget):
         top_row.addWidget(self._btn_clr)
         left_lay.addLayout(top_row)
 
-        # 파일 리스트 — 레이아웃에 추가 (QTreeWidget 헤더 클릭으로 정렬)
+        # file list — added to the layout (sorts via QTreeWidget header clicks)
         left_lay.addWidget(self._flist, 1)
 
-        # 하단 버튼 행: 선택 삭제 / 위 / 아래 / 카운트 (BulkFixer 패턴)
+        # bottom button row: delete-selected / up / down / count (BulkFixer pattern)
         bot_row = QHBoxLayout(); bot_row.setSpacing(6)
         self._btn_del = QPushButton(_t('btn_del_sel'))
         self._btn_del.setIcon(_svg_icon('trash', ACCENT)); self._btn_del.setIconSize(QSize(20,20))
@@ -6058,13 +6058,13 @@ class TextConverterPanel(QWidget):
 
         body_lay.addWidget(left, stretch=5)
 
-        # ── 오른쪽: 모드별 옵션 ─────────────────
+        # ── Right: per-mode options ─────────────
         right = QWidget()
         right_lay = QVBoxLayout(right)
         right_lay.setContentsMargins(0, 0, 0, 0)
         right_lay.setSpacing(10)
 
-        # EPUB→TXT 옵션
+        # EPUB→TXT options
         self._c_epub_opts = QGroupBox(_t("conv_opt_epub2txt"))
         epub_lay = QVBoxLayout(self._c_epub_opts)
         epub_lay.setContentsMargins(10, 6, 10, 8)
@@ -6099,7 +6099,7 @@ class TextConverterPanel(QWidget):
         epub_lay.addLayout(enc_row)
         right_lay.addWidget(self._c_epub_opts)
 
-        # TXT→EPUB 메타 옵션
+        # TXT→EPUB meta options
         self._c_txt_meta = QGroupBox(_t("conv_meta"))
         meta_lay = QVBoxLayout(self._c_txt_meta)
         meta_lay.setContentsMargins(10, 6, 10, 8)
@@ -6151,7 +6151,7 @@ class TextConverterPanel(QWidget):
             f"QComboBox:focus::down-arrow{{image:{_combo_arrow_url(ACCENT)};}}")
         right_lay.addWidget(self._c_txt_meta)
 
-        # 출력 폴더 (v1.0.6 #7: 왼쪽 → 오른쪽 이동)
+        # output folder (v1.0.6 #7: moved left → right)
         out_gb = QGroupBox(_t("conv_out_folder")); self._out_gb=out_gb
         out_inner = QVBoxLayout(out_gb)
         out_inner.setContentsMargins(10, 6, 10, 8)
@@ -6168,7 +6168,7 @@ class TextConverterPanel(QWidget):
         out_inner.addLayout(orow)
         right_lay.addWidget(out_gb)
 
-        # 변환 / 실행 취소 버튼 (v1.0.6 #7: 왼쪽 → 오른쪽 이동, 세로 2줄 유지)
+        # convert / undo buttons (v1.0.6 #7: moved left → right, kept 2-line vertical layout)
         self._btn_convert = QPushButton(_t("conv_btn_start")); self._btn_convert.setObjectName("btn_merge")
         self._btn_convert.setIcon(_svg_icon('refresh', 'white')); self._btn_convert.setIconSize(QSize(22,22))
         self._btn_convert.setFixedHeight(44)
@@ -6180,14 +6180,14 @@ class TextConverterPanel(QWidget):
         self._btn_undo.clicked.connect(self._undo)
         right_lay.addWidget(self._btn_undo)
 
-        # 진행바 (v1.0.6 #7: 왼쪽 → 오른쪽 이동)
+        # progress bar (v1.0.6 #7: moved left → right)
         self._progress = QProgressBar()
         self._progress.setRange(0, 100); self._progress.setValue(0)
         self._progress.setFixedHeight(8); self._progress.setTextVisible(False)
         self._progress.setVisible(False)
         right_lay.addWidget(self._progress)
 
-        # 현재 파일 진행 바
+        # current-file progress bar
         self._file_progress = QProgressBar()
         self._file_progress.setRange(0, 100); self._file_progress.setValue(0)
         self._file_progress.setFixedHeight(5); self._file_progress.setTextVisible(False)
@@ -6206,7 +6206,7 @@ class TextConverterPanel(QWidget):
         self._lbl_file_progress.setVisible(False)
         right_lay.addWidget(self._lbl_file_progress)
 
-        # 상태 라벨 (v1.0.6 #7: 왼쪽 → 오른쪽 이동)
+        # status label (v1.0.6 #7: moved left → right)
         self._lbl_status = QLabel(_t("conv_status_start"))
         self._lbl_status.setStyleSheet("font-size:13px;")
         self._lbl_status.setWordWrap(True)
@@ -6234,7 +6234,7 @@ class TextConverterPanel(QWidget):
         self._c_epub_opts.setVisible(mode=="epub2txt")
         self._c_txt_meta.setVisible(mode=="txt2epub")
         self._flist.set_mode(mode)
-        # v1.0.6 #7: 드롭존 텍스트/아이콘 모드 전환 즉시 갱신
+        # v1.0.6 #7: refresh dropzone text/icon immediately on mode switch
         if hasattr(self, '_drop_zone'):
             self._drop_zone.set_mode(mode)
 
@@ -6245,10 +6245,10 @@ class TextConverterPanel(QWidget):
         self._flist.add_files(paths,warn_fn=warn)
 
     def _on_files_dropped(self, paths: list):
-        """v1.0.6 #7: TextConverterDropZone에서 파일 드롭 시 호출.
+        """v1.0.6 #7: called when a file is dropped on TextConverterDropZone.
 
-        드롭존이 mode 기반으로 1차 필터링(잘못된 확장자는 거부)하지만,
-        방어적으로 _add_files의 warn 로직을 재사용하여 안전하게 처리.
+        The dropzone applies first-pass filtering by mode (rejects wrong extensions),
+        but defensively reuses the warn logic in _add_files for safe handling.
         """
         if not paths: return
         def warn(names): _dlg_warn(self, _t('dlg_warning'), f"{_t('conv_unsupported')}:\n"+"\n".join(names))
@@ -6262,7 +6262,7 @@ class TextConverterPanel(QWidget):
     def _open_out_dir(self):
         d = self._edit_odir.text().strip()
         if not d or not os.path.isdir(d):
-            # 출력 폴더 미지정 시 원본 파일 위치로 fallback
+            # fall back to the original file's location if no output folder is set
             if self._flist.files:
                 d = os.path.dirname(self._flist.files[0])
             if not d or not os.path.isdir(d):
@@ -6272,12 +6272,12 @@ class TextConverterPanel(QWidget):
         else: subprocess.Popen(["xdg-open", d])
 
     def _wlog(self,msg,tag=""):
-        if msg.strip(): _glog(f"  [변환] {msg.strip()}")
+        if msg.strip(): _glog(f"  [convert] {msg.strip()}")
 
     def _start(self):
         files=self._flist.files
         if not files: _dlg_warn(self, _t('dlg_warning'), _t('conv_no_files_msg')); return
-        if self._worker and self._worker.isRunning(): return  # 중복 실행 방지
+        if self._worker and self._worker.isRunning(): return  # prevent duplicate runs
         self._progress.setValue(0)
         self._btn_convert.setEnabled(False); self._btn_convert.setText(_t("conv_btn_converting")); self._lbl_status.setText(_t("conv_btn_converting").replace("⏳ ",""))
         odir=self._edit_odir.text().strip()
@@ -6293,8 +6293,8 @@ class TextConverterPanel(QWidget):
             opts={"title":self._edit_title.text().strip(),"author":self._edit_author.text().strip() or _t('tc_author_placeholder'),"lang":lcode,"chapter_mode":cm}
         snap=self._mode
         label="EPUB→TXT" if self._mode=="epub2txt" else "TXT→EPUB"
-        _glog(f"▶ [Text Converter] {label} 변환 시작 — {len(files)}개 파일")
-        # 이전 worker 안전 해제
+        _glog(f"▶ [Text Converter] {label} conversion started — {len(files)} file(s)")
+        # safely release the previous worker
         if self._worker is not None:
             try:
                 self._worker.sig_progress.disconnect()
@@ -6321,36 +6321,36 @@ class TextConverterPanel(QWidget):
         self._lbl_file_progress.setText(f"{fname}  {pct:>3d}%")
 
     def _on_files(self, file_list):
-        """변환 완료 파일 목록 수신 — undo용 저장."""
+        """Receive the list of converted files — stored for undo."""
         self._undo_data = ('files', file_list)
         if hasattr(self, '_btn_undo'): self._btn_undo.setEnabled(True)
 
     def _on_done(self,success,ok,fail,out_dir,mode):
         self._btn_convert.setEnabled(True); self._btn_convert.setText(_t("conv_btn_start"))
-        # 진행 바 및 파일 진행 라벨 숨김
+        # hide progress bar and file-progress label
         self._progress.setValue(0); self._progress.setVisible(False)
         self._file_progress.setValue(0); self._file_progress.setVisible(False)
         self._lbl_file_progress.setText(""); self._lbl_file_progress.setVisible(False)
         label="EPUB→TXT" if mode=="epub2txt" else "TXT→EPUB"
         if success:
             self._lbl_status.setText(_t('conv_status_done'))
-            _glog(f"  [Text Converter] {label} 완료 — 성공 {ok}개" + (f", 실패 {fail}개" if fail else ""))
-            if out_dir: _glog(f"  저장 위치: {out_dir}")
+            _glog(f"  [Text Converter] {label} done — {ok} succeeded" + (f", {fail} failed" if fail else ""))
+            if out_dir: _glog(f"  saved to: {out_dir}")
             msg = f"{label}\n\n{_t('bulk_status_done', n=ok)}"
             if fail: msg += f"\n{_t('dlg_done_err')} ×{fail}"
             if out_dir: msg += f"\n\n{_t('merge_save_path')}\n{out_dir}"
             _dlg_info(self, _t('dlg_done'), msg)
-            # 저장 완료 후 출력 폴더 자동 열기
+            # auto-open output folder after saving completes
             if out_dir and os.path.isdir(out_dir):
                 try: os.startfile(out_dir)
                 except Exception: pass
         else:
             self._lbl_status.setText(_t('conv_status_fail'))
-            _glog(f"  [Text Converter] {label} 변환 실패")
+            _glog(f"  [Text Converter] {label} conversion failed")
 
 
     def is_busy(self) -> bool:
-        """변환 워커가 실행 중이면 True."""
+        """True while the conversion worker is running."""
         return bool(self._worker and self._worker.isRunning())
 
     def _stop_worker(self):
@@ -6368,16 +6368,16 @@ class TextConverterPanel(QWidget):
                 self._worker.terminate(); self._worker.wait(500)
 
     def _undo(self):
-        """마지막 변환 파일들을 삭제해 복구."""
+        """Undo the last conversion by deleting the produced files."""
         if not self._undo_data: return
         kind, file_list = self._undo_data
-        _glog(f"↩ [Text Converter] 실행 취소 — {len(file_list)}개 파일")
+        _glog(f"↩ [Text Converter] undo — {len(file_list)} file(s)")
         deleted=[]; errors=[]
         for path in file_list:
             try:
                 if os.path.exists(path):
                     os.remove(path); deleted.append(path)
-                    _glog(f"  ✅ 삭제: {os.path.basename(path)}")
+                    _glog(f"  ✅ deleted: {os.path.basename(path)}")
                 else:
                     errors.append(f"{os.path.basename(path)}: file not found")
             except OSError as e:
@@ -6386,12 +6386,12 @@ class TextConverterPanel(QWidget):
         if hasattr(self, '_btn_undo'): self._btn_undo.setEnabled(False)
         msg = _t('tag_apply_done', n=len(deleted), label=_t('dlg_undo'))
         if errors: msg += f'  {_t("dlg_done_err")} ×{len(errors)}'
-        _glog(f"  완료: {msg}")
+        _glog(f"  done: {msg}")
         if errors: _dlg_warn(self, _t('dlg_undo'), msg + "\n\n" + "\n".join(errors[:10]))
         else: _dlg_info(self, _t('dlg_undo'), msg)
 
     def refresh_btn_styles(self):
-        """테마 전환 시 QSS 캐스케이드가 닿지 않는 버튼을 직접 갱신."""
+        """On theme change, directly refresh buttons that the QSS cascade does not reach."""
         secondary_ss = (f"QPushButton{{background:{SURFACE};border:1.5px solid {BTN_BORDER_H};"
                         f"color:{TEXT};border-radius:8px;padding:5px 12px;}}"
                         f"QPushButton:hover{{background:{SRF2};border-color:{ACCENT};}}"
@@ -6407,17 +6407,17 @@ class TextConverterPanel(QWidget):
                            f"QPushButton:pressed{{background:{BTN_PRESSED};}}"
                            f"QPushButton:disabled{{background:{SRF2};color:{DISABLED};}}")
             self._btn_opn.setStyleSheet(icon_btn_ss)
-        # SVG 아이콘 색상 갱신 (ACCENT 변경 시)
+        # refresh SVG icon colors (when ACCENT changes)
         _isz = QSize(20,20)
         for attr, key in [('_btn_del','trash'),('_btn_clr','trash'),
                           ('_btn_up','arrow_up'),('_btn_dn','arrow_down'),
                           ('_btn_opn','folder_open')]:
             if hasattr(self, attr): getattr(self, attr).setIcon(_svg_icon(key, ACCENT)); getattr(self, attr).setIconSize(_isz)
-        # 콤보박스 인라인 스타일 갱신
+        # refresh combobox inline style
         _css = _themed_combo_ss()
         for attr in ('_combo_enc', '_combo_lang', '_combo_ch'):
             if hasattr(self, attr): getattr(self, attr).setStyleSheet(_css)
-        # 파일 목록 트리 스타일 갱신
+        # refresh file-list tree style
         if hasattr(self, '_flist'):
             self._flist.setStyleSheet(
                 f"QTreeWidget{{background:{SURFACE};border:1px solid {BORDER};"
@@ -6431,7 +6431,7 @@ class TextConverterPanel(QWidget):
                 f"QHeaderView::section:first{{border-top-left-radius:7px;}}"
                 f"QHeaderView::section:last{{border-top-right-radius:7px;border-right:none;}}"
             )
-        # 진행 바 스타일 갱신
+        # refresh progress-bar style
         if hasattr(self, '_file_progress'):
             self._file_progress.setStyleSheet(
                 f"QProgressBar{{border:none;background:{BORDER};border-radius:2px;}}"
@@ -6440,13 +6440,13 @@ class TextConverterPanel(QWidget):
             self._lbl_file_progress.setStyleSheet(
                 f"font-size:11px;color:{MUTED};"
                 f"font-family:'Consolas','Courier New','Menlo',monospace;")
-        # v1.0.6 #7: 드롭존 테마 전환 대응
+        # v1.0.6 #7: dropzone responds to theme switch
         if hasattr(self, '_drop_zone'):
             self._drop_zone.refresh_style()
 
     def retranslate(self):
         self._flist.setHeaderLabels([_t('tag_col_filename'), _t('tag_col_path')])
-        # v1.0.6 #7: paintEvent 제거로 viewport().update() 불필요 (드롭존이 텍스트 전담)
+        # v1.0.6 #7: viewport().update() unnecessary now that paintEvent is removed (dropzone owns the text)
         self._lbl_file_list.setText(_t('conv_file_list'))
         for val, btn in self._tab_btns.items():
             btn.setText(_t('conv_sub_' + val))
@@ -6478,13 +6478,13 @@ class TextConverterPanel(QWidget):
         self._combo_ch.clear()
         self._combo_ch.addItems([_t('conv_ch0'), _t('conv_ch1'), _t('conv_ch2')])
         self._combo_ch.setCurrentIndex(ci)
-        # v1.0.6 #7: 드롭존 텍스트/아이콘 현지어로 재갱신 (_help_box 제거와 함께 conv_help 참조 제거)
+        # v1.0.6 #7: re-render dropzone text/icon in the current language (conv_help reference removed along with _help_box)
         if hasattr(self, '_drop_zone'):
             self._drop_zone.set_mode(self._mode)
         if self._lbl_status.text() in _all_translations_of('conv_status_start'):
             self._lbl_status.setText(_t('conv_status_start'))
 
-    # ── 설정 저장/복원 ─────────────────────────
+    # ── Settings save/restore ─────────────────
     def get_config(self) -> dict:
         lcode = self._combo_lang_codes[self._combo_lang.currentIndex()] if hasattr(self, '_combo_lang') else "ko"
         return {
@@ -6522,7 +6522,7 @@ class TextConverterPanel(QWidget):
 
 
 # ═══════════════════════════════════════════════
-# 탭 3: Tag Editor 패널
+# Tab 3: Tag Editor panel
 # ═══════════════════════════════════════════════
 class TagEditorPanel(QWidget):
     def __init__(self, parent=None):
@@ -6539,7 +6539,7 @@ class TagEditorPanel(QWidget):
     def _build(self):
         root=QVBoxLayout(self); root.setContentsMargins(0,0,0,0); root.setSpacing(0)
 
-        # ── 탭 바 ────────────────────────────────
+        # ── Tab bar ──────────────────────────────
         tab_bar=QWidget(); tab_bar.setFixedHeight(50)
         tl=QHBoxLayout(tab_bar); tl.setContentsMargins(8,0,0,0); tl.setSpacing(0)
         self._tab_btns={}
@@ -6551,23 +6551,23 @@ class TagEditorPanel(QWidget):
         sep=QFrame(); sep.setFrameShape(QFrame.HLine); sep.setObjectName("tab_sep")
         root.addWidget(sep)
 
-        # ── 2단 본문 ─────────────────────────────
+        # ── Two-pane body ────────────────────────
         body=QWidget()
         body_lay=QHBoxLayout(body)
         body_lay.setContentsMargins(14,12,14,12)
         body_lay.setSpacing(14)
 
-        # ── 왼쪽: 파일 입력 영역 ─────────────────
+        # ── Left: file input area ────────────────
         left=QWidget()
         ll=QVBoxLayout(left); ll.setContentsMargins(0,0,0,0); ll.setSpacing(8)
 
-        # 드롭존
+        # dropzone
         self._drop_zone=TagDropZone()
         self._drop_zone.folder_dropped.connect(self._on_folder_dropped)
         self._drop_zone.files_dropped.connect(self._on_files_dropped)
         ll.addWidget(self._drop_zone)
 
-        # 파일 추가/삭제 버튼 행
+        # file add/delete button row
         btn_row=QHBoxLayout(); btn_row.setSpacing(8)
         self._btn_add_files=QPushButton(_t('btn_add_file')); self._btn_add_files.setObjectName("btn_primary"); self._btn_add_files.clicked.connect(self._add_files_dialog)
         self._btn_add_files.setIcon(_svg_icon('document', 'white')); self._btn_add_files.setIconSize(QSize(20,20))
@@ -6580,7 +6580,7 @@ class TagEditorPanel(QWidget):
         btn_row.addStretch(); btn_row.addWidget(self._file_count_lbl); btn_row.addWidget(self._btn_del_all)
         ll.addLayout(btn_row)
 
-        # 파일 목록 (GroupBox 제거 — 테이블 직접 배치)
+        # file list (GroupBox removed — table placed directly)
         self._file_list=QTreeWidget(); self._file_list.setColumnCount(2)
         self._file_list.setAlternatingRowColors(True)
         self._file_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -6597,7 +6597,7 @@ class TagEditorPanel(QWidget):
         self._btn_del_sel.setIcon(_svg_icon('trash', ACCENT)); self._btn_del_sel.setIconSize(QSize(20,20))
         del_row=QHBoxLayout(); del_row.addStretch(); del_row.addWidget(self._btn_del_sel)
         ll.addWidget(self._file_list, 1)
-        # 폴더 스캔 진행률 바 (평소엔 숨김)
+        # folder-scan progress bar (hidden by default)
         self._scan_bar = QProgressBar()
         self._scan_bar.setRange(0, 100); self._scan_bar.setValue(0)
         self._scan_bar.setFixedHeight(5); self._scan_bar.setTextVisible(False)
@@ -6617,7 +6617,7 @@ class TagEditorPanel(QWidget):
         self._scan_worker = None
         ll.addLayout(del_row)
 
-        # 대상 확장자
+        # target extensions
         ext_gb=QGroupBox(_t("tag_filter")); self._ext_gb=ext_gb
         ext_gl=QVBoxLayout(ext_gb); ext_gl.setContentsMargins(8,4,8,6); ext_gl.setSpacing(6)
         ext_row=QHBoxLayout(); ext_row.setSpacing(8)
@@ -6634,20 +6634,20 @@ class TagEditorPanel(QWidget):
 
         body_lay.addWidget(left, stretch=3)
 
-        # ── 오른쪽: 옵션 + 미리보기 ─────────────
+        # ── Right: options + preview ────────────
         right=QWidget()
         rl=QVBoxLayout(right); rl.setContentsMargins(0,0,0,0); rl.setSpacing(8)
 
-        # 모드별 옵션 패널
+        # per-mode options panel
         self._remove_panel=self._make_remove_panel()
         self._add_panel=self._make_add_panel()
         rl.addWidget(self._remove_panel)
         rl.addWidget(self._add_panel)
-        # 초기 상태: remove 모드이므로 add_panel 즉시 숨김 (dead space 방지)
+        # initial state: remove mode, so hide add_panel immediately (avoids dead space)
         self._add_panel.setMaximumHeight(0)
         self._add_panel.hide()
 
-        # 변경 미리보기 (GroupBox 제거 — 테이블 직접 배치)
+        # change preview (GroupBox removed — table placed directly)
         count_row=QHBoxLayout()
         count_row.addStretch()
         self._count_lbl=QLabel(""); self._count_lbl.setObjectName("count_lbl")
@@ -6665,7 +6665,7 @@ class TagEditorPanel(QWidget):
         self._tree.setColumnWidth(0,140)
         rl.addWidget(self._tree,1)
 
-        # 미리보기 / 적용 버튼
+        # preview / apply buttons
         br=QHBoxLayout(); br.setSpacing(10)
         self._btn_preview=QPushButton(_t("btn_preview")); self._btn_preview.setObjectName("btn_preview")
         self._btn_preview.setObjectName("btn_preview")
@@ -6697,15 +6697,15 @@ class TagEditorPanel(QWidget):
         frame=QFrame(); frame.setObjectName("tag_opt_frame")
         frame.setStyleSheet(f"QFrame#tag_opt_frame{{background:{SRF2};border:1px solid {BORDER};border-radius:8px;}}")
         fl=QVBoxLayout(frame); fl.setContentsMargins(12,10,12,10); fl.setSpacing(8)
-        # 태그 입력란
+        # tag input field
         r0=QHBoxLayout(); r0.setSpacing(8)
         self._lbl_rm_tag=QLabel(_t('tag_rm_tag')); self._lbl_rm_tag.setObjectName("count_lbl"); self._lbl_rm_tag.setFixedWidth(80)
         self._rm_tag_edit=QLineEdit(); self._rm_tag_edit.setPlaceholderText(_t('tag_rm_tag_ph'))
         r0.addWidget(self._lbl_rm_tag); r0.addWidget(self._rm_tag_edit,1); fl.addLayout(r0)
-        # 구분선
+        # separator
         div=QFrame(); div.setFrameShape(QFrame.HLine)
         div.setStyleSheet(f"background:{BORDER};max-height:1px;border:none;"); fl.addWidget(div)
-        # 제거 위치
+        # removal position
         r1=QHBoxLayout(); r1.setSpacing(12)
         self._lbl_rm_pos=QLabel(_t("tag_rm_pos")); self._lbl_rm_pos.setStyleSheet(f"font-size:13px;color:{MUTED};"); r1.addWidget(self._lbl_rm_pos)
         self._rm_group=QButtonGroup(self); self._rb_rm={}
@@ -6718,7 +6718,7 @@ class TagEditorPanel(QWidget):
         frame=QFrame(); frame.setObjectName("tag_opt_frame")
         frame.setStyleSheet(f"QFrame#tag_opt_frame{{background:{SRF2};border:1px solid {BORDER};border-radius:8px;}}")
         fl=QVBoxLayout(frame); fl.setContentsMargins(12,10,12,10); fl.setSpacing(6)
-        # 태그 형식
+        # tag format
         r1=QHBoxLayout(); r1.setSpacing(8)
         self._lbl_fmt=QLabel(_t("tag_add_fmt")); self._lbl_fmt.setObjectName("count_lbl"); self._lbl_fmt.setFixedWidth(80)
         self._fmt_edit=QLineEdit("[{tag}]")
@@ -6726,11 +6726,11 @@ class TagEditorPanel(QWidget):
         fmt_hint=QLabel(_t("tag_add_fmt_hint")); self._fmt_hint=fmt_hint
         fmt_hint.setStyleSheet(f"color:{MUTED};font-size:12px;padding-left:88px;background:transparent;border:none;")
         fl.addWidget(fmt_hint)
-        # 추가할 태그
+        # tag to add
         r2=QHBoxLayout(); r2.setSpacing(8)
         self._lbl_tagval=QLabel(_t("tag_add_val")); self._lbl_tagval.setObjectName("count_lbl"); self._lbl_tagval.setFixedWidth(80)
         self._tagval_edit=QLineEdit(); self._tagval_edit.setPlaceholderText(_t("tag_add_val_ph")); r2.addWidget(self._lbl_tagval); r2.addWidget(self._tagval_edit,1); fl.addLayout(r2)
-        # 태그 위치
+        # tag position
         r3=QHBoxLayout(); r3.setSpacing(10)
         self._lbl_pos=QLabel(_t("tag_add_pos")); self._lbl_pos.setObjectName("count_lbl"); self._lbl_pos.setFixedWidth(80)
         self._add_pos_group=QButtonGroup(self)
@@ -6738,15 +6738,15 @@ class TagEditorPanel(QWidget):
         self._rb_back=QRadioButton(_t("tag_add_back"))
         self._add_pos_group.addButton(self._rb_front); self._add_pos_group.addButton(self._rb_back)
         r3.addWidget(self._lbl_pos); r3.addWidget(self._rb_front); r3.addWidget(self._rb_back); r3.addStretch(); fl.addLayout(r3)
-        # 구분선 — 태그 위치(라디오) 그룹과 옵션(체크박스) 그룹 시각적 분리
+        # separator — visually splits the tag-position (radio) group from the options (checkbox) group
         div_line=QFrame(); div_line.setFrameShape(QFrame.HLine)
         div_line.setStyleSheet(f"background:{BORDER};max-height:1px;border:none;margin-left:0px;margin-right:0px;")
         fl.addWidget(div_line)
-        # 체크박스 행 1 — 위치 옵션
+        # checkbox row 1 — position options
         r3b=QHBoxLayout(); r3b.setSpacing(10)
         self._cb_skip=QCheckBox(_t("tag_add_skip")); self._cb_replace=QCheckBox(_t("tag_add_replace"))
         r3b.addSpacing(88); r3b.addWidget(self._cb_skip); r3b.addWidget(self._cb_replace); r3b.addStretch(); fl.addLayout(r3b)
-        # 체크박스 행 2 — 공백 옵션
+        # checkbox row 2 — whitespace options
         r4=QHBoxLayout(); r4.setSpacing(10)
         self._cb_space_after=QCheckBox(_t("tag_add_space_after")); self._cb_space_after.setChecked(True)
         self._cb_space_before=QCheckBox(_t("tag_add_space_before")); self._cb_space_before.setChecked(True)
@@ -6763,7 +6763,7 @@ class TagEditorPanel(QWidget):
         self._mode=mode; self._update_tab_style(); self._apply_mode_ui()
 
     def _apply_mode_ui(self):
-        # show/hide + setMaximumHeight로 레이아웃 공간까지 완전 제거
+        # show/hide + setMaximumHeight fully removes layout space too
         if self._mode == "remove":
             self._remove_panel.setMaximumHeight(16777215)
             self._remove_panel.show()
@@ -6858,11 +6858,11 @@ class TagEditorPanel(QWidget):
         _dlg_error(self, _t('dlg_error_title'), msg)
 
     def is_busy(self) -> bool:
-        """폴더 스캔 워커가 실행 중인지 여부 — 종료 확인용."""
+        """Whether the folder-scan worker is running — used for shutdown confirmation."""
         return bool(self._scan_worker and self._scan_worker.isRunning())
 
     def _stop_worker(self):
-        """앱 종료 시 스캔 워커 정리."""
+        """Clean up the scan worker on app exit."""
         if self._scan_worker and self._scan_worker.isRunning():
             self._scan_worker.abort(); self._scan_worker.wait(1000)
             self._set_scan_ui(False)
@@ -6899,14 +6899,14 @@ class TagEditorPanel(QWidget):
 
     def _preview(self):
         if not self._file_paths: _dlg_warn(self, _t('dlg_warning'), _t('tag_no_files_msg')); return
-        self._targets=[]; skip_info=[]  # skip_info: [(원본파일명, 목적지파일명, 이유)]
+        self._targets=[]; skip_info=[]  # skip_info: [(source_filename, destination_filename, reason)]
 
         source_full = {os.path.join(dp, fn) for dp, fn in self._file_paths}
 
         if self._mode=="remove":
             pos=next((v for v,rb in self._rb_rm.items() if rb.isChecked()),"front")
             target_tag=self._rm_tag_edit.text().strip()
-            _glog(f"🔍 태그 제거 미리보기 — 태그: {'['+target_tag+']' if target_tag else '전체'}, 위치: {pos}, 대상: {len(self._file_paths)}개")
+            _glog(f"🔍 tag-remove preview — tag: {'['+target_tag+']' if target_tag else 'all'}, position: {pos}, targets: {len(self._file_paths)}")
             seen=set()
             for dp,fn in self._file_paths:
                 nn=remove_tag_from_name(fn,pos,target_tag if target_tag else None)
@@ -6914,11 +6914,11 @@ class TagEditorPanel(QWidget):
                     dk=(dp,nn); pp=os.path.join(dp,nn)
                     if dk in seen:
                         skip_info.append((fn, nn, "배치 내 동일 목적지 중복"))
-                        _glog(f"  ⚠ 건너뜀: {fn} → {nn}  (배치 내 중복)")
+                        _glog(f"  ⚠ skipped: {fn} → {nn}  (duplicate within batch)")
                         continue
                     if os.path.exists(pp) and pp not in source_full:
                         skip_info.append((fn, nn, "목적지 파일 이미 존재"))
-                        _glog(f"  ⚠ 건너뜀: {fn} → {nn}  (목적지 '{nn}' 이미 존재)")
+                        _glog(f"  ⚠ skipped: {fn} → {nn}  (destination '{nn}' already exists)")
                         continue
                     seen.add(dk); self._targets.append((dp,fn,nn))
                     _glog(f"  ✅ {fn}  →  {nn}")
@@ -6927,7 +6927,7 @@ class TagEditorPanel(QWidget):
             raw=self._tagval_edit.text().strip()
             if not raw: _dlg_warn(self, _t('dlg_warning'), _t('tag_no_tag_msg')); return
             tags=[v.strip() for v in raw.split(",") if v.strip()]; pos="front" if self._rb_front.isChecked() else "back"
-            _glog(f"🔍 태그 추가 미리보기 — 태그: {tags}, 위치: {pos}, 대상: {len(self._file_paths)}개")
+            _glog(f"🔍 tag-add preview — tags: {tags}, position: {pos}, targets: {len(self._file_paths)}")
             seen=set()
             for dp,fn in self._file_paths:
                 nn=add_tag_to_name(fn,tags,self._fmt_edit.text() or "[{tag}]",pos,self._cb_skip.isChecked(),self._cb_replace.isChecked(),space_after=self._cb_space_after.isChecked(),space_before=self._cb_space_before.isChecked())
@@ -6935,17 +6935,17 @@ class TagEditorPanel(QWidget):
                     dk=(dp,nn); pp=os.path.join(dp,nn)
                     if dk in seen:
                         skip_info.append((fn, nn, "배치 내 동일 목적지 중복"))
-                        _glog(f"  ⚠ 건너뜀: {fn} → {nn}  (배치 내 중복)")
+                        _glog(f"  ⚠ skipped: {fn} → {nn}  (duplicate within batch)")
                         continue
                     if os.path.exists(pp) and pp not in source_full:
                         skip_info.append((fn, nn, "목적지 파일 이미 존재"))
-                        _glog(f"  ⚠ 건너뜀: {fn} → {nn}  (목적지 '{nn}' 이미 존재)")
+                        _glog(f"  ⚠ skipped: {fn} → {nn}  (destination '{nn}' already exists)")
                         continue
                     seen.add(dk); self._targets.append((dp,fn,nn))
                     _glog(f"  ✅ {fn}  →  {nn}")
             sk="status_found_add"
         else:
-            _glog(f"🔍 0 패딩 제거 미리보기 — 대상: {len(self._file_paths)}개")
+            _glog(f"🔍 zero-padding-strip preview — targets: {len(self._file_paths)}")
             seen=set()
             for dp,fn in self._file_paths:
                 nn=depad_name(fn)
@@ -6953,11 +6953,11 @@ class TagEditorPanel(QWidget):
                     dk=(dp,nn); pp=os.path.join(dp,nn)
                     if dk in seen:
                         skip_info.append((fn, nn, "배치 내 동일 목적지 중복"))
-                        _glog(f"  ⚠ 건너뜀: {fn} → {nn}  (배치 내 중복)")
+                        _glog(f"  ⚠ skipped: {fn} → {nn}  (duplicate within batch)")
                         continue
                     if os.path.exists(pp) and pp not in source_full:
                         skip_info.append((fn, nn, "목적지 파일 이미 존재"))
-                        _glog(f"  ⚠ 건너뜀: {fn} → {nn}  (목적지 '{nn}' 이미 존재)")
+                        _glog(f"  ⚠ skipped: {fn} → {nn}  (destination '{nn}' already exists)")
                         continue
                     seen.add(dk); self._targets.append((dp,fn,nn))
                     _glog(f"  ✅ {fn}  →  {nn}")
@@ -6976,13 +6976,13 @@ class TagEditorPanel(QWidget):
         }
         msg=labels.get(sk, str(cnt)) if cnt else _t('tag_no_change')
         if skip > 0:
-            # 이유별로 첫 번째 케이스만 예시로 표시
+            # show only the first case per reason as a sample
             parts = []
             for fn, nn, reason in skip_info[:3]:
                 parts.append(f"'{nn}' — {reason}")
-            if skip > 3: parts.append(f"외 {skip-3}개")
+            if skip > 3: parts.append(f"+{skip-3} more")
             msg += f"  ({_t('tag_skip_count', n=skip)}: {' / '.join(parts)})"
-        _glog(f"  → 처리 {cnt}개, 건너뜀 {skip}개")
+        _glog(f"  → processed {cnt}, skipped {skip}")
         self._status_lbl.setText(msg)
 
     def _apply(self):
@@ -6990,7 +6990,7 @@ class TagEditorPanel(QWidget):
         labels={"add":_t('tag_sub_add'),"depad":_t('tag_sub_depad')}
         label=labels.get(self._mode, _t('tag_sub_remove'))
         if not _dlg_question(self, _t('dlg_confirm_title'), _t('tag_apply_confirm', n=len(self._targets))): return
-        _glog(f"▶ {label} 실행 — {len(self._targets)}개")
+        _glog(f"▶ running {label} — {len(self._targets)} item(s)")
         undo_map=[(os.path.join(dp,new), os.path.join(dp,old)) for dp,old,new in self._targets]
         success,errors=apply_renames(self._targets)
         msg=_t('tag_apply_done', n=success, label=label)
