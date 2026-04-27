@@ -12,7 +12,7 @@ Text merging · EPUB conversion · Filename tag editing · Batch renaming · Lin
 ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/PySide6-Qt_6-41CD52?style=flat-square&logo=qt&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
-[![CI](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml)
+[![CI](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml/badge.svg)](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml)
 ![tests](https://img.shields.io/badge/tests-535%20passing-97CA00?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-97CA00?style=flat-square)
 ![AI](https://img.shields.io/badge/AI_pair_programming-Claude-CC785C?style=flat-square)
