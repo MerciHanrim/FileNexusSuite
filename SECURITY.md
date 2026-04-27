@@ -33,9 +33,9 @@ If you find a security vulnerability in File Nexus Suite, **please do not report
 
 ### 대응 소요 시간 · Response Time
 
-본 프로젝트는 **개인이 AI 페어 프로그래밍으로 개발하는 프리웨어**입니다. 전담 보안팀은 없으나, 제보된 사항은 최대한 빠르게 확인하고 대응하도록 노력하겠습니다.
+본 프로젝트는 **개인이 AI 페어 프로그래밍으로 개발하는 오픈소스 프로젝트입니다.** 전담 보안팀은 없으나, 제보된 사항은 최대한 빠르게 확인하고 대응하도록 노력하겠습니다.
 
-This is a **freeware project developed individually with AI pair programming**. There is no dedicated security team, but I will do my best to review and respond to reports as quickly as possible.
+This is an **open-source project** developed individually with AI pair programming. There is no dedicated security team, but I will do my best to review and respond to reports as quickly as possible.
 
 - 최초 응답 · Initial response: 1~7일 이내 · Within 1-7 days
 - 수정 시점 · Patch availability: 사안의 심각도에 따라 결정 · Depends on severity
