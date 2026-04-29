@@ -8,9 +8,8 @@ Security updates are provided for the following versions:
 
 | Version | Supported |
 | ------- | :-------: |
-| 1.0.5   | ✅ |
-| 1.0.4   | ✅ |
-| < 1.0.4 | ❌ |
+| 1.0.10  | ✅ |
+| < 1.0.10 | ❌ |
 
 ## 취약점 제보 · Reporting a Vulnerability
 
@@ -55,4 +54,4 @@ File Nexus Suite reads and writes local files. Please note the following.
 
 ---
 
-Copyright © 2026 Yongwoo Shin (Hanrim)
+Copyright © 2026 Hanrim
