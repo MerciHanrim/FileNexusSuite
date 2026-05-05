@@ -1,15 +1,18 @@
 name: CI
 
-# v1.0.7에서 도입 — 한림 로컬 환경(Windows + Python 3.10.11)을 재현하여
-# test_file_nexus.py의 529개 테스트를 자동 검증한다.
-# 설계 의도: TEST_MANAGEMENT_POLICY.md §2.1 "자동 테스트는 반복적·구조적 결함을 잡는다" 적용
+# Introduced in v1.0.7 — runs test_file_nexus.py on Windows + Python 3.10
+# to validate the test suite on a clean environment matching the developer's
+# local setup (529 tests at introduction; current count tracked in CHANGELOG).
+#
+# Design intent: per TEST_MANAGEMENT_POLICY.md §2.1, automated tests catch
+# repeating, structural defects.
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:   # 수동 실행 지원 (디버깅·특정 커밋 재검증용)
+  workflow_dispatch:   # manual trigger for debugging or re-validating specific commits
 
 jobs:
   test:

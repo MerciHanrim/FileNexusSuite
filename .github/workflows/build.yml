@@ -1,20 +1,23 @@
 name: Build
 
-# v1.0.11 트랙에서 도입 — Windows + Python 3.10.11 결 환경에서
-# build_pyinstaller.py 결을 자동 호출하여 dist/FileNexusSuite/ 결을
-# GitHub artifact로 박는다.
-# 설계 의도: SignPath OSS Sponsorship 결의 본질
-#   "binary is a valid, automated build resulting from the source code"
-#   결의 자국을 충족하는 재현 가능한 빌드 결의 호흡 박힘.
-# 다음 트랙: signpath/github-action-submit-signing-request 결을 박는
-#   2단계 SignPath 통합 결 (심의 통과 + organization-id 결 받아안은 후).
+# Introduced in v1.0.11 — runs build_pyinstaller.py on Windows + Python 3.10
+# to produce a verifiable, automated build of dist/FileNexusSuite/ as a
+# GitHub artifact.
+#
+# Design intent: satisfy SignPath OSS Sponsorship's technical requirement
+#   "binary is a valid, automated build resulting from the source code
+#    at the noted source code repository"
+# by making every push reproducible via GitHub-hosted runners.
+#
+# Next track: signpath/github-action-submit-signing-request will be added
+# once SignPath approval and organization-id are in place.
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:   # 수동 실행 결 — 빌드 결의 호흡 디버깅용
+  workflow_dispatch:   # manual trigger for build debugging
 
 jobs:
   build:
@@ -38,9 +41,10 @@ jobs:
 
       - name: Build with PyInstaller
         env:
-          # GitHub Actions Windows runner 결은 영어 환경 (cp1252 인코딩) 결로 박혀있어
-          # build_pyinstaller.py 결의 박스 그리기 문자(╔═╗) 결을 받아안지 못하는 자국.
-          # PYTHONIOENCODING=utf-8 결 박아 Python stdout 결을 UTF-8로 강제하여 정합.
+          # GitHub Actions Windows runners use cp1252 (English locale) by default,
+          # which cannot encode the box-drawing characters (╔═╗) printed by
+          # build_pyinstaller.py. Forcing PYTHONIOENCODING=utf-8 makes Python's
+          # stdout use UTF-8 so the script runs without UnicodeEncodeError.
           PYTHONIOENCODING: utf-8
         run: python build_pyinstaller.py
 
@@ -53,9 +57,9 @@ jobs:
             exit 1
           }
           $size = (Get-Item $exe).Length / 1MB
-          Write-Host "✅ Build output verified — FileNexusSuite.exe ($([math]::Round($size, 2)) MB)"
+          Write-Host "Build output verified: FileNexusSuite.exe ($([math]::Round($size, 2)) MB)"
           $totalSize = (Get-ChildItem dist/FileNexusSuite -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
-          Write-Host "   Total dist size: $([math]::Round($totalSize, 0)) MB"
+          Write-Host "Total dist size: $([math]::Round($totalSize, 0)) MB"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
