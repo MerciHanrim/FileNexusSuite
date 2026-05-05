@@ -1,0 +1,61 @@
+name: Build
+
+# v1.0.11 트랙에서 도입 — Windows + Python 3.10.11 결 환경에서
+# build_pyinstaller.py 결을 자동 호출하여 dist/FileNexusSuite/ 결을
+# GitHub artifact로 박는다.
+# 설계 의도: SignPath OSS Sponsorship 결의 본질
+#   "binary is a valid, automated build resulting from the source code"
+#   결의 자국을 충족하는 재현 가능한 빌드 결의 호흡 박힘.
+# 다음 트랙: signpath/github-action-submit-signing-request 결을 박는
+#   2단계 SignPath 통합 결 (심의 통과 + organization-id 결 받아안은 후).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:   # 수동 실행 결 — 빌드 결의 호흡 디버깅용
+
+jobs:
+  build:
+    name: Build on Windows / Python 3.10
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build with PyInstaller
+        run: python build_pyinstaller.py
+
+      - name: Verify build output
+        shell: pwsh
+        run: |
+          $exe = "dist/FileNexusSuite/FileNexusSuite.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Error "Build output not found: $exe"
+            exit 1
+          }
+          $size = (Get-Item $exe).Length / 1MB
+          Write-Host "✅ Build output verified — FileNexusSuite.exe ($([math]::Round($size, 2)) MB)"
+          $totalSize = (Get-ChildItem dist/FileNexusSuite -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
+          Write-Host "   Total dist size: $([math]::Round($totalSize, 0)) MB"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FileNexusSuite-${{ github.sha }}
+          path: dist/FileNexusSuite/
+          retention-days: 30
+          if-no-files-found: error
