@@ -37,6 +37,11 @@ jobs:
           pip install -r requirements.txt
 
       - name: Build with PyInstaller
+        env:
+          # GitHub Actions Windows runner 결은 영어 환경 (cp1252 인코딩) 결로 박혀있어
+          # build_pyinstaller.py 결의 박스 그리기 문자(╔═╗) 결을 받아안지 못하는 자국.
+          # PYTHONIOENCODING=utf-8 결 박아 Python stdout 결을 UTF-8로 강제하여 정합.
+          PYTHONIOENCODING: utf-8
         run: python build_pyinstaller.py
 
       - name: Verify build output
