@@ -5319,18 +5319,23 @@ class BatchRenamerPanel(QWidget):
         if path: self._f_ingest([path])
     def _f_ingest(self,parent_paths):
         added=0
+        skipped=[]   # parents that contributed no group (consolidated for one final dialog)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
+            # O(1) duplicate check via set (was O(N²) any() linear scan)
+            existing=set(g["parent"] for g in self._f_groups)
+
             def _ingest_one(parent):
                 nonlocal added
                 parent=os.path.normpath(parent)
-                if any(g["parent"]==parent for g in self._f_groups): return
+                if parent in existing: return
                 try: entries=os.listdir(parent)
                 except OSError as exc: _dlg_warn(self, _t('dlg_ok'), str(exc)); _glog(f"❌ failed to read folder: {parent} — {exc}"); return
                 children=sorted([os.path.join(parent,d) for d in entries
                                  if os.path.isdir(os.path.join(parent,d)) and not d.startswith('.')],
                                 key=natural_sort_key)
                 if not children: return
+                existing.add(parent)
                 self._f_groups.append({"parent":parent,"children":children}); added+=1
                 _glog(f"📁 [Batch/Folder] add group: {parent}  ({len(children)} subfolder(s))")
                 # recursively descend into subfolders that contain further subfolders
@@ -5342,10 +5347,16 @@ class BatchRenamerPanel(QWidget):
                 before=len(self._f_groups)
                 _ingest_one(parent)
                 if len(self._f_groups)==before:
-                    # warn if nothing was added from this folder
-                    _dlg_info(self, _t('dlg_ok'), f"{_t('rename_no_subfolders')}\n{parent}")
+                    skipped.append(parent)
         finally:
             QApplication.restoreOverrideCursor()
+        # consolidated "no subfolders found" dialog (was per-folder popup spam)
+        if skipped:
+            if len(skipped) <= 10:
+                msg = f"{_t('rename_no_subfolders')}\n\n" + "\n".join(skipped)
+            else:
+                msg = f"{_t('rename_no_subfolders')} ({len(skipped)})\n\n" + "\n".join(skipped[:10]) + f"\n... (+{len(skipped)-10})"
+            _dlg_info(self, _t('dlg_ok'), msg)
         if added: self._f_refresh(False); self._f_btn_preview.setEnabled(True); self._f_btn_rename.setEnabled(False)
     def _f_clear(self):
         self._f_groups.clear(); self._f_preview.clear(); self._f_refresh(False)
@@ -5594,8 +5605,11 @@ class BatchRenamerPanel(QWidget):
         if path: self._p_ingest([path])
     def _p_ingest(self,folder_paths):
         added=0
+        skipped=[]   # folders that contributed no group (consolidated for one final dialog)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
+            # O(1) duplicate check via set (was O(N²) any() linear scan)
+            existing=set(g["folder"] for g in self._p_groups)
             for folder in folder_paths:
                 folder=os.path.normpath(folder)
                 # ── Step 1: check for direct files ────────────────────────
@@ -5607,7 +5621,8 @@ class BatchRenamerPanel(QWidget):
                              key=natural_sort_key)
                 if files:
                     # direct files exist → add a single group using the existing approach
-                    if not any(g["folder"]==folder for g in self._p_groups):
+                    if folder not in existing:
+                        existing.add(folder)
                         self._p_groups.append({"folder":folder,"files":files}); added+=1
                         _glog(f"📁 [Batch/File] add group: {folder}  ({len(files)} file(s))")
                 else:
@@ -5619,15 +5634,23 @@ class BatchRenamerPanel(QWidget):
                         sub_files=sorted([os.path.join(root,f) for f in filenames
                                          if not f.startswith('.') and f.lower() not in _SKIP_FILES],
                                         key=natural_sort_key)
-                        if sub_files and not any(g["folder"]==root for g in self._p_groups):
+                        if sub_files and root not in existing:
+                            existing.add(root)
                             self._p_groups.append({"folder":root,"files":sub_files}); sub_added+=1
                             _glog(f"📁 [Batch/File] add sub-group: {root}  ({len(sub_files)} file(s))")
                     if sub_added==0:
-                        _dlg_info(self, _t('dlg_ok'), f"{_t('rename_no_files')}\n{folder}")
+                        skipped.append(folder)
                     else:
                         added+=sub_added
         finally:
             QApplication.restoreOverrideCursor()
+        # consolidated "no files found" dialog (was per-folder popup spam)
+        if skipped:
+            if len(skipped) <= 10:
+                msg = f"{_t('rename_no_files')}\n\n" + "\n".join(skipped)
+            else:
+                msg = f"{_t('rename_no_files')} ({len(skipped)})\n\n" + "\n".join(skipped[:10]) + f"\n... (+{len(skipped)-10})"
+            _dlg_info(self, _t('dlg_ok'), msg)
         if added: self._p_refresh(False); self._p_btn_preview.setEnabled(True); self._p_btn_rename.setEnabled(False)
     def _p_clear(self):
         self._p_groups.clear(); self._p_preview.clear(); self._p_refresh(False)
