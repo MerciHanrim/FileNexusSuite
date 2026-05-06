@@ -26,6 +26,9 @@ Post-v1.0.10 docs 정리 트랙 — **메인 코드 + 부속 문서 영문 기�
 - **중국어 사전 일관성 보정** — `zh_tw` 사전 안에 간체 누수가 *2줄* 있었음 (`tag_drop2`, `merge_sel_one`) — 번체 UI에 간체 글자가 섞여 문자체 일관성이 깨지던 부분. `zh_cn` 사전엔 `merge_sel_one` 키 자체가 *누락*되어 있어, 간체 사용자는 `_t`의 zh_cn → zh_tw fallback 경로(L814)로 떨어져 *깨진 번체 사전의 간체 누수*를 우연히 받아 보고 있었음 — 두 버그가 서로 상쇄되어 *우연한 시각적 일치*가 만들어지던 구조. 이제 두 사전 모두 자기 문자체로 키를 갖춤 (`zh_tw`: `點擊以開啟資料夾選擇視窗` / `已選取: {name}` — 후자는 위 줄 `merge_sel_multi` `已選取 {n}個…`와 통일된 형태), *우연한 fallback 일치*를 *명시적 일치*로 전환.
 - **Legacy `%APPDATA%` 설정 fallback 청소 (`_show_already_running_popup`)** — v1.0.x 통합 이전의 try-block 잔재가 남아 있었음: 먼저 `~/AppData/Roaming/FileNexusSuite/FileNexusSuite.json`(legacy 위치)을 살피고, 없으면 `__file__`-relative 경로로 fallback. 두 분기 모두 사장 — 코드베이스의 다른 모든 곳은 v1.0.x 이후 모듈 레벨 `_CONFIG_PATH = _app_dir() / "FileNexusSuite.json"`를 단독으로 사용하고 있고, legacy `%APPDATA%` 위치에 남은 사용자 0명. 본 블록도 `_CONFIG_PATH` 직접 사용으로 통일 — 14줄 probe-and-fallback이 10줄 직접 read로 (-4줄, single source of truth).
 
+### Added
+- **Batch Renamer: 그룹 헤더 + 바뀔 이름 컬럼 ToolTip 추가** — 기존엔 *원본 이름 컬럼*에만 `setToolTip(전체 경로)`이 박혀 있어 마우스 오버로 전체 텍스트를 볼 수 있었지만, *그룹 헤더* (`📂 부모 폴더`) 와 *바뀔 이름 컬럼*엔 ToolTip이 없어 한국어 책 제목이나 챕터 이름이 길어 컬럼 너비로 잘릴 때 전체 텍스트를 확인할 방법이 없었음. 이제 양쪽 패널(`_f_refresh` / `_p_refresh`)의 세 위치에 ToolTip을 대칭으로 적용 — 그룹 헤더(부모 폴더 전체 경로), 원본 컬럼(전체 경로, 기존), 바뀔 이름 컬럼(새 파일명 전체, 미리보기 활성 시에만). 원본과 바뀔 이름 표시의 대칭성 회복.
+
 ### Tests
 - **535 → 560 passing** (+25), 60 classes (+2), 실패/에러/스킵 0건 (한림 작업 폴더 + Git 폴더 양쪽 검증)
 - **`TestBatchRenamerDigitWidth` (+20)** — `_p_calc_preview`의 그룹별 자리수 로직을 *순수 함수 추출* 방식으로 검증. 본 프로젝트 기존 테스트 패턴과 통일 (`_de` / `natural_sort_key` / `depad` / `detect_prefix` 등). auto / nopad / pad2 / pad3 모드를 경계값 파일 수(1, 9, 10, 11, 99, 100, 999, 1000) + 시작값(0, 1) 조합으로 검증. 그룹 독립성 테스트는 v1.1.0 픽스를 미래 회귀로부터 보호.
