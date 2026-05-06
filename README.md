@@ -105,6 +105,12 @@ pip install -r requirements.txt
 python FileNexusSuite.py
 ```
 
+### Uninstallation
+
+This is a fully portable application — no installer, no registry entries, no system file modifications.
+
+Delete the `FileNexusSuite` folder. All settings (`FileNexusSuite.json`), output files (`Output/`), and application data are stored in the same folder.
+
 ---
 
 ## Tech Stack

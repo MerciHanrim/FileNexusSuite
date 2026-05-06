@@ -105,6 +105,12 @@ pip install -r requirements.txt
 python FileNexusSuite.py
 ```
 
+### 제거 방법
+
+본 프로그램은 완전 portable 형식입니다 — 별도 설치 프로그램 없음, 레지스트리 등록 없음, 시스템 파일 변경 없음.
+
+`FileNexusSuite` 폴더를 삭제하세요. 모든 설정(`FileNexusSuite.json`)과 출력 파일(`Output/`), 애플리케이션 데이터가 같은 폴더에 저장되므로 폴더 삭제로 완전 제거됩니다.
+
 ---
 
 ## 기술 스택
