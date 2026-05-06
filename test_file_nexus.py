@@ -2515,7 +2515,8 @@ class TestBulkFixerFileIO(unittest.TestCase):
             do_mid=True, do_blank=True, max_blank=1,
         )
         out_path = w._make_save_path(src)
-        text, _, _ = w._fix_text(open(src, encoding='utf-8').read())
+        with open(src, encoding='utf-8') as _f:
+            text, _, _ = w._fix_text(_f.read())
         with open(out_path, 'w', encoding='utf-8') as f: f.write(text)
         self.assertTrue(os.path.exists(out_path))
         self.assertIn('[Fixed]', out_path)
@@ -2538,7 +2539,8 @@ class TestBulkFixerFileIO(unittest.TestCase):
             files=[src], out_dir='',
             do_mid=False, do_blank=False, max_blank=1,
         )
-        out, _, _ = w._fix_text(open(src, encoding='utf-8').read())
+        with open(src, encoding='utf-8') as _f:
+            out, _, _ = w._fix_text(_f.read())
         self.assertIn("한국어", out)
 
     def test_multiple_blank_compressed(self):
@@ -2547,7 +2549,8 @@ class TestBulkFixerFileIO(unittest.TestCase):
             files=[src], out_dir='',
             do_mid=False, do_blank=True, max_blank=1,
         )
-        out, _, blank = w._fix_text(open(src, encoding='utf-8').read())
+        with open(src, encoding='utf-8') as _f:
+            out, _, blank = w._fix_text(_f.read())
         self.assertGreater(blank, 0)
         self.assertNotIn('\n\n\n', out)
 
@@ -4317,21 +4320,24 @@ class TestWriteEncodingReport(unittest.TestCase):
         """Tier 1 (1~500 실패) → 한국어 Tier 1 조치 문구 포함."""
         rp = _write_report(self.td, self._orig_file(), 'utf-8',
                            self.sample_failures, 100, 'processed', lang='ko')
-        content = open(rp, encoding='utf-8').read()
+        with open(rp, encoding='utf-8') as _f:
+            content = _f.read()
         self.assertIn('일부 문자가 손상', content)
 
     def test_tier2_advice(self):
         """Tier 2 (501~5000) → 한국어 Tier 2 조치 문구 포함."""
         rp = _write_report(self.td, self._orig_file(), 'utf-8',
                            self.sample_failures, 1000, 'processed', lang='ko')
-        content = open(rp, encoding='utf-8').read()
+        with open(rp, encoding='utf-8') as _f:
+            content = _f.read()
         self.assertIn('다수의 문자가 손상', content)
 
     def test_tier3_skipped(self):
         """Tier 3 (5001+) + skipped → 한국어 Tier 3 + 원본 보호 문구."""
         rp = _write_report(self.td, self._orig_file(), 'utf-8',
                            self.sample_failures, 6000, 'skipped', lang='ko')
-        content = open(rp, encoding='utf-8').read()
+        with open(rp, encoding='utf-8') as _f:
+            content = _f.read()
         self.assertIn('처리 건너뜀', content)
         self.assertIn('원본 보호', content)
 
@@ -4340,7 +4346,8 @@ class TestWriteEncodingReport(unittest.TestCase):
         # failures=1, total=1000 → 999 omitted
         rp = _write_report(self.td, self._orig_file(), 'utf-8',
                            self.sample_failures, 1000, 'processed', lang='ko')
-        content = open(rp, encoding='utf-8').read()
+        with open(rp, encoding='utf-8') as _f:
+            content = _f.read()
         self.assertIn('추적 생략', content)
         self.assertIn('999', content)
 
@@ -4351,7 +4358,8 @@ class TestWriteEncodingReport(unittest.TestCase):
         for lang in ['ko', 'en', 'ja', 'zh_cn', 'zh_tw']:
             rp = _write_report(self.td, self._orig_file(), 'utf-8',
                                self.sample_failures, 100, 'processed', lang=lang)
-            content = open(rp, encoding='utf-8').read()
+            with open(rp, encoding='utf-8') as _f:
+                content = _f.read()
             for key in untranslated:
                 self.assertNotIn(key, content,
                     f"[{lang}] 번역 키 '{key}'가 그대로 노출됨")
