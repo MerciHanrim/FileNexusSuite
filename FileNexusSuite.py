@@ -5399,7 +5399,7 @@ class BatchRenamerPanel(QWidget):
             tbl.setRowCount(0); tbl.setRowCount(len(self._f_groups)+total); row=0
             for grp in self._f_groups:
                 hi=QTableWidgetItem(f"  📂  {grp['parent']}")
-                hi.setForeground(QColor(ACCENT)); hi.setBackground(QColor(GRP_BG))
+                hi.setForeground(QColor(ACCENT)); hi.setBackground(QColor(GRP_BG)); hi.setToolTip(grp['parent'])
                 f=hi.font(); f.setBold(True); f.setPointSize(10); hi.setFont(f)
                 ai=QTableWidgetItem(""); ai.setBackground(QColor(GRP_BG))
                 ni=QTableWidgetItem(_t("batch_parent_folder")); ni.setForeground(QColor(MUTED)); ni.setBackground(QColor(GRP_BG))
@@ -5409,6 +5409,7 @@ class BatchRenamerPanel(QWidget):
                     oi=QTableWidgetItem(f"    └  {os.path.basename(cp)}"); oi.setForeground(QColor(MUTED)); oi.setToolTip(cp)
                     ari=QTableWidgetItem("→"); ari.setTextAlignment(Qt.AlignmentFlag.AlignCenter); ari.setForeground(QColor(BORDER))
                     nwi=QTableWidgetItem(pm[cp]) if cp in pm else QTableWidgetItem(_t("batch_click_preview"))
+                    if cp in pm: nwi.setToolTip(pm[cp])
                     nwi.setForeground(QColor(ACCENT) if cp in pm else QColor(BORDER))
                     tbl.setItem(row,0,oi); tbl.setItem(row,1,ari); tbl.setItem(row,2,nwi); tbl.setRowHeight(row,34); row+=1
         finally: tbl.blockSignals(False); tbl.setUpdatesEnabled(True)
@@ -5686,7 +5687,7 @@ class BatchRenamerPanel(QWidget):
         try:
             tbl.setRowCount(0); tbl.setRowCount(len(self._p_groups)+total); row=0
             for grp in self._p_groups:
-                hi=QTableWidgetItem(f"  📂  {grp['folder']}"); hi.setForeground(QColor(ACCENT2)); hi.setBackground(QColor(GRP_BG))
+                hi=QTableWidgetItem(f"  📂  {grp['folder']}"); hi.setForeground(QColor(ACCENT2)); hi.setBackground(QColor(GRP_BG)); hi.setToolTip(grp['folder'])
                 f=hi.font(); f.setBold(True); f.setPointSize(10); hi.setFont(f)
                 ai=QTableWidgetItem(""); ai.setBackground(QColor(GRP_BG))
                 ni=QTableWidgetItem(_t("batch_folder_label")); ni.setForeground(QColor(MUTED)); ni.setBackground(QColor(GRP_BG))
@@ -5696,6 +5697,7 @@ class BatchRenamerPanel(QWidget):
                     oi=QTableWidgetItem(f"    └  {os.path.basename(fp)}"); oi.setForeground(QColor(MUTED)); oi.setToolTip(fp)
                     ari=QTableWidgetItem("→"); ari.setTextAlignment(Qt.AlignmentFlag.AlignCenter); ari.setForeground(QColor(BORDER))
                     nwi=QTableWidgetItem(pm[fp]) if fp in pm else QTableWidgetItem(_t("batch_click_preview"))
+                    if fp in pm: nwi.setToolTip(pm[fp])
                     nwi.setForeground(QColor(ACCENT2) if fp in pm else QColor(BORDER))
                     tbl.setItem(row,0,oi); tbl.setItem(row,1,ari); tbl.setItem(row,2,nwi); tbl.setRowHeight(row,34); row+=1
         finally: tbl.blockSignals(False); tbl.setUpdatesEnabled(True)
