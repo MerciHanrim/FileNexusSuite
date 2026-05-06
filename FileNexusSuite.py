@@ -3205,12 +3205,7 @@ def _show_already_running_popup():
 
     # read saved theme
     try:
-        cfg_path = os.path.join(os.path.expanduser("~"), "AppData", "Roaming",
-                                "FileNexusSuite", "FileNexusSuite.json")
-        if not os.path.exists(cfg_path):
-            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    "FileNexusSuite.json")
-        with open(cfg_path, "r", encoding="utf-8") as _f:
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
             _cfg = json.load(_f)
         _theme_name = _cfg.get("theme", "auto")
         _lang = _cfg.get("language", "ko")
