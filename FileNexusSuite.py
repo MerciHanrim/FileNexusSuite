@@ -850,12 +850,12 @@ def _glog(msg: str):
 
 # ── Shortcut definitions (id → label, default) ──
 SHORTCUT_DEFS = {
-    'tab_1': {'label': 'Text Merger 탭 전환',   'default': 'Ctrl+1'},
-    'tab_2': {'label': 'Text Converter 탭 전환','default': 'Ctrl+2'},
-    'tab_3': {'label': 'Tag Editor 탭 전환',    'default': 'Ctrl+3'},
-    'tab_4': {'label': 'Batch Renamer 탭 전환', 'default': 'Ctrl+4'},
-    'tab_5': {'label': 'Text Fixer 탭 전환',    'default': 'Ctrl+5'},
-    'tab_6': {'label': 'Bulk Fixer 탭 전환',    'default': 'Ctrl+6'},
+    'tab_1': {'default': 'Ctrl+1'},
+    'tab_2': {'default': 'Ctrl+2'},
+    'tab_3': {'default': 'Ctrl+3'},
+    'tab_4': {'default': 'Ctrl+4'},
+    'tab_5': {'default': 'Ctrl+5'},
+    'tab_6': {'default': 'Ctrl+6'},
 }
 
 
@@ -1279,7 +1279,21 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_drop': '파일 또는 폴더를 드래그하세요',
         'dlg_rename_confirm': '이름 변경 확인',
         'dlg_rename_done': '완료',
-        'dlg_rename_partial': '일부 실패'},
+        'dlg_rename_partial': '일부 실패',
+        'crash_title': '예상치 못한 오류 발생',
+        'crash_main': '오류가 발생하여 프로그램이 종료됩니다.',
+        'crash_log_at': '로그 저장 위치:',
+        'crash_open_log': '로그 폴더 열기',
+        'already_running_title': '이미 실행 중',
+        'already_running_main': 'File Nexus Suite가 이미 실행 중입니다.',
+        'already_running_sub': '실행 중인 창을 확인해 주세요.',
+        'rename_skip_dup_in_batch': '배치 내 동일 목적지 중복',
+        'rename_skip_dest_exists': '목적지 파일 이미 존재',
+        'lib_required_msg': '{lib} 라이브러리가 필요합니다.\npip install {lib}',
+        'dlg_info': '알림',
+        'help_window_title': '💡  도움말 — File Nexus Suite v{ver}',
+        'help_sidebar_title': '💡  도움말',
+        'help_section_intro': '소개'},
  'en': {'app_subtitle': 'Integrated File Tool',
         'debug_log': 'Debug Log',
         'btn_clear': 'Clear',
@@ -1700,7 +1714,21 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_drop': 'Drag files or folders here',
         'dlg_rename_confirm': 'Rename Confirmation',
         'dlg_rename_done': 'Done',
-        'dlg_rename_partial': 'Partial Failure'},
+        'dlg_rename_partial': 'Partial Failure',
+        'crash_title': 'Unexpected Error',
+        'crash_main': 'An error occurred and the program will exit.',
+        'crash_log_at': 'Log saved at:',
+        'crash_open_log': 'Open Log Folder',
+        'already_running_title': 'Already Running',
+        'already_running_main': 'File Nexus Suite is already running.',
+        'already_running_sub': 'Please check the existing window.',
+        'rename_skip_dup_in_batch': 'Duplicate destination within batch',
+        'rename_skip_dest_exists': 'Destination file already exists',
+        'lib_required_msg': 'The {lib} library is required.\npip install {lib}',
+        'dlg_info': 'Info',
+        'help_window_title': '💡  Help — File Nexus Suite v{ver}',
+        'help_sidebar_title': '💡  Help',
+        'help_section_intro': 'About'},
  'ja': {'app_subtitle': '統合ファイルツール',
         'debug_log': 'デバッグログ',
         'btn_clear': 'クリア',
@@ -2121,7 +2149,21 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'merge_drop': 'ファイルまたはフォルダをドラッグしてください',
         'dlg_rename_confirm': '名前変更の確認',
         'dlg_rename_done': '完了',
-        'dlg_rename_partial': '一部失敗'},
+        'dlg_rename_partial': '一部失敗',
+        'crash_title': '予期しないエラー',
+        'crash_main': 'エラーが発生しました。プログラムを終了します。',
+        'crash_log_at': 'ログ保存先:',
+        'crash_open_log': 'ログフォルダを開く',
+        'already_running_title': '起動中',
+        'already_running_main': 'File Nexus Suite はすでに起動しています。',
+        'already_running_sub': '既存のウィンドウをご確認ください。',
+        'rename_skip_dup_in_batch': 'バッチ内で宛先が重複',
+        'rename_skip_dest_exists': '宛先ファイルが既に存在',
+        'lib_required_msg': '{lib} ライブラリが必要です。\npip install {lib}',
+        'dlg_info': 'お知らせ',
+        'help_window_title': '💡  ヘルプ — File Nexus Suite v{ver}',
+        'help_sidebar_title': '💡  ヘルプ',
+        'help_section_intro': '概要'},
  'zh_cn': {'app_subtitle': '综合文件工具',
            'debug_log': '调试日志',
            'btn_clear': '清空',
@@ -2504,7 +2546,21 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'merge_low_conf_hint':  'ℹ chardet 原始置信度较低时，检测到的编码仍可能准确（尤其是 CJK 编码）。',
            'tag_file_count':    '{n}个文件',
            'sc_none':           '无',
-           'sc_press':          '请按键…'},
+           'sc_press':          '请按键…',
+           'crash_title':       '发生意外错误',
+           'crash_main':        '程序发生错误，即将退出。',
+           'crash_log_at':      '日志保存位置:',
+           'crash_open_log':    '打开日志文件夹',
+           'already_running_title': '已在运行',
+           'already_running_main':  'File Nexus Suite 已在运行中。',
+           'already_running_sub':   '请检查已打开的窗口。',
+           'rename_skip_dup_in_batch': '批次内目标重复',
+           'rename_skip_dest_exists':  '目标文件已存在',
+           'lib_required_msg':  '需要 {lib} 库。\npip install {lib}',
+           'dlg_info':          '提示',
+           'help_window_title': '💡  帮助 — File Nexus Suite v{ver}',
+           'help_sidebar_title':'💡  帮助',
+           'help_section_intro':'简介'},
  'zh_tw': {'app_subtitle': '綜合檔案工具',
            'debug_log': '除錯日誌',
            'btn_clear': '清除',
@@ -2923,7 +2979,21 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'merge_drop': '將檔案或資料夾拖曳到此處',
            'dlg_rename_confirm': '重新命名確認',
            'dlg_rename_done': '完成',
-           'dlg_rename_partial': '部分失敗'}}
+           'dlg_rename_partial': '部分失敗',
+           'crash_title':       '發生意外錯誤',
+           'crash_main':        '程式發生錯誤，即將結束。',
+           'crash_log_at':      '日誌儲存位置:',
+           'crash_open_log':    '開啟日誌資料夾',
+           'already_running_title': '已在執行',
+           'already_running_main':  'File Nexus Suite 已在執行中。',
+           'already_running_sub':   '請確認已開啟的視窗。',
+           'rename_skip_dup_in_batch': '批次內目標重複',
+           'rename_skip_dest_exists':  '目標檔案已存在',
+           'lib_required_msg':  '需要 {lib} 函式庫。\npip install {lib}',
+           'dlg_info':          '提示',
+           'help_window_title': '💡  說明 — File Nexus Suite v{ver}',
+           'help_sidebar_title':'💡  說明',
+           'help_section_intro':'簡介'}}
 SUPPORTED_LANGUAGES = [
     ('ko', '한국어'),
     ('en', 'English'),
@@ -3011,21 +3081,11 @@ def _setup_crash_logger():
             bg=_tc["BG"]; surface=_tc["SURFACE"]; border=_tc["BORDER"]
             accent="#CC4444"; text=_tc["TEXT"]; muted=_tc["MUTED"]
 
-            # per-language strings
-            _msg_map = {
-                "ko": ("예상치 못한 오류 발생", "오류가 발생하여 프로그램이 종료됩니다.",
-                       "로그 저장 위치:", "로그 폴더 열기", "확인"),
-                "en": ("Unexpected Error", "An error occurred and the program will exit.",
-                       "Log saved at:", "Open Log Folder", "OK"),
-                "ja": ("予期しないエラー", "エラーが発生しました。プログラムを終了します。",
-                       "ログ保存先:", "ログフォルダを開く", "確認"),
-                "zh_cn": ("发生意外错误", "程序发生错误，即将退出。",
-                          "日志保存位置:", "打开日志文件夹", "确认"),
-                "zh_tw": ("發生意外錯誤", "程式發生錯誤，即將結束。",
-                          "日誌儲存位置:", "開啟日誌資料夾", "確認"),
-            }
-            _title, _main, _path_lbl, _open_lbl, _ok_lbl = _msg_map.get(
-                _current_lang, _msg_map["ko"])
+            _title    = _t('crash_title')
+            _main     = _t('crash_main')
+            _path_lbl = _t('crash_log_at')
+            _open_lbl = _t('crash_open_log')
+            _ok_lbl   = _t('dlg_ok')
             _err_summary = f"{exc_type.__name__}: {exc_value}"
 
             dlg = QDialog()
@@ -3222,15 +3282,10 @@ def _show_already_running_popup():
     text    = _t_colors["TEXT"]
     muted   = _t_colors["MUTED"]
 
-    # per-language strings
-    _msgs = {
-        "ko": ("이미 실행 중", "File Nexus Suite가 이미 실행 중입니다.", "실행 중인 창을 확인해 주세요.", "확인"),
-        "en": ("Already Running", "File Nexus Suite is already running.", "Please check the existing window.", "OK"),
-        "ja": ("起動中", "File Nexus Suite はすでに起動しています。", "既存のウィンドウをご確認ください。", "確認"),
-        "zh_cn": ("已在运行", "File Nexus Suite 已在运行中。", "请检查已打开的窗口。", "确认"),
-        "zh_tw": ("已在執行", "File Nexus Suite 已在執行中。", "請確認已開啟的視窗。", "確認"),
-    }
-    _title, _main, _sub, _ok_lbl = _msgs.get(_lang, _msgs["ko"])
+    _title    = _t('already_running_title')
+    _main     = _t('already_running_main')
+    _sub      = _t('already_running_sub')
+    _ok_lbl   = _t('dlg_ok')
 
     # build custom dialog
     dlg = QDialog()
@@ -6565,8 +6620,8 @@ class TagEditorPanel(QWidget):
         tab_bar=QWidget(); tab_bar.setFixedHeight(50)
         tl=QHBoxLayout(tab_bar); tl.setContentsMargins(8,0,0,0); tl.setSpacing(0)
         self._tab_btns={}
-        for mk,lbl in [("remove","태그 제거"),("add","태그 추가"),("depad","앞자리 0 제거")]:
-            btn=QPushButton(lbl); btn.setCheckable(False)
+        for mk,key in [("remove","tag_sub_remove"),("add","tag_sub_add"),("depad","tag_sub_depad")]:
+            btn=QPushButton(_t(key)); btn.setCheckable(False)
             btn.clicked.connect(lambda _,m=mk: self._switch_mode(m))
             tl.addWidget(btn); self._tab_btns[mk]=btn
         tl.addStretch(); root.addWidget(tab_bar)
@@ -6731,8 +6786,8 @@ class TagEditorPanel(QWidget):
         r1=QHBoxLayout(); r1.setSpacing(12)
         self._lbl_rm_pos=QLabel(_t("tag_rm_pos")); self._lbl_rm_pos.setStyleSheet(f"font-size:13px;color:{MUTED};"); r1.addWidget(self._lbl_rm_pos)
         self._rm_group=QButtonGroup(self); self._rb_rm={}
-        for val,lbl in [("front","앞쪽만"),("back","뒤쪽만"),("both","앞/뒤 모두")]:
-            rb=QRadioButton(lbl); rb.setChecked(val=="front"); self._rm_group.addButton(rb); self._rb_rm[val]=rb; r1.addWidget(rb)
+        for val,key in [("front","tag_rm_front"),("back","tag_rm_back"),("both","tag_rm_both")]:
+            rb=QRadioButton(_t(key)); rb.setChecked(val=="front"); self._rm_group.addButton(rb); self._rb_rm[val]=rb; r1.addWidget(rb)
         r1.addStretch(); fl.addLayout(r1)
         return frame
 
@@ -6935,11 +6990,11 @@ class TagEditorPanel(QWidget):
                 if nn and nn!=fn:
                     dk=(dp,nn); pp=os.path.join(dp,nn)
                     if dk in seen:
-                        skip_info.append((fn, nn, "배치 내 동일 목적지 중복"))
+                        skip_info.append((fn, nn, _t('rename_skip_dup_in_batch')))
                         _glog(f"  ⚠ skipped: {fn} → {nn}  (duplicate within batch)")
                         continue
                     if os.path.exists(pp) and pp not in source_full:
-                        skip_info.append((fn, nn, "목적지 파일 이미 존재"))
+                        skip_info.append((fn, nn, _t('rename_skip_dest_exists')))
                         _glog(f"  ⚠ skipped: {fn} → {nn}  (destination '{nn}' already exists)")
                         continue
                     seen.add(dk); self._targets.append((dp,fn,nn))
@@ -6956,11 +7011,11 @@ class TagEditorPanel(QWidget):
                 if nn:
                     dk=(dp,nn); pp=os.path.join(dp,nn)
                     if dk in seen:
-                        skip_info.append((fn, nn, "배치 내 동일 목적지 중복"))
+                        skip_info.append((fn, nn, _t('rename_skip_dup_in_batch')))
                         _glog(f"  ⚠ skipped: {fn} → {nn}  (duplicate within batch)")
                         continue
                     if os.path.exists(pp) and pp not in source_full:
-                        skip_info.append((fn, nn, "목적지 파일 이미 존재"))
+                        skip_info.append((fn, nn, _t('rename_skip_dest_exists')))
                         _glog(f"  ⚠ skipped: {fn} → {nn}  (destination '{nn}' already exists)")
                         continue
                     seen.add(dk); self._targets.append((dp,fn,nn))
@@ -6974,11 +7029,11 @@ class TagEditorPanel(QWidget):
                 if nn:
                     dk=(dp,nn); pp=os.path.join(dp,nn)
                     if dk in seen:
-                        skip_info.append((fn, nn, "배치 내 동일 목적지 중복"))
+                        skip_info.append((fn, nn, _t('rename_skip_dup_in_batch')))
                         _glog(f"  ⚠ skipped: {fn} → {nn}  (duplicate within batch)")
                         continue
                     if os.path.exists(pp) and pp not in source_full:
-                        skip_info.append((fn, nn, "목적지 파일 이미 존재"))
+                        skip_info.append((fn, nn, _t('rename_skip_dest_exists')))
                         _glog(f"  ⚠ skipped: {fn} → {nn}  (destination '{nn}' already exists)")
                         continue
                     seen.add(dk); self._targets.append((dp,fn,nn))
@@ -10134,14 +10189,14 @@ class TextMergerPanel(QWidget):
     def _extract_text(self,path,enc="utf-8"):
         ext=os.path.splitext(path)[1].lower()
         if ext==".docx":
-            if not DOCX_AVAILABLE: raise ImportError("python-docx 라이브러리가 필요합니다.\npip install python-docx")
+            if not DOCX_AVAILABLE: raise ImportError(_t('lib_required_msg', lib='python-docx'))
             doc=_docx.Document(path); return "\n".join(p.text for p in doc.paragraphs)
         elif ext==".pdf":
-            if not PDF_AVAILABLE: raise ImportError("pdfplumber 라이브러리가 필요합니다.\npip install pdfplumber")
+            if not PDF_AVAILABLE: raise ImportError(_t('lib_required_msg', lib='pdfplumber'))
             with pdfplumber.open(path) as pdf: pages=[page.extract_text() or "" for page in pdf.pages]
             return "\n".join(pages)
         elif ext==".xlsx":
-            if not XLSX_AVAILABLE: raise ImportError("openpyxl 라이브러리가 필요합니다.\npip install openpyxl")
+            if not XLSX_AVAILABLE: raise ImportError(_t('lib_required_msg', lib='openpyxl'))
             wb=openpyxl.load_workbook(path,read_only=True,data_only=True); lines=[]
             for sheet in wb.worksheets:
                 lines.append(f"[{sheet.title}]")
@@ -10149,7 +10204,7 @@ class TextMergerPanel(QWidget):
             return "\n".join(lines)
         elif ext==".hwpx":
             # v1.0.6: HWPX (KS X 6101 OWPML) plain-text extraction
-            if not HWPX_AVAILABLE: raise ImportError("python-hwpx 라이브러리가 필요합니다.\npip install python-hwpx")
+            if not HWPX_AVAILABLE: raise ImportError(_t('lib_required_msg', lib='python-hwpx'))
             with _hwpx.HwpxDocument.open(path) as doc: return doc.export_text()
         else:
             with open(path,"r",encoding=enc,errors="replace") as f: return f.read()
@@ -10830,7 +10885,7 @@ def _btn_style(accent=False) -> str:
 
 def _dlg_info(parent, title: str, msg: str):
     """Info dialog (OK button)."""
-    dlg, root = _build_dlg(parent, title or "알림", msg, "info")
+    dlg, root = _build_dlg(parent, title or _t('dlg_info'), msg, "info")
     br = QHBoxLayout(); br.addStretch()
     ok = QPushButton(_t('dlg_ok')); ok.setStyleSheet(_btn_style(True))
     ok.clicked.connect(dlg.accept); br.addWidget(ok)
@@ -10839,7 +10894,7 @@ def _dlg_info(parent, title: str, msg: str):
 
 def _dlg_warn(parent, title: str, msg: str, rich_text: bool = False):
     """Warning dialog (OK button). v1.0.6: rich_text parameter added (default False)."""
-    dlg, root = _build_dlg(parent, title or "경고", msg, "warn", rich_text=rich_text)
+    dlg, root = _build_dlg(parent, title or _t('dlg_warning'), msg, "warn", rich_text=rich_text)
     br = QHBoxLayout(); br.addStretch()
     ok = QPushButton(_t('dlg_ok')); ok.setStyleSheet(_btn_style(True))
     ok.clicked.connect(dlg.accept); br.addWidget(ok)
@@ -10848,7 +10903,7 @@ def _dlg_warn(parent, title: str, msg: str, rich_text: bool = False):
 
 def _dlg_error(parent, title: str, msg: str):
     """Error dialog (OK button)."""
-    dlg, root = _build_dlg(parent, title or "오류", msg, "error")
+    dlg, root = _build_dlg(parent, title or _t('dlg_error_title'), msg, "error")
     br = QHBoxLayout(); br.addStretch()
     ok = QPushButton(_t('dlg_ok')); ok.setStyleSheet(_btn_style(True))
     ok.clicked.connect(dlg.accept); br.addWidget(ok)
@@ -10860,7 +10915,7 @@ def _dlg_question(parent, title: str, msg: str, min_width: int = 360, rich_text:
 
     v1.0.4: when rich_text=True, render the message as HTML (default False).
     """
-    dlg, root = _build_dlg(parent, title or "확인", msg, "question", rich_text=rich_text)
+    dlg, root = _build_dlg(parent, title or _t('dlg_confirm_title'), msg, "question", rich_text=rich_text)
     dlg.setMinimumWidth(min_width)
     br = QHBoxLayout(); br.setSpacing(10); br.addStretch()
     no  = QPushButton(_t('dlg_no'));  no.setStyleSheet(_btn_style(False))
@@ -10878,7 +10933,7 @@ def _dlg_question(parent, title: str, msg: str, min_width: int = 360, rich_text:
 
 def _dlg_info_action(parent, title: str, msg: str, action_label: str) -> bool:
     """Info dialog + action button. True = action button clicked."""
-    dlg, root = _build_dlg(parent, title or "완료", msg, "info")
+    dlg, root = _build_dlg(parent, title or _t('dlg_done'), msg, "info")
     br = QHBoxLayout(); br.setSpacing(10); br.addStretch()
     act = QPushButton(action_label); act.setStyleSheet(_btn_style(False))
     ok  = QPushButton(_t('dlg_ok')); ok.setStyleSheet(_btn_style(True))
@@ -12544,14 +12599,7 @@ class HelpDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         lang = _current_lang
-        titles = {
-            'ko': f'💡  도움말 — File Nexus Suite v{APP_VERSION}',
-            'en': f'💡  Help — File Nexus Suite v{APP_VERSION}',
-            'ja': f'💡  ヘルプ — File Nexus Suite v{APP_VERSION}',
-            'zh_cn': f'💡  帮助 — File Nexus Suite v{APP_VERSION}',
-            'zh_tw': f'💡  說明 — File Nexus Suite v{APP_VERSION}',
-        }
-        self.setWindowTitle(titles.get(lang, f'💡  Help — File Nexus Suite v{APP_VERSION}'))
+        self.setWindowTitle(_t('help_window_title', ver=APP_VERSION))
         self.setMinimumSize(700, 560)
         self.resize(760, 640)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
@@ -12576,9 +12624,7 @@ class HelpDialog(QDialog):
         sb.setStyleSheet(f"QFrame{{background:{SRF2};border-right:1px solid {BORDER};}}")
         sl = QVBoxLayout(sb); sl.setContentsMargins(10,20,10,16); sl.setSpacing(4)
 
-        sb_label = {'ko':'💡  도움말','en':'💡  Help','ja':'💡  ヘルプ',
-                    'zh_cn':'💡  帮助','zh_tw':'💡  說明'}
-        sb_title = QLabel(sb_label.get(_current_lang, '💡  Help'))
+        sb_title = QLabel(_t('help_sidebar_title'))
         sb_title.setStyleSheet(f"font-size:13px;font-weight:700;color:{TEXT};padding-left:6px;padding-bottom:10px;")
         sl.addWidget(sb_title)
         div = QFrame(); div.setFrameShape(QFrame.HLine); div.setFixedHeight(1)
@@ -12762,9 +12808,6 @@ class HelpDialog(QDialog):
         rl.addSpacing(10); rl.addLayout(btn_row)
 
         # Sidebar nav buttons
-        intro_lbl = {'ko':'소개','en':'About','ja':'概要',
-                     'zh_cn':'简介','zh_tw':'簡介'}
-
         # Section emoji → SVG icon-key mapping
         _section_icons = {
             'Text Merger':      'document_line',
@@ -12793,7 +12836,7 @@ class HelpDialog(QDialog):
             btn.clicked.connect(lambda _, i=idx: self._switch(i))
             self._nav_btns.append(btn); sl.addWidget(btn)
 
-        _nav(intro_lbl.get(_current_lang, 'About'), 0, 'info_line')
+        _nav(_t('help_section_intro'), 0, 'info_line')
         for i, entry in enumerate(sections):
             icon_key = _section_icons.get(entry[1], 'document_line')
             _nav(entry[1], i+1, icon_key)
@@ -12826,16 +12869,16 @@ class HelpDialog(QDialog):
 
 class SettingsDialog(QDialog):
     _CARD_CFG={
-        'light': {'label':'화이트', 'card_bg':'#F0EFEB','card_border':'#D8D5CE','sel_border':'#4A90D9','surface':'#FFFFFF','accent':'#CC785C','line1':'#C8C5BE','line2':'#E0DDD8','lbl_bg':'#FFFFFF','lbl_text':'#1A1A1A'},
-        'dark':  {'label':'다크',   'card_bg':'#1A1A1A','card_border':'#3D3D3D','sel_border':'#4A90D9','surface':'#2C2C2C','accent':'#CC785C','line1':'#3D3D3D','line2':'#454545','lbl_bg':'#242424','lbl_text':'#EBEBEB'},
-        'sakura':{'label':'벚꽃',   'card_bg':'#FEF0F4','card_border':'#F0C8D4','sel_border':'#D4637A','surface':'#FFFFFF','accent':'#D4637A','line1':'#E8C5D0','line2':'#F5DDE5','lbl_bg':'#FFF5F8','lbl_text':'#2C1F26'},
-        'auto':  {'label':'자동 (기본)', 'card_bg':'#E8E8E8','card_border':'#CBCBCB','sel_border':'#4A90D9','surface':'#FFFFFF','accent':'#CC785C','line1':'#CCCCCC','line2':'#E0E0E0','lbl_bg':'#EFEFEF','lbl_text':'#1A1A1A'},
-        'choco':  {'label':'앤틱 브론즈',  'card_bg':'#1E1916','card_border':'#3D3530','sel_border':'#B87333','surface':'#2D2720','accent':'#B87333','line1':'#3D3530','line2':'#453830','lbl_bg':'#26211D','lbl_text':'#EDE8E2'},
-        'mint':     {'label':'민트',         'card_bg':'#EBF5EE','card_border':'#C5DFC9','sel_border':'#5C9E70','surface':'#FFFFFF','accent':'#5C9E70','line1':'#A8CEB0','line2':'#C5DFC9','lbl_bg':'#F4F9F1','lbl_text':'#1C2E20'},
-        'ocean':    {'label':'오션',        'card_bg':'#E0EFFC','card_border':'#A8CEE8','sel_border':'#2878B8','surface':'#FFFFFF','accent':'#2878B8','line1':'#82B8D8','line2':'#A8CEE8','lbl_bg':'#EEF6FF','lbl_text':'#0A1E30'},
-        'sand':   {'label':'샌드',        'card_bg':'#F5EDE0','card_border':'#E0C4A0','sel_border':'#B86838','surface':'#FFFFFF','accent':'#B86838','line1':'#C8A07A','line2':'#E0C4A0','lbl_bg':'#FBF5EE','lbl_text':'#281808'},
-        'honey':   {'label':'허니',       'card_bg':'#FAF5DC','card_border':'#E8D880','sel_border':'#C8A030','surface':'#FFFFFF','accent':'#C8A030','line1':'#D8C060','line2':'#E8D880','lbl_bg':'#FDFAF0','lbl_text':'#2A2200'},
-        'lavender': {'label':'라벤더',         'card_bg':'#EEE9FF','card_border':'#C8BAE8','sel_border':'#6D4FC2','surface':'#FFFFFF','accent':'#6D4FC2','line1':'#A892D8','line2':'#C8BAE8','lbl_bg':'#F7F5FF','lbl_text':'#1E1535'},
+        'light': {'card_bg':'#F0EFEB','card_border':'#D8D5CE','sel_border':'#4A90D9','surface':'#FFFFFF','accent':'#CC785C','line1':'#C8C5BE','line2':'#E0DDD8','lbl_bg':'#FFFFFF','lbl_text':'#1A1A1A'},
+        'dark':  {'card_bg':'#1A1A1A','card_border':'#3D3D3D','sel_border':'#4A90D9','surface':'#2C2C2C','accent':'#CC785C','line1':'#3D3D3D','line2':'#454545','lbl_bg':'#242424','lbl_text':'#EBEBEB'},
+        'sakura':{'card_bg':'#FEF0F4','card_border':'#F0C8D4','sel_border':'#D4637A','surface':'#FFFFFF','accent':'#D4637A','line1':'#E8C5D0','line2':'#F5DDE5','lbl_bg':'#FFF5F8','lbl_text':'#2C1F26'},
+        'auto':  {'card_bg':'#E8E8E8','card_border':'#CBCBCB','sel_border':'#4A90D9','surface':'#FFFFFF','accent':'#CC785C','line1':'#CCCCCC','line2':'#E0E0E0','lbl_bg':'#EFEFEF','lbl_text':'#1A1A1A'},
+        'choco':  {'card_bg':'#1E1916','card_border':'#3D3530','sel_border':'#B87333','surface':'#2D2720','accent':'#B87333','line1':'#3D3530','line2':'#453830','lbl_bg':'#26211D','lbl_text':'#EDE8E2'},
+        'mint':     {'card_bg':'#EBF5EE','card_border':'#C5DFC9','sel_border':'#5C9E70','surface':'#FFFFFF','accent':'#5C9E70','line1':'#A8CEB0','line2':'#C5DFC9','lbl_bg':'#F4F9F1','lbl_text':'#1C2E20'},
+        'ocean':    {'card_bg':'#E0EFFC','card_border':'#A8CEE8','sel_border':'#2878B8','surface':'#FFFFFF','accent':'#2878B8','line1':'#82B8D8','line2':'#A8CEE8','lbl_bg':'#EEF6FF','lbl_text':'#0A1E30'},
+        'sand':   {'card_bg':'#F5EDE0','card_border':'#E0C4A0','sel_border':'#B86838','surface':'#FFFFFF','accent':'#B86838','line1':'#C8A07A','line2':'#E0C4A0','lbl_bg':'#FBF5EE','lbl_text':'#281808'},
+        'honey':   {'card_bg':'#FAF5DC','card_border':'#E8D880','sel_border':'#C8A030','surface':'#FFFFFF','accent':'#C8A030','line1':'#D8C060','line2':'#E8D880','lbl_bg':'#FDFAF0','lbl_text':'#2A2200'},
+        'lavender': {'card_bg':'#EEE9FF','card_border':'#C8BAE8','sel_border':'#6D4FC2','surface':'#FFFFFF','accent':'#6D4FC2','line1':'#A892D8','line2':'#C8BAE8','lbl_bg':'#F7F5FF','lbl_text':'#1E1535'},
     }
     _SECTIONS=[('appearance','🎨','테마'), ('language','🌐','언어 설정'), ('shortcuts','⌨','단축키'), ('license','📄','라이선스')]
 
@@ -13033,7 +13076,7 @@ class SettingsDialog(QDialog):
         self.theme_applied.emit(name)
         self._refresh_theme()
         self._retranslate_dialog()  # v1.0.6 §2.1 A: stay consistent with _apply_now
-        self._show_status(f"✅  '{self._CARD_CFG[name]['label']}' {_t('settings_applied')}")
+        self._show_status(f"✅  '{_theme_label(name)}' {_t('settings_applied')}")
 
     def _show_status(self, msg: str, ms: int = 2500):
         self._status_lbl.setText(msg)
