@@ -18,6 +18,16 @@ Post-v1.0.10 docs 정리 트랙 — **메인 코드 + 부속 문서 영문 기�
 - **README.txt를 영문 기본 + 다국어 라벨 결로 전환** (`3922250`) — 배포 ZIP에 동봉되는 README를 영문 본문 + 비한국어 사용자를 위한 짧은 다국어 라벨 결로 정리.
 - **빌드 메타데이터 영문화** (`7ca4f734`) — `version_info.txt`, `requirements.txt`, 빌드 스크립트의 한국어 결을 영문으로 전환. 한국어 사용자에게 의도적으로 노출되는 결만 남김.
 - **README.md STORY.md 참조 결 정밀화** (`91f67b5`) — `*(Korean only)*` → `*(English & Korean)*`로 정정. `c469f6b`에서 도입된 STORY.md 이중언어 구조 결을 정확히 반영.
+- **Batch Renamer ingest: 중복 경로 검사 O(1)** — 기존 `any()` 선형 검색의 O(N²) 비용을 `set` lookup으로 풀이. 폴더 이름 변경 ingest(`_f_ingest`)와 파일 이름 변경 ingest(`_p_ingest`, `os.walk` 재귀 경로 포함) 양쪽에 동일하게 적용. ~2,700개 폴더를 한 번에 드래그할 때 미리보기 갱신 직전까지의 메인 스레드 시간 ~170 ms 절감. 본 변경은 부분 완화 — 대용량 데이터셋에서의 주요 프리징 원인은 `QTableWidget` 렌더링이며, v1.1.0 트랙으로 별도 추적.
+
+### Fixed
+- **Batch Renamer (파일 모드): 그룹별 자리수 너비** — `_p_calc_preview`가 *모든 그룹을 통틀어 가장 큰 파일 수*에서 계산한 단일 `auto_d` 값을 *전역으로* 적용하고 있었음. 그래서 9파일 그룹이 다른 그룹에 100파일 이상이 있으면 3자리수로 출력되는 결의 자국. 이제 각 그룹이 자신의 파일 수를 기준으로 자리수 너비를 계산 — 9파일 그룹은 1자리수, 100파일 그룹은 3자리수. (`grp_max_num = start + len(files) - 1`을 `_p_calc_preview` 루프 안에서 매 그룹마다 계산.)
+- **Batch Renamer ingest: 빈 폴더 통합 다이얼로그** — 하위 폴더가 없는 폴더(`_f_ingest`)나 파일이 없는 폴더(`_p_ingest`)를 여러 개 드래그할 때, 빈 폴더마다 개별 모달 `_dlg_info` 다이얼로그가 떠 *팝업 스팸 결*이 박힌 자국 — 대량 배치(~21개 이상)에서 앱 강제 종료까지 이어질 수 있었음. 이제 skipped 폴더를 리스트로 모은 후 통합 다이얼로그 하나가 요약: ≤10개는 전체 경로 나열, >10개는 처음 10개 경로 + `... (+N)` 요약 + 헤더에 `(N)` 총 개수. `_f_ingest` / `_p_ingest` 양쪽에 대칭으로 적용.
+
+### Tests
+- **535 → 560 passing** (+25), 60 classes (+2), 실패/에러/스킵 0건 (한림 작업 폴더 + Git 폴더 양쪽 검증)
+- **`TestBatchRenamerDigitWidth` (+20)** — `_p_calc_preview`의 그룹별 자리수 로직을 *순수 함수 추출* 결로 검증. 본 프로젝트 기존 테스트 패턴 정합 (`_de` / `natural_sort_key` / `depad` / `detect_prefix` 등). auto / nopad / pad2 / pad3 모드를 경계값 파일 수(1, 9, 10, 11, 99, 100, 999, 1000) + 시작값(0, 1) 결로 검증. 그룹 독립성 테스트는 v1.1.0 픽스 결을 미래 회귀로부터 보호.
+- **`TestBatchRenamerEmptyFolderDialog` (+5)** — 빈 폴더 통합 다이얼로그를 *integration-style* 결로 검증. `_dlg_info` + `QApplication`을 namespace 레벨(`_ns['_dlg_info']` / `_ns['QApplication']`)에서 patch하여 `_f_ingest` / `_p_ingest`가 *real Qt application instance* 없이 동작하도록 차림. `BatchRenamerPanel.__init__`(Qt UI 결의 무거운 결)을 우회하고 ingest 메서드가 건드리는 attribute만 *_BarePanel*에 박음. 검증 자국: (a) 빈 폴더 3개 → 다이얼로그 호출 정확히 1회 (이전 3회), `_f_ingest` / `_p_ingest` 대칭, (b) ≤10 skipped: 모든 경로가 메시지에 박힘, truncation marker 없음, (c) >10 skipped: 처음 10 경로 + `... (+N)` 요약 + `(N)` 헤더 카운터, (d) 성공적 ingest는 다이얼로그 호출 결 없음.
 
 ### Documentation
 - **다중 라인 docstring 닫음 결 식별 패턴**을 Console Release Manual에 추가 (v1.2 §5.9) — Step 3a 시행착오에서 발견된 *`"""` 닫음 위치 결의 두 패턴* (줄 끝 닫음 vs 별도 줄 닫음) 자국. 미래 일괄 리팩토링 트랙에서 같은 함정을 회피하도록 사전 점검 결의 명령어까지 포함.

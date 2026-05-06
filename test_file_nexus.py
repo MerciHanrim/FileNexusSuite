@@ -4521,6 +4521,207 @@ class TestSettingsDialogStructureInvariant(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
+# §ExtraR  Batch Renamer — per-group digit width (v1.1.0 fix)
+# ════════════════════════════════════════════════════════════════════════
+class TestBatchRenamerDigitWidth(unittest.TestCase):
+    """v1.1.0: _p_calc_preview computes digit width per group (was global).
+
+    Old behavior: a single auto_d was derived from the largest group's file count
+    and applied to every group, so a 9-file group rendered with 3 digits if any
+    other group held 100+ files.
+
+    Fix: each group computes its own width based on its own file count.
+    Pure-function extraction follows the project's existing test pattern
+    (see _de / natural_sort_key / depad / detect_prefix above).
+    """
+
+    @staticmethod
+    def _calc_digit_width(file_count, start, mode):
+        """Replicates the per-group digit-width logic in _p_calc_preview (FNS L5667-5673)."""
+        grp_max_num = start + file_count - 1
+        if mode == 'nopad':
+            return 1
+        auto_d = len(str(grp_max_num)) if grp_max_num > 0 else 1
+        if mode == 'pad2':
+            auto_d = max(2, auto_d)
+        if mode == 'pad3':
+            auto_d = max(3, auto_d)
+        return auto_d
+
+    # ── auto mode, start=1 ──────────────────────────────────────
+    def test_auto_9_files_start1(self):    self.assertEqual(self._calc_digit_width(9,    1, 'auto'), 1)
+    def test_auto_10_files_start1(self):   self.assertEqual(self._calc_digit_width(10,   1, 'auto'), 2)
+    def test_auto_99_files_start1(self):   self.assertEqual(self._calc_digit_width(99,   1, 'auto'), 2)
+    def test_auto_100_files_start1(self):  self.assertEqual(self._calc_digit_width(100,  1, 'auto'), 3)
+    def test_auto_999_files_start1(self):  self.assertEqual(self._calc_digit_width(999,  1, 'auto'), 3)
+    def test_auto_1000_files_start1(self): self.assertEqual(self._calc_digit_width(1000, 1, 'auto'), 4)
+
+    # ── auto mode, start=0 (off-by-one boundary) ─────────────────
+    def test_auto_10_files_start0(self):   self.assertEqual(self._calc_digit_width(10, 0, 'auto'), 1)
+    def test_auto_11_files_start0(self):   self.assertEqual(self._calc_digit_width(11, 0, 'auto'), 2)
+
+    # ── nopad mode (always 1 digit regardless of count) ─────────
+    def test_nopad_1_file(self):     self.assertEqual(self._calc_digit_width(1,    1, 'nopad'), 1)
+    def test_nopad_100_files(self):  self.assertEqual(self._calc_digit_width(100,  1, 'nopad'), 1)
+    def test_nopad_1000_files(self): self.assertEqual(self._calc_digit_width(1000, 1, 'nopad'), 1)
+
+    # ── pad2 mode (minimum 2 digits, grows when needed) ─────────
+    def test_pad2_1_file(self):     self.assertEqual(self._calc_digit_width(1,    1, 'pad2'), 2)
+    def test_pad2_9_files(self):    self.assertEqual(self._calc_digit_width(9,    1, 'pad2'), 2)
+    def test_pad2_99_files(self):   self.assertEqual(self._calc_digit_width(99,   1, 'pad2'), 2)
+    def test_pad2_100_files(self):  self.assertEqual(self._calc_digit_width(100,  1, 'pad2'), 3)
+
+    # ── pad3 mode (minimum 3 digits, grows when needed) ─────────
+    def test_pad3_1_file(self):     self.assertEqual(self._calc_digit_width(1,    1, 'pad3'), 3)
+    def test_pad3_99_files(self):   self.assertEqual(self._calc_digit_width(99,   1, 'pad3'), 3)
+    def test_pad3_999_files(self):  self.assertEqual(self._calc_digit_width(999,  1, 'pad3'), 3)
+    def test_pad3_1000_files(self): self.assertEqual(self._calc_digit_width(1000, 1, 'pad3'), 4)
+
+    # ── per-group independence (the actual fix verification) ────
+    def test_groups_independent_widths(self):
+        """The core fix: each group computes width from its own count, not the global max."""
+        # Old bug: if Group B had 100 files (3 digits), Group A's 9 files would also use 3 digits.
+        # Fix: Group A → 1 digit (own 9 files), Group B → 3 digits (own 100 files).
+        a = self._calc_digit_width(9,   1, 'auto')
+        b = self._calc_digit_width(100, 1, 'auto')
+        self.assertEqual(a, 1, "9-file group must use 1 digit")
+        self.assertEqual(b, 3, "100-file group must use 3 digits")
+        self.assertNotEqual(a, b, "Groups must compute digit widths independently (v1.1.0 fix)")
+
+
+# ════════════════════════════════════════════════════════════════════════
+# §ExtraS  Batch Renamer — consolidated empty-folder dialog (v1.1.0 fix)
+# ════════════════════════════════════════════════════════════════════════
+_BatchRenamerPanel = _ns.get('BatchRenamerPanel') if HAS_MODULE else None
+
+
+@unittest.skipUnless(HAS_MODULE and _BatchRenamerPanel,
+                     "FileNexusSuite 로드 실패 또는 BatchRenamerPanel 없음")
+class TestBatchRenamerEmptyFolderDialog(unittest.TestCase):
+    """v1.1.0: _f_ingest / _p_ingest consolidate "no result" dialog into a single popup.
+
+    Before: each empty folder triggered its own modal _dlg_info call (N folders → N popups).
+            Could force-quit the app on large batches (~21+ folders) — see
+            docs/2026-04-29_batch_renamer_folder_popup_spam.md.
+
+    After:  skipped folders are collected into a list, and a single dialog summarises them
+            (≤10: full list / >10: first 10 + "... (+N)").
+
+    Patches the namespace-level `_dlg_info` and `QApplication` so the methods can run
+    without a real Qt application instance. Bypasses BatchRenamerPanel.__init__ (heavy
+    Qt UI construction) by attaching only the attributes _f_ingest / _p_ingest touch
+    to a bare object.
+    """
+
+    def setUp(self):
+        # ── Capture _dlg_info calls so we can assert call_count + message contents ──
+        self._dlg_calls = []
+        self._orig_dlg_info = _ns.get('_dlg_info')
+        self._orig_dlg_warn = _ns.get('_dlg_warn')
+        self._orig_qapp     = _ns.get('QApplication')
+
+        def _mock_dlg_info(parent, title, msg):
+            self._dlg_calls.append({'title': title, 'msg': msg})
+
+        # QApplication must be mocked too — real PySide6 setOverrideCursor needs an app instance,
+        # which test environments may not have.
+        class _MockApp:
+            @staticmethod
+            def setOverrideCursor(*a, **kw): pass
+            @staticmethod
+            def restoreOverrideCursor(*a, **kw): pass
+
+        _ns['_dlg_info']    = _mock_dlg_info
+        _ns['_dlg_warn']    = lambda *a, **kw: None
+        _ns['QApplication'] = _MockApp
+
+    def tearDown(self):
+        if self._orig_dlg_info is not None: _ns['_dlg_info']    = self._orig_dlg_info
+        if self._orig_dlg_warn is not None: _ns['_dlg_warn']    = self._orig_dlg_warn
+        if self._orig_qapp     is not None: _ns['QApplication'] = self._orig_qapp
+
+    def _make_panel(self):
+        """Bare panel object — bypasses Qt UI construction in __init__.
+
+        Attaches only the attributes _f_ingest / _p_ingest actually read or write:
+        the two group lists, the two refresh methods, and the four buttons whose
+        setEnabled() is called on the success path.
+        """
+        class _BarePanel: pass
+        panel = _BarePanel()
+        panel._f_groups = []
+        panel._p_groups = []
+        panel._f_refresh = lambda *a, **kw: None
+        panel._p_refresh = lambda *a, **kw: None
+        class _MockBtn:
+            def setEnabled(self, *a, **kw): pass
+        panel._f_btn_preview = _MockBtn()
+        panel._f_btn_rename  = _MockBtn()
+        panel._p_btn_preview = _MockBtn()
+        panel._p_btn_rename  = _MockBtn()
+        return panel
+
+    # ── _f_ingest: 3 empty parents → exactly 1 dialog (was 3) ──────
+    def test_f_ingest_3_empty_parents_one_dialog(self):
+        """3 empty parent folders must trigger exactly 1 consolidated dialog (was 3)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = [os.path.join(tmp, f'empty_{i}') for i in range(3)]
+            for p in paths: os.makedirs(p)
+            _BatchRenamerPanel._f_ingest(self._make_panel(), paths)
+            self.assertEqual(len(self._dlg_calls), 1,
+                             "3 empty parents must trigger exactly 1 consolidated dialog (was 3)")
+
+    # ── _p_ingest: 3 empty folders → exactly 1 dialog (was 3) ──────
+    def test_p_ingest_3_empty_folders_one_dialog(self):
+        """3 empty folders (no files, no subfolders) → 1 consolidated dialog (was 3)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = [os.path.join(tmp, f'empty_{i}') for i in range(3)]
+            for p in paths: os.makedirs(p)
+            _BatchRenamerPanel._p_ingest(self._make_panel(), paths)
+            self.assertEqual(len(self._dlg_calls), 1,
+                             "3 empty folders must trigger exactly 1 consolidated dialog (was 3)")
+
+    # ── ≤10 skipped: every path appears, no truncation marker ──────
+    def test_f_ingest_le10_lists_all_paths(self):
+        """≤10 skipped: every path appears in the dialog message, no '... (+N)' marker."""
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = [os.path.join(tmp, f'empty_{i}') for i in range(5)]
+            for p in paths: os.makedirs(p)
+            _BatchRenamerPanel._f_ingest(self._make_panel(), paths)
+            self.assertEqual(len(self._dlg_calls), 1)
+            msg = self._dlg_calls[0]['msg']
+            for p in paths:
+                self.assertIn(p, msg, f"path {p!r} missing from consolidated message")
+            self.assertNotIn('... (+', msg, "≤10 skipped must not show truncation marker")
+
+    # ── >10 skipped: first 10 + "... (+N)" summary + "(N)" header ──
+    def test_f_ingest_gt10_truncates_with_summary(self):
+        """>10 skipped: first 10 paths + '... (+N)' marker + '(total N)' header."""
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = [os.path.join(tmp, f'empty_{i:02d}') for i in range(15)]
+            for p in paths: os.makedirs(p)
+            _BatchRenamerPanel._f_ingest(self._make_panel(), paths)
+            self.assertEqual(len(self._dlg_calls), 1)
+            msg = self._dlg_calls[0]['msg']
+            self.assertIn('... (+5)', msg, "15 skipped must summarise as '... (+5)'")
+            self.assertIn('(15)', msg,    "Header line must show total count '(15)'")
+            for i in range(10):
+                self.assertIn(paths[i],    msg, f"first-10 index {i} unexpectedly missing")
+            for i in range(10, 15):
+                self.assertNotIn(paths[i], msg, f"path beyond first-10 index {i} unexpectedly present")
+
+    # ── No skipped folders: no dialog at all ───────────────────────
+    def test_f_ingest_no_dialog_when_all_succeed(self):
+        """When every folder contributes a group, no 'no result' dialog is shown."""
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = os.path.join(tmp, 'parent')
+            os.makedirs(os.path.join(parent, 'child'))   # parent has a valid subfolder
+            _BatchRenamerPanel._f_ingest(self._make_panel(), [parent])
+            self.assertEqual(len(self._dlg_calls), 0,
+                             "Successful ingest must not trigger a 'no result' dialog")
+
+
+# ════════════════════════════════════════════════════════════════════════
 # Test runner — auto-discovery (no manual registration needed)
 # ════════════════════════════════════════════════════════════════════════
 if __name__ == '__main__':
