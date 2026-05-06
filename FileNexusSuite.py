@@ -5639,17 +5639,18 @@ class BatchRenamerPanel(QWidget):
         return files if not exts else [f for f in files if os.path.splitext(f)[1].lower() in exts]
     def _p_calc_preview(self):
         start=0 if self._p_rb_s0.isChecked() else 1; sep=self._p_sep.text() or "-"; result=[]
-        total=sum(len(self._p_filtered(g["files"])) for g in self._p_groups)
-        max_num=start+total-1
-        if self._p_rb_nopad.isChecked(): auto_d=1
-        else:
-            auto_d=len(str(max_num)) if max_num>0 else 1
-            if self._p_rb_pad2.isChecked(): auto_d=max(2,auto_d)
-            if self._p_rb_pad3.isChecked(): auto_d=max(3,auto_d)
         for grp in self._p_groups:
+            files=self._p_filtered(grp["files"])
+            # ── digit width per group (each group sized by its own file count) ──
+            grp_max_num=start+len(files)-1
+            if self._p_rb_nopad.isChecked(): auto_d=1
+            else:
+                auto_d=len(str(grp_max_num)) if grp_max_num>0 else 1
+                if self._p_rb_pad2.isChecked(): auto_d=max(2,auto_d)
+                if self._p_rb_pad3.isChecked(): auto_d=max(3,auto_d)
             fn=os.path.basename(grp["folder"])
             prefix=self._p_custom_pfx.text() or fn if self._p_rb_custom.isChecked() else fn
-            for idx,fpath in enumerate(self._p_filtered(grp["files"])):
+            for idx,fpath in enumerate(files):
                 _,ext=os.path.splitext(fpath)
                 ns=str(start+idx) if self._p_rb_nopad.isChecked() else str(start+idx).zfill(auto_d)
                 result.append((fpath,f"{prefix}{sep}{ns}{ext}"))
