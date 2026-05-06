@@ -455,6 +455,53 @@ SAMPLE_KO_LONG_SENTENCES = (
 )
 
 
+# ─────────────────────────────────────────────────────────────────────────
+# English-language counterparts — validate language-neutral behavior of
+# _SENT_END (ASCII + CJK + curly quotes) at the scenario level.
+# Same neutrality policy as SAMPLE_KO_*: no narrative, no characters,
+# no work structure. CC0 1.0 Universal — free to use.
+# ─────────────────────────────────────────────────────────────────────────
+
+# Title series (English) — counterpart to SAMPLE_KO_TITLE_*
+SAMPLE_EN_TITLE_LONG    = 'Test Sample [1] Section A to Section B (6)'
+SAMPLE_EN_TITLE_SHORT   = 'Test Sample [1]'
+SAMPLE_EN_TITLE_PLAIN   = 'Test Sample'
+
+# Validates OCR-style line-wrap correction — English word break like "extraor\ndinarily"
+SAMPLE_EN_OCR_BROKEN    = ("This sentence was written for testing purposes with an intentional line break in the middle so the word extraor\n"
+                          "dinarily appears split across lines.")
+SAMPLE_EN_OCR_SHORT     = ('The first line ends here\nand the second line continues naturally.')
+
+# Word-split test — "respon\nsive" → "responsive" (typical word-split pattern)
+SAMPLE_EN_WORD_SPLIT    = "Notify all respon\nsive participants of the announcement."
+
+# Dialogue sample (only generic roles, no specific characters)
+SAMPLE_EN_DIALOGUE_A    = 'The respondent answered.\n"How old are you?"\n"Fourteen years old."'
+SAMPLE_EN_DIALOGUE_B    = ('"May I ask a question? How old are you now?"\n'
+                          '"I am fourteen years old now."')
+
+# Validates chapter-header structure preservation — title neutralized as "Test Sample"
+SAMPLE_EN_CHAPTER_FULL  = ("────────────────────────────────────────────────────────\n"
+                          "Test Sample [1] Section A to Section B (6)\n"
+                          "────────────────────────────────────────────────────────\n"
+                          "\n"
+                          "Continues to the next section.")
+SAMPLE_EN_CHAPTER_SHORT = ("────────────────────────────────\n"
+                          "Test Sample [1]\n"
+                          "────────────────────────────────")
+
+# Mixed test (OCR + blank lines + dialogue — neutral wording)
+SAMPLE_EN_MIXED         = ('When the respondent answered\nthe examiner stopped taking notes.\n\n\n'
+                          '"How old are you?"\n"Fourteen years old."')
+
+# Validates auto paragraph splitting — long sentences joined by spaces (no narrative)
+SAMPLE_EN_LONG_SENTENCES = (
+    "This sentence is the first example written for testing the automatic paragraph splitting feature. "
+    "And the following second sentence is also written intentionally with sufficient length. "
+    "Finally the third sentence is added to satisfy the test condition."
+)
+
+
 # ════════════════════════════════════════════════════════════════════════
 # §1 HTML utilities
 # ════════════════════════════════════════════════════════════════════════
@@ -806,6 +853,60 @@ class TestSmartMerge(unittest.TestCase):
         out, mid, *_ = _run_fix('\u201c말했다.\u201d\n다음.', do_blank=False)
         self.assertEqual(mid, 0)
 
+    # ─── English counterparts: language-neutral _SENT_END verification ───
+    # Confirms that the same set of sentence-end characters governs
+    # English input identically — ASCII period/question/exclamation/ellipsis
+    # and various closing brackets/quotes block merging.
+    def test_basic_merge_en(self):
+        out, mid, *_ = _run_fix("first part\nsecond part", do_blank=False)
+        self.assertEqual(mid, 1)
+        self.assertNotIn('\n', out)
+
+    def test_mid_sentence_english(self):
+        out, mid, *_ = _run_fix("the front part\nand the rest follows.", do_blank=False)
+        self.assertEqual(mid, 1)
+
+    def test_trailing_space_preserved_en(self):
+        out, mid, *_ = _run_fix("stayed \nand waited.", do_blank=False)
+        self.assertEqual(out, "stayed and waited.")
+
+    def test_period_no_merge_en(self):
+        out, mid, *_ = _run_fix("This is a sentence.\nAnother sentence.", do_blank=False)
+        self.assertEqual(mid, 0)
+        self.assertIn('\n', out)
+
+    def test_question_no_merge_en(self):
+        out, mid, *_ = _run_fix("Is this a question?\nThe answer follows.", do_blank=False)
+        self.assertEqual(mid, 0)
+
+    def test_exclamation_no_merge_en(self):
+        out, mid, *_ = _run_fix("How surprising!\nIndeed it is.", do_blank=False)
+        self.assertEqual(mid, 0)
+
+    def test_ellipsis_no_merge_en(self):
+        out, mid, *_ = _run_fix("It continues\u2026\nAnd then ends.", do_blank=False)
+        self.assertEqual(mid, 0)
+
+    def test_close_dquote_no_merge_en(self):
+        out, mid, *_ = _run_fix('"He spoke."\nNext line.', do_blank=False)
+        self.assertEqual(mid, 0)
+
+    def test_close_squote_no_merge_en(self):
+        out, mid, *_ = _run_fix("'He spoke.'\nNext line.", do_blank=False)
+        self.assertEqual(mid, 0)
+
+    def test_close_paren_no_merge_en(self):
+        out, mid, *_ = _run_fix("an explanation)\nnext.", do_blank=False)
+        self.assertEqual(mid, 0)
+
+    def test_close_bracket_no_merge_en(self):
+        out, mid, *_ = _run_fix("an explanation]\nnext.", do_blank=False)
+        self.assertEqual(mid, 0)
+
+    def test_curly_quote_no_merge_en(self):
+        out, mid, *_ = _run_fix('\u201cHe spoke.\u201d\nNext.', do_blank=False)
+        self.assertEqual(mid, 0)
+
     def test_ja_period_no_merge(self):
         out, mid, *_ = _run_fix("文章です。\n次の行。", do_blank=False)
         self.assertEqual(mid, 0)
@@ -946,6 +1047,32 @@ class TestSentenceSep(unittest.TestCase):
         if idx1 >= 0 and idx2 >= 0:
             self.assertEqual(idx2 - idx1, 1)
 
+    # ─── English counterparts: blank-line insertion is language-neutral ───
+    def test_period_gets_blank_en(self):
+        out, *_ = _run_fix("First sentence.\nSecond sentence.", do_mid=False, do_blank=False, do_sep=True)
+        self.assertIn('\n\n', out)
+
+    def test_dialogue_gets_blank_en(self):
+        out, *_ = _run_fix('Narration.\n"Dialogue line"', do_mid=False, do_blank=False, do_sep=True)
+        self.assertIn('\n\n', out)
+
+    def test_question_gets_blank_en(self):
+        out, *_ = _run_fix("Question?\nAnswer.", do_mid=False, do_blank=False, do_sep=True)
+        self.assertIn('\n\n', out)
+
+    def test_exclamation_gets_blank_en(self):
+        out, *_ = _run_fix("Shout!\nNext.", do_mid=False, do_blank=False, do_sep=True)
+        self.assertIn('\n\n', out)
+
+    def test_no_sep_without_punct_en(self):
+        # Mirror of test_no_sep_without_punct using English input
+        out, *_ = _run_fix("the continuing\nsentence ends here.", do_mid=False, do_blank=False, do_sep=True)
+        lines = out.split('\n')
+        idx1 = lines.index('the continuing') if 'the continuing' in lines else -1
+        idx2 = next((i for i,l in enumerate(lines) if 'sentence ends here' in l), -1)
+        if idx1 >= 0 and idx2 >= 0:
+            self.assertEqual(idx2 - idx1, 1)
+
     def test_novel_dialogue_multiple(self):
         inp = SAMPLE_KO_DIALOGUE_A
         out, *_ = _run_fix(inp, do_mid=False, do_blank=False, do_sep=True)
@@ -1040,6 +1167,29 @@ class TestAutoSplit(unittest.TestCase):
     def test_novel_example(self):
         # Validates auto-splitting — multiple long sentences joined together
         inp = SAMPLE_KO_LONG_SENTENCES
+        out, *_ = _run_fix(inp, do_mid=False, do_blank=False, do_auto_split=True, max_split_chars=80)
+        self.assertIn('\n\n', out)
+        lines = [l for l in out.split('\n') if l.strip()]
+        self.assertGreater(len(lines), 1)
+
+    # ─── English counterparts: auto-split language neutrality ───
+    def test_long_line_gets_split_en(self):
+        long = "This is the first sentence. " * 5 + "This is the second sentence."
+        out, *_ = _run_fix(long, do_mid=False, do_blank=False, do_auto_split=True, max_split_chars=60)
+        self.assertIn('\n\n', out)
+
+    def test_short_not_split_en(self):
+        out, *_ = _run_fix("Short sentence.", do_mid=False, do_auto_split=True, max_split_chars=100)
+        self.assertNotIn('\n\n', out)
+
+    def test_disabled_no_split_en(self):
+        long = "alpha beta gamma delta. " * 10
+        out, *_ = _run_fix(long, do_mid=False, do_auto_split=False)
+        self.assertNotIn('\n\n', out)
+
+    def test_novel_example_en(self):
+        # Validates auto-splitting on English long sentences
+        inp = SAMPLE_EN_LONG_SENTENCES
         out, *_ = _run_fix(inp, do_mid=False, do_blank=False, do_auto_split=True, max_split_chars=80)
         self.assertIn('\n\n', out)
         lines = [l for l in out.split('\n') if l.strip()]
@@ -1163,6 +1313,41 @@ class TestFixerRealWorld(unittest.TestCase):
         self.assertEqual(mid, 1)
         self.assertIn("참가자들에게", out)
 
+    # ─── English counterparts: scenario-level language neutrality ───
+    def test_ocr_linebreak_repair_en(self):
+        inp = SAMPLE_EN_OCR_BROKEN
+        out, mid, *_ = _run_fix(inp, do_blank=False)
+        self.assertEqual(mid, 1)
+        self.assertIn("extraordinarily", out)
+
+    def test_chapter_header_preserved_en(self):
+        inp = SAMPLE_EN_CHAPTER_FULL
+        out, mid, *_ = _run_fix(inp)
+        self.assertEqual(mid, 0)
+        self.assertIn(SAMPLE_EN_TITLE_PLAIN, out)
+        lines = [l for l in out.split('\n') if l.strip()]
+        self.assertEqual(lines[0], '─' * 56)
+        self.assertEqual(lines[1], SAMPLE_EN_TITLE_LONG)
+
+    def test_dialogue_lines_preserved_en(self):
+        inp = SAMPLE_EN_DIALOGUE_B
+        out, mid, *_ = _run_fix(inp, do_blank=False)
+        self.assertEqual(mid, 0)
+        self.assertIn('"I am', out)
+
+    def test_mixed_ocr_and_blanks_en(self):
+        inp = SAMPLE_EN_MIXED
+        out, mid, blank, *_ = _run_fix(inp, max_blank=1)
+        self.assertGreaterEqual(mid, 1)
+        self.assertGreaterEqual(blank, 1)
+
+    def test_word_split_across_line_en(self):
+        # "respon" + "sive" → "responsive" (no space expected)
+        inp = SAMPLE_EN_WORD_SPLIT
+        out, mid, *_ = _run_fix(inp, do_blank=False)
+        self.assertEqual(mid, 1)
+        self.assertIn("responsive", out)
+
 
 # ════════════════════════════════════════════════════════════════════════
 # §15 Text Fixer — option combinations
@@ -1208,6 +1393,22 @@ class TestFixerCombinations(unittest.TestCase):
     def test_merge_then_split_pipeline(self):
         # Auto split after merging — verify pipeline order
         inp = "문장이고\n계속되며\n" + "긴내용" * 20 + ".\n짧다.\n짧다."
+        out, *_ = _run_fix(inp, do_mid=True, do_blank=False,
+                           do_auto_split=True, max_split_chars=80)
+        self.assertIsInstance(out, str)
+
+    # ─── English counterparts: combination pipeline language neutrality ───
+    def test_merge_and_auto_split_en(self):
+        # After merging, an interior period is required for auto split
+        long_mid = "long content " * 10 + ". " + "continuing content " * 10 + "."
+        inp = "the front sentence\n" + long_mid + "\nsecond sentence.\nthird sentence."
+        out, *_ = _run_fix(inp, do_mid=True, do_blank=False,
+                           do_auto_split=True, max_split_chars=50)
+        self.assertIn('\n\n', out)
+
+    def test_merge_then_split_pipeline_en(self):
+        # Auto split after merging — verify pipeline order
+        inp = "the front sentence\nand it continues\n" + "long content " * 20 + ".\nshort.\nshort."
         out, *_ = _run_fix(inp, do_mid=True, do_blank=False,
                            do_auto_split=True, max_split_chars=80)
         self.assertIsInstance(out, str)
@@ -1532,6 +1733,15 @@ class TestRegression(unittest.TestCase):
         lines = out.split('\n')
         self.assertEqual(lines[0], '────────────────────────────────')
         self.assertEqual(lines[1], SAMPLE_KO_TITLE_SHORT)
+
+    def test_separator_not_merged_with_title_en(self):
+        """English counterpart — separator behavior is language-neutral"""
+        inp = "────────────────────────────────\n" + SAMPLE_EN_TITLE_SHORT + "\n────────────────────────────────"
+        out, mid, *_ = _run_fix(inp, do_blank=False)
+        self.assertEqual(mid, 0)
+        lines = out.split('\n')
+        self.assertEqual(lines[0], '────────────────────────────────')
+        self.assertEqual(lines[1], SAMPLE_EN_TITLE_SHORT)
 
     def test_chapter_header_structure_intact(self):
         """Chapter-header structure is fully preserved"""
