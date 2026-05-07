@@ -14,7 +14,7 @@ Text merging · EPUB conversion · Filename tag editing · Batch renaming · Lin
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
 [![CI](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml/badge.svg?event=push)](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml)
 [![Build](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/build.yml)
-![tests](https://img.shields.io/badge/tests-560%20passing-97CA00?style=flat-square)
+![tests](https://img.shields.io/badge/tests-589%20passing-97CA00?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-97CA00?style=flat-square)
 ![AI](https://img.shields.io/badge/AI_pair_programming-Claude-CC785C?style=flat-square)
 
@@ -179,12 +179,6 @@ Open-source libraries used:
 Full license information is available in the app at **[Settings → License]**, and also in the [`LICENSE`](./LICENSE) file in the repository root.
 
 Copyright © 2026 Hanrim
-
----
-
-## Code Signing
-
-This project has applied for free code signing from [SignPath Foundation](https://signpath.org). Upon approval, signed `.exe` binaries will be distributed starting from v1.0.11.
 
 ---
 

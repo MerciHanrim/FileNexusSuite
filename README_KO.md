@@ -14,7 +14,7 @@
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
 [![CI](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml/badge.svg?event=push)](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/ci.yml)
 [![Build](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/MerciHanrim/FileNexusSuite/actions/workflows/build.yml)
-![tests](https://img.shields.io/badge/tests-560%20passing-97CA00?style=flat-square)
+![tests](https://img.shields.io/badge/tests-589%20passing-97CA00?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-97CA00?style=flat-square)
 ![AI](https://img.shields.io/badge/AI_pair_programming-Claude-CC785C?style=flat-square)
 
@@ -179,12 +179,6 @@ python FileNexusSuite.py
 전체 라이선스 정보는 앱 내 **[설정 → 라이선스]** 에서 확인할 수 있으며, 저장소 루트의 [`LICENSE`](./LICENSE) 파일에서도 확인 가능합니다.
 
 Copyright © 2026 Hanrim
-
----
-
-## 코드 서명
-
-본 프로젝트는 [SignPath Foundation](https://signpath.org)의 무료 코드 서명을 신청 중이며, 승인 후 v1.0.11부터 배포되는 `.exe`에 SignPath Foundation 서명이 적용될 예정입니다.
 
 ---
 
