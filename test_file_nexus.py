@@ -2341,7 +2341,7 @@ class TestTranslationCompleteness(unittest.TestCase):
     # ────────────────────────────────────────────────────────────────
     # Tab-based functional-area invariants (restructured in v1.0.7 session 3)
     # Version-snapshot style (v010/v010_1/v100) is deprecated → reorganized into 10 macro-categories
-    # See TEST_MANAGEMENT_POLICY.md for the detailed policy
+    # See docs/TEST_MANAGEMENT_POLICY.md for the detailed policy
     # ────────────────────────────────────────────────────────────────
 
     def test_all_langs_have_common_dialog_keys(self):
@@ -4292,7 +4292,7 @@ class TestV105TranslationNoDuplicates(unittest.TestCase):
 # ════════════════════════════════════════════════════════════════════════
 # Verify APP_VERSION constant is correctly bumped at version-up time.
 # v1.0.7 redesign — version-snapshot style (TestV104Regression → TestV105Regression →
-# TestV106AppVersion carry-over) shifted to version-independent structural verification. TEST_MANAGEMENT_POLICY.md
+# TestV106AppVersion carry-over) shifted to version-independent structural verification. docs/TEST_MANAGEMENT_POLICY.md
 # §4.4 "no new version-snapshot invariants" principle applied. Each release used to carry forward
 # class names and verification values manually — that's now retired. Just verify APP_VERSION exists
 # and follows semver (MAJOR.MINOR.PATCH). All versions (v1.0.7, v1.0.8, v2.0.0, etc.)
@@ -4678,7 +4678,7 @@ class TestSettingsDialogStructureInvariant(unittest.TestCase):
     resolved in v1.0.8 via the page-recreation mechanism. Protected as an invariant so
     nobody can mistakenly remove or weaken it later.
 
-    Reference: TEST_MANAGEMENT_POLICY §3 principle 4 (auto-coverage explicit for new features),
+    Reference: docs/TEST_MANAGEMENT_POLICY §3 principle 4 (auto-coverage explicit for new features),
     Claude_Handover v1.0.7 §5.1 / §7.8, Phase2_Completion_Record §11.3.
     """
 

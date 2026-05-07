@@ -4,7 +4,7 @@ name: CI
 # to validate the test suite on a clean environment matching the developer's
 # local setup (529 tests at introduction; current count tracked in CHANGELOG).
 #
-# Design intent: per TEST_MANAGEMENT_POLICY.md §2.1, automated tests catch
+# Design intent: per docs/TEST_MANAGEMENT_POLICY.md §2.1, automated tests catch
 # repeating, structural defects.
 
 on:

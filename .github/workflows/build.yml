@@ -4,13 +4,8 @@ name: Build
 # to produce a verifiable, automated build of dist/FileNexusSuite/ as a
 # GitHub artifact.
 #
-# Design intent: satisfy SignPath OSS Sponsorship's technical requirement
-#   "binary is a valid, automated build resulting from the source code
-#    at the noted source code repository"
-# by making every push reproducible via GitHub-hosted runners.
-#
-# Next track: signpath/github-action-submit-signing-request will be added
-# once SignPath approval and organization-id are in place.
+# Design intent: every push produces a reproducible build via GitHub-hosted
+# runners, ensuring the binary always matches the source code in this repository.
 
 on:
   push:
