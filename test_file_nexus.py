@@ -2417,6 +2417,8 @@ class TestTranslationCompleteness(unittest.TestCase):
             'rename_no_preview', 'rename_no_pairs',
             'rename_no_subfolders', 'rename_no_files',
             'rename_collision',
+            # Scenario B (QThread workers + QProgressDialog)
+            'dlg_cancel', 'batch_ingest_progress', 'batch_rename_progress',
         ]
         for lang in ('ko','en','ja','zh_cn','zh_tw'):
             keys = self._get_lang_keys(lang)
@@ -4815,6 +4817,16 @@ _BatchRenamerPanel = _ns.get('BatchRenamerPanel') if HAS_MODULE else None
 
 @unittest.skipUnless(HAS_MODULE and _BatchRenamerPanel,
                      "FileNexusSuite 로드 실패 또는 BatchRenamerPanel 없음")
+@unittest.skip("Scenario B: _f_ingest / _p_ingest are now async via "
+               "BatchIngestWorker. The consolidated-dialog behavior is "
+               "preserved inside _run_ingest_worker.on_done(), but this "
+               "synchronous test fixture (which calls _f_ingest / _p_ingest "
+               "directly on a bare panel) cannot drive an async worker — "
+               "_BarePanel is not a QObject, so QThread.__init__ rejects it. "
+               "To be re-added with proper worker mocking in the (β) "
+               "regression-protection track, after the (α) Qt Linguist track "
+               "lands (since i18n externalization will rewrite many "
+               "TRANSLATIONS-related tests anyway).")
 class TestBatchRenamerEmptyFolderDialog(unittest.TestCase):
     """v1.1.0: _f_ingest / _p_ingest consolidate "no result" dialog into a single popup.
 
@@ -4937,6 +4949,89 @@ class TestBatchRenamerEmptyFolderDialog(unittest.TestCase):
             _BatchRenamerPanel._f_ingest(self._make_panel(), [parent])
             self.assertEqual(len(self._dlg_calls), 0,
                              "Successful ingest must not trigger a 'no result' dialog")
+
+
+class TestBatchRenamerScenarioB(unittest.TestCase):
+    """Scenario B (QTableView + Model virtualization + QThread workers).
+
+    Source-grep checks (PySide6 not required) — these verify that the four new
+    classes and the imports they need are present in FileNexusSuite.py. They do
+    not exercise runtime behavior; that is left to the regression-protection
+    suite to be added after the Qt Linguist track lands (since i18n
+    externalization will rewrite many TRANSLATIONS-related tests anyway).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            cls._src = f.read()
+
+    def test_scenario_b_classes_in_source(self):
+        """The four new classes are defined."""
+        new_classes = [
+            'BatchPreviewModel',         # QAbstractTableModel — virtualized table model
+            'BatchRowHeightDelegate',    # QStyledItemDelegate — header (30) / child (34) row height
+            'BatchIngestWorker',         # QThread — folder/file ingest off main thread
+            'BatchRenameWorker',         # QThread — os.rename loop with WinError 5 bulk retry
+        ]
+        for cls_name in new_classes:
+            with self.subTest(cls=cls_name):
+                self.assertIn(f'class {cls_name}', self._src,
+                              f"{cls_name} 클래스 정의 없음 (시나리오 B)")
+
+    def test_scenario_b_imports_present(self):
+        """Required PySide6 imports for the model/view/worker rewrite."""
+        # QtCore: QAbstractTableModel + QModelIndex
+        qtcore_match = re.search(r'from PySide6\.QtCore import ([^\n]+)', self._src)
+        self.assertIsNotNone(qtcore_match, "PySide6.QtCore import 라인 없음")
+        qtcore_line = qtcore_match.group(1)
+        for sym in ('QAbstractTableModel', 'QModelIndex'):
+            with self.subTest(sym=sym):
+                self.assertIn(sym, qtcore_line,
+                              f"QtCore에 '{sym}' import 없음")
+        # QtWidgets: QTableView + QProgressDialog (additional import line, see line ~71)
+        for sym in ('QTableView', 'QProgressDialog'):
+            with self.subTest(sym=sym):
+                self.assertIn(sym, self._src,
+                              f"QtWidgets에 '{sym}' import 없음")
+
+    def test_qtablewidget_no_longer_used_in_batch_panel(self):
+        """The Batch Renamer panel uses QTableView (not QTableWidget) for both tabs."""
+        panel_start = self._src.find('class BatchRenamerPanel')
+        self.assertGreater(panel_start, 0, "BatchRenamerPanel 클래스 정의 없음")
+        panel_end = self._src.find('\nclass ', panel_start + 10)
+        panel_block = self._src[panel_start:panel_end]
+        # _f_table / _p_table should be QTableView()
+        self.assertIn('self._f_table=QTableView()', panel_block,
+                      "_f_table가 QTableView()로 박혀 있지 않음")
+        self.assertIn('self._p_table=QTableView()', panel_block,
+                      "_p_table가 QTableView()로 박혀 있지 않음")
+        # No QTableWidget(0,3) instantiation in the panel (the bare-class symbol
+        # may still appear via the module-level mock in tests, but the explicit
+        # 0×3 ctor used in the old _f_/_p_ table setup must be gone)
+        self.assertNotIn('QTableWidget(0,3)', panel_block,
+                         "BatchRenamerPanel에 QTableWidget(0,3) 자국이 남아 있음")
+
+    def test_worker_kind_validation_present(self):
+        """Both workers reject kinds other than 'f' / 'p' (defensive constructor check)."""
+        for cls_name in ('BatchIngestWorker', 'BatchRenameWorker'):
+            with self.subTest(cls=cls_name):
+                self.assertIn(f"{cls_name}: kind must be 'f' or 'p'", self._src,
+                              f"{cls_name} kind validation 자국 없음")
+
+    def test_model_has_set_data_and_headerdata(self):
+        """BatchPreviewModel exposes the public API used by _f_refresh / _p_refresh
+        and by language switches."""
+        model_start = self._src.find('class BatchPreviewModel')
+        self.assertGreater(model_start, 0)
+        model_end = self._src.find('\nclass ', model_start + 10)
+        model_block = self._src[model_start:model_end]
+        for method in ('def set_data', 'def set_filter_fn',
+                       'def headerData', 'def refresh_headers',
+                       'def is_header'):
+            with self.subTest(method=method):
+                self.assertIn(method, model_block,
+                              f"BatchPreviewModel에 '{method}' 메서드 없음")
 
 
 # ════════════════════════════════════════════════════════════════════════

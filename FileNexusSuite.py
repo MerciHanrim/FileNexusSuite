@@ -66,9 +66,9 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QGroupBox, QGridLayout,
     QSpinBox, QToolButton, QMenu,
 )
-from PySide6.QtCore import Qt, Signal, QThread, QSize, QRect, QRectF, QPointF, QTimer, QBuffer, QByteArray, QIODevice
+from PySide6.QtCore import Qt, Signal, QThread, QSize, QRect, QRectF, QPointF, QTimer, QBuffer, QByteArray, QIODevice, QAbstractTableModel, QModelIndex
 from PySide6.QtGui import QColor, QPalette, QCursor, QPainter, QPen, QBrush, QFont, QKeySequence, QLinearGradient, QPolygonF, QIcon, QPixmap, QPainterPath, QImageReader, QShortcut, QTextCharFormat, QTextCursor
-from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle
+from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle, QTableView, QProgressDialog
 
 # ═══════════════════════════════════════════════
 # App Version
@@ -1072,6 +1072,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'rename_explorer_warn': '⚠  탐색기에서 대상 폴더가 열려있으면 액세스 오류가 발생할 수 있습니다.\n이름 변경 전 탐색기 창을 닫거나 다른 위치로 이동해 주세요.',
         'rename_no_subfolders': '하위 폴더가 없습니다.',
         'rename_no_files':   '파일이 없습니다.',
+        'dlg_cancel':        '취소',
+        'batch_ingest_progress': '폴더를 읽는 중...',
+        'batch_rename_progress': '이름을 변경하는 중...',
         'merge_no_support':  '폴더에서 지원 파일을 찾을 수 없습니다.\n지원: txt · md · csv · docx · pdf · xlsx · hwpx 등',
         'merge_hwp_legacy_title': 'HWP(구형) 파일은 지원되지 않습니다',
         'merge_hwp_legacy_msg':   '구형 HWP 파일({n}개)이 감지되어 추가되지 않았습니다.\n\n한컴 한글에서 <b>다른 이름으로 저장 → HWPX</b>로 변환 후 다시 시도해주세요.\n\nText Merger는 HWPX(KS X 6101 OWPML 표준) 형식만 지원합니다.',
@@ -1507,6 +1510,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'rename_explorer_warn': '⚠  If the target folder is open in Explorer, an access error may occur.\nPlease close Explorer or navigate away before renaming.',
         'rename_no_subfolders': 'No subfolders found.',
         'rename_no_files':   'No files found.',
+        'dlg_cancel':        'Cancel',
+        'batch_ingest_progress': 'Scanning folders...',
+        'batch_rename_progress': 'Renaming...',
         'merge_no_support':  'No supported files found in folder.\nSupported: txt · md · csv · docx · pdf · xlsx · hwpx, etc.',
         'merge_hwp_legacy_title': 'HWP (legacy) files are not supported',
         'merge_hwp_legacy_msg':   '{n} legacy HWP file(s) detected and skipped.\n\nPlease open the file in Hancom Office and use <b>Save As → HWPX</b>, then try again.\n\nText Merger only supports the HWPX format (KS X 6101 OWPML standard).',
@@ -1941,6 +1947,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
         'rename_explorer_warn': '⚠  対象フォルダがエクスプローラーで開かれている場合、アクセスエラーが発生することがあります。\n名前変更前にエクスプローラーを閉じるか、別の場所に移動してください。',
         'rename_no_subfolders': 'サブフォルダが見つかりません。',
         'rename_no_files':   'ファイルが見つかりません。',
+        'dlg_cancel':        'キャンセル',
+        'batch_ingest_progress': 'フォルダを読み込み中...',
+        'batch_rename_progress': '名前を変更中...',
         'merge_no_support':  'フォルダにサポートファイルが見つかりません。\nサポート: txt · md · csv · docx · pdf · xlsx · hwpx 等',
         'merge_hwp_legacy_title': 'HWP (旧) ファイルはサポートされていません',
         'merge_hwp_legacy_msg':   '{n} 個の旧 HWP ファイルが検出されたため追加されませんでした。\n\nハンコムオフィスで <b>名前を付けて保存 → HWPX</b> に変換してから再度お試しください。\n\nText Merger は HWPX (KS X 6101 OWPML 標準) 形式のみをサポートしています。',
@@ -2357,6 +2366,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'rename_explorer_warn': '⚠  若目标文件夹在资源管理器中处于打开状态，可能会出现访问错误。\n重命名前请关闭资源管理器或切换到其他位置。',
            'rename_no_subfolders': '没有找到子文件夹。',
            'rename_no_files':   '没有找到文件。',
+           'dlg_cancel':        '取消',
+           'batch_ingest_progress': '正在扫描文件夹...',
+           'batch_rename_progress': '正在重命名...',
            'merge_no_support':  '文件夹中未找到支持的文件。\n支持: txt · md · csv · docx · pdf · xlsx · hwpx 等',
            'merge_hwp_legacy_title': 'HWP (旧版) 文件不受支持',
            'merge_hwp_legacy_msg':   '检测到 {n} 个旧版 HWP 文件，已跳过。\n\n请在韩文 Office 中使用 <b>另存为 → HWPX</b> 转换后再试。\n\nText Merger 仅支持 HWPX (KS X 6101 OWPML 标准) 格式。',
@@ -2772,6 +2784,9 @@ TRANSLATIONS = {'ko': {'app_subtitle': '통합 파일 작업 도구',
            'rename_explorer_warn': '⚠  若目標資料夾在檔案總管中處於開啟狀態，可能會發生存取錯誤。\n重新命名前請關閉檔案總管或切換至其他位置。',
            'rename_no_subfolders': '沒有找到子資料夾。',
            'rename_no_files':   '沒有找到檔案。',
+           'dlg_cancel':        '取消',
+           'batch_ingest_progress': '正在掃描資料夾...',
+           'batch_rename_progress': '正在重新命名...',
            'merge_no_support':  '資料夾中未找到支援的檔案。\n支援: txt · md · csv · docx · pdf · xlsx · hwpx 等',
            'merge_hwp_legacy_title': 'HWP (舊版) 檔案不受支援',
            'merge_hwp_legacy_msg':   '偵測到 {n} 個舊版 HWP 檔案，已略過。\n\n請在韓文 Office 中使用 <b>另存新檔 → HWPX</b> 轉換後再試。\n\nText Merger 僅支援 HWPX (KS X 6101 OWPML 標準) 格式。',
@@ -4957,6 +4972,475 @@ class ConvertWorker(QThread):
 
 
 # ═══════════════════════════════════════════════
+# Batch Renamer — Preview Model + Row Height Delegate
+# ═══════════════════════════════════════════════
+class BatchPreviewModel(QAbstractTableModel):
+    """Unified table model for the Batch Renamer panel (folder + file tabs).
+
+    Replaces the cell-by-cell QTableWidget population in _f_refresh / _p_refresh
+    with a virtualized QAbstractTableModel — only visible rows are rendered.
+
+    kind:
+        'f' — folder rename tab (groups have 'parent' / 'children' keys)
+        'p' — file rename tab  (groups have 'folder' / 'files' keys; '_p_filtered' applied)
+    """
+
+    def __init__(self, kind, parent=None):
+        super().__init__(parent)
+        if kind not in ('f', 'p'):
+            raise ValueError(f"BatchPreviewModel: kind must be 'f' or 'p' (got {kind!r})")
+        self._kind = kind
+        self._groups = []          # external reference, set via set_data()
+        self._preview = {}         # path -> new filename
+        self._filter_fn = None     # callable(items) -> filtered items (used for 'p' only)
+        self._row_map = []         # list[(group_idx, child_idx)]; child_idx == -1 → header row
+        # color/label config — picked once at construction, used in data()
+        if kind == 'f':
+            self._accent = ACCENT
+            self._header_label_key = 'batch_parent_folder'
+            self._key_path = 'parent'
+            self._key_children = 'children'
+        else:  # 'p'
+            self._accent = ACCENT2
+            self._header_label_key = 'batch_folder_label'
+            self._key_path = 'folder'
+            self._key_children = 'files'
+
+    # ── public API ─────────────────────────────
+
+    def set_filter_fn(self, fn):
+        """Attach a filter function (called once per group during set_data)."""
+        self._filter_fn = fn
+
+    def set_data(self, groups, preview):
+        """Reset model with new groups and preview dict.
+
+        Builds the row mapping cache once; data() reads from cache only —
+        this is what avoids the per-cell QTableWidgetItem cost of the old
+        _f_refresh / _p_refresh.
+        """
+        self.beginResetModel()
+        self._groups = groups
+        self._preview = dict(preview) if preview else {}
+        self._row_map = []
+        for gi, grp in enumerate(self._groups):
+            self._row_map.append((gi, -1))  # header row
+            children = self._items_of(grp)
+            for ci in range(len(children)):
+                self._row_map.append((gi, ci))
+        self.endResetModel()
+
+    def is_header(self, row):
+        """True iff the given row is a group header row (consumed by the delegate)."""
+        if 0 <= row < len(self._row_map):
+            return self._row_map[row][1] == -1
+        return False
+
+    def _items_of(self, grp):
+        items = grp[self._key_children]
+        if self._filter_fn is not None:
+            return self._filter_fn(items)
+        return items
+
+    # ── QAbstractTableModel interface ──────────
+
+    def rowCount(self, parent=QModelIndex()):
+        if parent.isValid():
+            return 0
+        return len(self._row_map)
+
+    def columnCount(self, parent=QModelIndex()):
+        if parent.isValid():
+            return 0
+        return 3
+
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        row, col = index.row(), index.column()
+        if not (0 <= row < len(self._row_map)):
+            return None
+        gi, ci = self._row_map[row]
+        grp = self._groups[gi]
+
+        # ── header row (group separator) ──
+        if ci == -1:
+            if role == Qt.DisplayRole:
+                if col == 0:   return f"  📂  {grp[self._key_path]}"
+                elif col == 1: return ""
+                else:          return _t(self._header_label_key)
+            elif role == Qt.ForegroundRole:
+                return QColor(self._accent) if col == 0 else QColor(MUTED)
+            elif role == Qt.BackgroundRole:
+                return QColor(GRP_BG)
+            elif role == Qt.FontRole and col == 0:
+                f = QFont(); f.setBold(True); f.setPointSize(10)
+                return f
+            elif role == Qt.ToolTipRole and col == 0:
+                return grp[self._key_path]
+            return None
+
+        # ── child row (file/folder entry) ──
+        children = self._items_of(grp)
+        if not (0 <= ci < len(children)):
+            return None
+        cp = children[ci]
+        in_preview = cp in self._preview
+
+        if role == Qt.DisplayRole:
+            if col == 0:   return f"    └  {os.path.basename(cp)}"
+            elif col == 1: return "→"
+            else:          return self._preview[cp] if in_preview else _t("batch_click_preview")
+        elif role == Qt.ForegroundRole:
+            if col == 0:   return QColor(MUTED)
+            elif col == 1: return QColor(BORDER)
+            else:          return QColor(self._accent) if in_preview else QColor(BORDER)
+        elif role == Qt.TextAlignmentRole and col == 1:
+            return int(Qt.AlignCenter)
+        elif role == Qt.ToolTipRole:
+            if col == 0:
+                return cp
+            elif col == 2 and in_preview:
+                return self._preview[cp]
+        return None
+
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if orientation != Qt.Horizontal or role != Qt.DisplayRole:
+            return None
+        if self._kind == 'f':
+            keys = ('batch_col_folder', 'batch_col_arrow', 'batch_col_new')
+        else:  # 'p'
+            keys = ('batch_col_file', 'batch_col_arrow', 'batch_col_file_new')
+        return _t(keys[section]) if 0 <= section < len(keys) else None
+
+    def refresh_headers(self):
+        """Emit headerDataChanged for all columns — call after a language switch
+        so the view re-reads headerData() with the new translations."""
+        self.headerDataChanged.emit(Qt.Horizontal, 0, self.columnCount() - 1)
+
+    def flags(self, index):
+        if not index.isValid():
+            return Qt.NoItemFlags
+        row = index.row()
+        # header rows: enabled but not selectable (matches original setFlags(ItemIsEnabled))
+        if 0 <= row < len(self._row_map) and self._row_map[row][1] == -1:
+            return Qt.ItemIsEnabled
+        return Qt.ItemIsEnabled | Qt.ItemIsSelectable
+
+
+class BatchRowHeightDelegate(QStyledItemDelegate):
+    """Provides row height for the Batch Renamer table.
+
+    Header rows = 30 px, child rows = 34 px — matches the original
+    setRowHeight(row, 30/34) calls in _f_refresh / _p_refresh.
+    """
+    HEADER_HEIGHT = 30
+    CHILD_HEIGHT = 34
+
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        model = index.model()
+        is_header = False
+        if model is not None and hasattr(model, 'is_header'):
+            try:
+                is_header = bool(model.is_header(index.row()))
+            except Exception:
+                is_header = False
+        size.setHeight(self.HEADER_HEIGHT if is_header else self.CHILD_HEIGHT)
+        return size
+
+
+# ═══════════════════════════════════════════════
+# Batch Renamer — Background Workers
+# ═══════════════════════════════════════════════
+class BatchIngestWorker(QThread):
+    """Background worker for Batch Renamer ingest (folder + file tabs).
+
+    Performs os.listdir / os.walk + sort + dedup off the main thread,
+    emitting progress and finished signals back to the UI.
+
+    kind:
+        'f' — folder rename tab (input: parent paths; output groups have 'parent'/'children')
+        'p' — file rename tab   (input: folder paths; output groups have 'folder'/'files')
+
+    Note on logging: _glog() is called only on the main thread via sig_log
+    (the underlying log sink is a GUI widget — direct calls from a worker
+    would violate Qt thread affinity).
+    """
+    sig_progress = Signal(int, str)       # percent (0-100), current path
+    sig_log      = Signal(str)            # log message (forwarded to _glog on main thread)
+    sig_warn     = Signal(str)            # OS error message (per-folder, dialog on main thread)
+    sig_done     = Signal(list, list)     # new_groups (list[dict]), skipped (list[str])
+
+    def __init__(self, kind, paths, existing_keys, parent=None):
+        super().__init__(parent)
+        if kind not in ('f', 'p'):
+            raise ValueError(f"BatchIngestWorker: kind must be 'f' or 'p' (got {kind!r})")
+        self._kind = kind
+        self._paths = list(paths)
+        self._existing_seed = set(existing_keys)
+        self._cancel = False
+
+    def request_cancel(self):
+        self._cancel = True
+
+    def run(self):
+        n = max(1, len(self._paths))
+        new_groups = []
+        skipped = []
+        existing = set(self._existing_seed)
+        try:
+            for i, path in enumerate(self._paths):
+                if self._cancel:
+                    break
+                self.sig_progress.emit(int((i / n) * 95), path)
+                path = os.path.normpath(path)
+                if self._kind == 'f':
+                    self._ingest_for_f(path, existing, new_groups, skipped)
+                else:
+                    self._ingest_for_p(path, existing, new_groups, skipped)
+            self.sig_progress.emit(100, "")
+        finally:
+            self.sig_done.emit(new_groups, skipped)
+
+    # ── 'p' kind: collect file groups; descend into subfolders if root has no files ──
+    def _ingest_for_p(self, folder, existing, new_groups, skipped):
+        try:
+            entries = os.listdir(folder)
+        except OSError as exc:
+            self.sig_warn.emit(str(exc))
+            self.sig_log.emit(f"❌ failed to read folder: {folder} — {exc}")
+            return
+        files = sorted(
+            [os.path.join(folder, f) for f in entries
+             if os.path.isfile(os.path.join(folder, f))
+             and not f.startswith('.') and f.lower() not in _SKIP_FILES],
+            key=natural_sort_key)
+        if files:
+            if folder not in existing:
+                existing.add(folder)
+                new_groups.append({"folder": folder, "files": files})
+                self.sig_log.emit(f"📁 [Batch/File] add group: {folder}  ({len(files)} file(s))")
+            return
+        # no direct files — descend into subfolders
+        sub_added = 0
+        for root, dirs, filenames in os.walk(folder):
+            if self._cancel:
+                return
+            dirs.sort(key=lambda d: natural_sort_key(os.path.join(root, d)))
+            if root == folder:
+                continue
+            sub_files = sorted(
+                [os.path.join(root, f) for f in filenames
+                 if not f.startswith('.') and f.lower() not in _SKIP_FILES],
+                key=natural_sort_key)
+            if sub_files and root not in existing:
+                existing.add(root)
+                new_groups.append({"folder": root, "files": sub_files})
+                sub_added += 1
+                self.sig_log.emit(f"📁 [Batch/File] add sub-group: {root}  ({len(sub_files)} file(s))")
+        if sub_added == 0:
+            skipped.append(folder)
+
+    # ── 'f' kind: collect subfolder groups recursively ──
+    def _ingest_for_f(self, parent, existing, new_groups, skipped):
+        before_len = len(new_groups)
+        self._ingest_one_for_f(parent, existing, new_groups)
+        if len(new_groups) == before_len:
+            skipped.append(parent)
+
+    def _ingest_one_for_f(self, parent, existing, new_groups):
+        if self._cancel:
+            return
+        parent = os.path.normpath(parent)
+        if parent in existing:
+            return
+        try:
+            entries = os.listdir(parent)
+        except OSError as exc:
+            self.sig_warn.emit(str(exc))
+            self.sig_log.emit(f"❌ failed to read folder: {parent} — {exc}")
+            return
+        children = sorted(
+            [os.path.join(parent, d) for d in entries
+             if os.path.isdir(os.path.join(parent, d))
+             and not d.startswith('.')],
+            key=natural_sort_key)
+        if not children:
+            return
+        existing.add(parent)
+        new_groups.append({"parent": parent, "children": children})
+        self.sig_log.emit(f"📁 [Batch/Folder] add group: {parent}  ({len(children)} subfolder(s))")
+        for child in children:
+            self._ingest_one_for_f(child, existing, new_groups)
+
+
+class BatchRenameWorker(QThread):
+    """Background worker for Batch Renamer execution (folder + file tabs).
+
+    Performs os.rename off the main thread, with a WinError-5 bulk-retry
+    pass for the 'f' kind (folders held open by Explorer often release
+    their lock within a few seconds).
+
+    kind:
+        'f' — folder rename tab (groups have 'parent'/'children'); processes
+              deepest children first to avoid invalidating child paths.
+        'p' — file rename tab   (groups have 'folder'/'files'); flat iteration.
+
+    Note on logging: _glog() is called only on the main thread via sig_log.
+    """
+    sig_progress = Signal(int, str)              # percent (0-100), current basename
+    sig_log      = Signal(str)                   # log message
+    sig_done     = Signal(int, list, list, list) # done, errors, undo_map, updated_groups
+
+    def __init__(self, kind, groups, preview_pairs, parent=None):
+        """
+        groups:        the panel's current _f_groups / _p_groups (deep-copied here
+                       so the worker can mutate freely; the panel keeps the original
+                       until sig_done arrives).
+        preview_pairs: list[(original_path, new_filename)] — only paths that should
+                       actually change.
+        """
+        super().__init__(parent)
+        if kind not in ('f', 'p'):
+            raise ValueError(f"BatchRenameWorker: kind must be 'f' or 'p' (got {kind!r})")
+        self._kind = kind
+        self._groups = self._copy_groups(groups)
+        self._rm = dict(preview_pairs)  # path -> new basename
+        self._cancel = False
+
+    def request_cancel(self):
+        self._cancel = True
+
+    @staticmethod
+    def _copy_groups(groups):
+        out = []
+        for g in groups:
+            new = dict(g)
+            for k in ('children', 'files'):
+                if k in new:
+                    new[k] = list(new[k])
+            out.append(new)
+        return out
+
+    def run(self):
+        _prevent_sleep()
+        try:
+            if self._kind == 'f':
+                self._run_for_f()
+            else:
+                self._run_for_p()
+        finally:
+            _allow_sleep()
+
+    # ── 'p' kind: flat iteration over files ──
+    def _run_for_p(self):
+        rm = self._rm
+        errors, done = [], 0
+        undo_map = []
+        total = max(1, sum(len(g.get("files", [])) for g in self._groups))
+        seen = 0
+        for grp in self._groups:
+            nf = []
+            for fp in grp.get("files", []):
+                if self._cancel:
+                    nf.append(fp); continue
+                seen += 1
+                self.sig_progress.emit(int((seen / total) * 100), os.path.basename(fp))
+                nn = rm.get(fp, os.path.basename(fp))
+                if os.path.basename(fp) == nn:
+                    nf.append(fp); continue
+                np2 = os.path.join(os.path.dirname(fp), nn)
+                try:
+                    os.rename(fp, np2)
+                    nf.append(np2); done += 1
+                    undo_map.append((np2, fp))
+                    self.sig_log.emit(f"  ✅ {os.path.basename(fp)}  →  {nn}")
+                except OSError as e:
+                    errors.append(f"{os.path.basename(fp)}: {e}")
+                    nf.append(fp)
+                    self.sig_log.emit(f"  ❌ {os.path.basename(fp)}: {e}")
+            grp["files"] = nf
+        self.sig_progress.emit(100, "")
+        self.sig_log.emit(f"  done: {done} succeeded / {len(errors)} failed")
+        self.sig_done.emit(done, errors, undo_map, self._groups)
+
+    # ── 'f' kind: depth-first (deepest children first), with WinError-5 bulk retry ──
+    def _run_for_f(self):
+        rm = self._rm
+        errors, done = [], 0
+        undo_map = []
+        pending = []  # WinError 5 — bulk-retried after the first pass
+        total = max(1, sum(len(g.get("children", [])) for g in self._groups))
+        seen = 0
+        # process deepest first — renaming parents first would invalidate child paths
+        for grp in reversed(self._groups):
+            nc = []
+            for cp in grp.get("children", []):
+                if self._cancel:
+                    nc.append(cp); continue
+                seen += 1
+                self.sig_progress.emit(int((seen / total) * 100), os.path.basename(cp))
+                nn = rm.get(cp, os.path.basename(cp))
+                if os.path.basename(cp) == nn:
+                    nc.append(cp); continue
+                np2 = os.path.join(os.path.dirname(cp), nn)
+                try:
+                    os.rename(cp, np2)
+                    nc.append(np2); done += 1
+                    undo_map.append((np2, cp))
+                    self.sig_log.emit(f"  ✅ {os.path.basename(cp)}  →  {nn}")
+                except OSError as e:
+                    if getattr(e, 'winerror', None) == 5:
+                        pending.append((cp, np2, nn)); nc.append(cp)
+                        self.sig_log.emit(f"  ⏳ {os.path.basename(cp)}: locked — retry queued")
+                    else:
+                        errors.append(f"{os.path.basename(cp)}: {e}")
+                        nc.append(cp)
+                        self.sig_log.emit(f"  ❌ {os.path.basename(cp)}: {e}")
+            grp["children"] = nc
+
+        # bulk retry (up to 5 rounds, ~1 sec each, with a 2-sec initial wait)
+        if pending and not self._cancel:
+            import time
+            self.sig_log.emit(f"  ⏳ [retry] {len(pending)} item(s) — wait 2s then retry")
+            time.sleep(2.0)
+            for attempt in range(5):
+                if self._cancel:
+                    break
+                still = []
+                for cp, np2, nn in pending:
+                    try:
+                        os.rename(cp, np2)
+                        done += 1
+                        undo_map.append((np2, cp))
+                        self.sig_log.emit(f"  ✅ {os.path.basename(cp)}  →  {nn} (retry {attempt+1})")
+                        # update _groups so the next refresh sees the new path
+                        for g in self._groups:
+                            children = g.get("children")
+                            if children and cp in children:
+                                children[children.index(cp)] = np2
+                                break
+                    except OSError as e:
+                        if getattr(e, 'winerror', None) == 5:
+                            still.append((cp, np2, nn))
+                        else:
+                            errors.append(f"{os.path.basename(cp)}: {e}")
+                            self.sig_log.emit(f"  ❌ {os.path.basename(cp)}: {e}")
+                pending = still
+                if not pending:
+                    break
+                time.sleep(1.0)
+            for cp, np2, nn in pending:
+                errors.append(f"{os.path.basename(cp)}: access denied — close Explorer and try again")
+                self.sig_log.emit(f"  ❌ {os.path.basename(cp)}: final failure")
+
+        self.sig_progress.emit(100, "")
+        self.sig_log.emit(f"  done: {done} succeeded / {len(errors)} failed")
+        self.sig_done.emit(done, errors, undo_map, self._groups)
+
+
+# ═══════════════════════════════════════════════
 # Tab 1: Batch Renamer panel
 # ═══════════════════════════════════════════════
 class BatchRenamerPanel(QWidget):
@@ -4964,6 +5448,9 @@ class BatchRenamerPanel(QWidget):
         super().__init__(parent)
         self._f_groups=[]; self._f_preview=[]
         self._p_groups=[]; self._p_preview=[]; self._undo_data=None
+        self._f_model = BatchPreviewModel('f')
+        self._p_model = BatchPreviewModel('p')
+        self._p_model.set_filter_fn(self._p_filtered)
         self._build()
 
     def _build(self):
@@ -5117,8 +5604,9 @@ class BatchRenamerPanel(QWidget):
         btn_clear=QPushButton(_t('btn_del_all')); self._f_btn_clear=btn_clear; btn_clear.setMinimumWidth(80); btn_clear.setFixedHeight(36); btn_clear.clicked.connect(self._f_clear)
         br.addWidget(btn_add); br.addStretch(); br.addWidget(self._f_lbl_count); br.addWidget(btn_clear)
         ll.addLayout(br)
-        self._f_table=QTableWidget(0,3)
-        self._f_table.setHorizontalHeaderLabels([_t("batch_col_folder"),_t("batch_col_arrow"),_t("batch_col_new")])
+        self._f_table=QTableView()
+        self._f_table.setModel(self._f_model)
+        self._f_table.setItemDelegate(BatchRowHeightDelegate(self._f_table))
         self._f_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.Stretch)
         self._f_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.Fixed)
         self._f_table.horizontalHeader().setSectionResizeMode(2,QHeaderView.Stretch)
@@ -5279,8 +5767,9 @@ class BatchRenamerPanel(QWidget):
         btn_fclear=QPushButton(_t('btn_del_all')); self._p_btn_clear=btn_fclear; btn_fclear.setMinimumWidth(80); btn_fclear.setFixedHeight(36); btn_fclear.clicked.connect(self._p_clear)
         br2.addWidget(btn_fadd); br2.addStretch(); br2.addWidget(self._p_lbl_count); br2.addWidget(btn_fclear)
         ll.addLayout(br2)
-        self._p_table=QTableWidget(0,3)
-        self._p_table.setHorizontalHeaderLabels([_t("batch_col_file"),_t("batch_col_arrow"),_t("batch_col_file_new")])
+        self._p_table=QTableView()
+        self._p_table.setModel(self._p_model)
+        self._p_table.setItemDelegate(BatchRowHeightDelegate(self._p_table))
         self._p_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.Stretch)
         self._p_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.Fixed)
         self._p_table.horizontalHeader().setSectionResizeMode(2,QHeaderView.Stretch)
@@ -5369,46 +5858,10 @@ class BatchRenamerPanel(QWidget):
         path=QFileDialog.getExistingDirectory(self,_t("batch_btn_folder_pick"),"",QFileDialog.ShowDirsOnly)
         if path: self._f_ingest([path])
     def _f_ingest(self,parent_paths):
-        added=0
-        skipped=[]   # parents that contributed no group (consolidated for one final dialog)
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            # O(1) duplicate check via set (was O(N²) any() linear scan)
-            existing=set(g["parent"] for g in self._f_groups)
-
-            def _ingest_one(parent):
-                nonlocal added
-                parent=os.path.normpath(parent)
-                if parent in existing: return
-                try: entries=os.listdir(parent)
-                except OSError as exc: _dlg_warn(self, _t('dlg_ok'), str(exc)); _glog(f"❌ failed to read folder: {parent} — {exc}"); return
-                children=sorted([os.path.join(parent,d) for d in entries
-                                 if os.path.isdir(os.path.join(parent,d)) and not d.startswith('.')],
-                                key=natural_sort_key)
-                if not children: return
-                existing.add(parent)
-                self._f_groups.append({"parent":parent,"children":children}); added+=1
-                _glog(f"📁 [Batch/Folder] add group: {parent}  ({len(children)} subfolder(s))")
-                # recursively descend into subfolders that contain further subfolders
-                for child in children:
-                    _ingest_one(child)
-
-            for parent in parent_paths:
-                parent=os.path.normpath(parent)
-                before=len(self._f_groups)
-                _ingest_one(parent)
-                if len(self._f_groups)==before:
-                    skipped.append(parent)
-        finally:
-            QApplication.restoreOverrideCursor()
-        # consolidated "no subfolders found" dialog (was per-folder popup spam)
-        if skipped:
-            if len(skipped) <= 10:
-                msg = f"{_t('rename_no_subfolders')}\n\n" + "\n".join(skipped)
-            else:
-                msg = f"{_t('rename_no_subfolders')} ({len(skipped)})\n\n" + "\n".join(skipped[:10]) + f"\n... (+{len(skipped)-10})"
-            _dlg_info(self, _t('dlg_ok'), msg)
-        if added: self._f_refresh(False); self._f_btn_preview.setEnabled(True); self._f_btn_rename.setEnabled(False)
+        if not parent_paths: return
+        existing = set(g["parent"] for g in self._f_groups)
+        worker = BatchIngestWorker('f', parent_paths, existing, self)
+        self._run_ingest_worker(worker, _t("batch_ingest_progress"))
     def _f_clear(self):
         self._f_groups.clear(); self._f_preview.clear(); self._f_refresh(False)
         self._f_btn_preview.setEnabled(False); self._f_btn_rename.setEnabled(False)
@@ -5449,25 +5902,7 @@ class BatchRenamerPanel(QWidget):
         pm=dict(self._f_preview) if preview else {}
         total=sum(len(g["children"]) for g in self._f_groups)
         self._f_lbl_count.setText(_t("batch_count_folder", g=len(self._f_groups), f=total))
-        tbl=self._f_table; tbl.setUpdatesEnabled(False); tbl.blockSignals(True)
-        try:
-            tbl.setRowCount(0); tbl.setRowCount(len(self._f_groups)+total); row=0
-            for grp in self._f_groups:
-                hi=QTableWidgetItem(f"  📂  {grp['parent']}")
-                hi.setForeground(QColor(ACCENT)); hi.setBackground(QColor(GRP_BG)); hi.setToolTip(grp['parent'])
-                f=hi.font(); f.setBold(True); f.setPointSize(10); hi.setFont(f)
-                ai=QTableWidgetItem(""); ai.setBackground(QColor(GRP_BG))
-                ni=QTableWidgetItem(_t("batch_parent_folder")); ni.setForeground(QColor(MUTED)); ni.setBackground(QColor(GRP_BG))
-                for col,it in enumerate([hi,ai,ni]): it.setFlags(Qt.ItemFlag.ItemIsEnabled); tbl.setItem(row,col,it)
-                tbl.setRowHeight(row,30); row+=1
-                for cp in grp["children"]:
-                    oi=QTableWidgetItem(f"    └  {os.path.basename(cp)}"); oi.setForeground(QColor(MUTED)); oi.setToolTip(cp)
-                    ari=QTableWidgetItem("→"); ari.setTextAlignment(Qt.AlignmentFlag.AlignCenter); ari.setForeground(QColor(BORDER))
-                    nwi=QTableWidgetItem(pm[cp]) if cp in pm else QTableWidgetItem(_t("batch_click_preview"))
-                    if cp in pm: nwi.setToolTip(pm[cp])
-                    nwi.setForeground(QColor(ACCENT) if cp in pm else QColor(BORDER))
-                    tbl.setItem(row,0,oi); tbl.setItem(row,1,ari); tbl.setItem(row,2,nwi); tbl.setRowHeight(row,34); row+=1
-        finally: tbl.blockSignals(False); tbl.setUpdatesEnabled(True)
+        self._f_model.set_data(self._f_groups, pm)
     def _close_explorer_for_groups(self):
         """Detect Explorer windows holding the target folder path via PowerShell COM and close them.
         Windows-only — no-op on other platforms.
@@ -5586,69 +6021,15 @@ class BatchRenamerPanel(QWidget):
         col=self._check_cols(pairs)
         if col: _dlg_error(self, _t('rename_collision'), "\n".join(col[:10])); return
         if not self._confirm(len(pairs),pairs): return
-        # ── Auto-close Explorer windows holding the target folder ─────
+        # auto-close Explorer windows holding the target folder (main thread, before worker)
         closed_folders = self._close_explorer_for_groups()
         _glog(f"▶ [Batch/Folder] running rename — {len(pairs)} item(s)")
-        errors,done=[],0; rm=dict(self._f_preview); undo_map=[]
-        pending=[]  # WinError 5 failures — bulk-retried after full completion
-        # process deepest (children) first — renaming parents first would invalidate child paths
-        for grp in reversed(self._f_groups):
-            nc=[]
-            for cp in grp["children"]:
-                nn=rm.get(cp,os.path.basename(cp))
-                if os.path.basename(cp)==nn: nc.append(cp); continue
-                np2=os.path.join(os.path.dirname(cp),nn)
-                try:
-                    os.rename(cp,np2); nc.append(np2); done+=1
-                    undo_map.append((np2,cp))
-                    _glog(f"  ✅ {os.path.basename(cp)}  →  {nn}")
-                except OSError as e:
-                    if getattr(e,'winerror',None)==5:
-                        # ACCESS_DENIED — bulk-retry later
-                        pending.append((cp,np2,nn)); nc.append(cp)
-                        _glog(f"  ⏳ {os.path.basename(cp)}: locked — retry queued")
-                    else:
-                        errors.append(f"{os.path.basename(cp)}: {e}"); nc.append(cp)
-                        _glog(f"  ❌ {os.path.basename(cp)}: {e}")
-            grp["children"]=nc
-
-        # ── Bulk retry (up to 5 rounds, up to 1 second wait per round) ──
-        if pending:
-            import time
-            _glog(f"  ⏳ [retry] {len(pending)} item(s) — wait 2s then retry")
-            time.sleep(2.0)
-            for attempt in range(5):
-                still=[]
-                for cp,np2,nn in pending:
-                    try:
-                        os.rename(cp,np2); done+=1
-                        undo_map.append((np2,cp))
-                        _glog(f"  ✅ {os.path.basename(cp)}  →  {nn} (retry {attempt+1})")
-                        # refresh grp["children"]
-                        for g in self._f_groups:
-                            if cp in g["children"]:
-                                g["children"][g["children"].index(cp)]=np2; break
-                    except OSError as e:
-                        if getattr(e,'winerror',None)==5:
-                            still.append((cp,np2,nn))
-                        else:
-                            errors.append(f"{os.path.basename(cp)}: {e}")
-                            _glog(f"  ❌ {os.path.basename(cp)}: {e}")
-                pending=still
-                if not pending: break
-                time.sleep(1.0)
-            for cp,np2,nn in pending:
-                errors.append(f"{os.path.basename(cp)}: access denied — close Explorer and try again")
-                _glog(f"  ❌ {os.path.basename(cp)}: final failure")
-        _glog(f"  done: {done} succeeded / {len(errors)} failed")
-        if done > 0:
-            self._undo_data = ('rename', undo_map)
-            self._f_btn_undo.setEnabled(True)
-            if hasattr(self, '_p_btn_undo'): self._p_btn_undo.setEnabled(False)
-        self._f_preview=[]; self._f_refresh(False); self._f_btn_rename.setEnabled(False)
-        self._show_result(done,errors,_t("batch_sub_folder"))
-        # after rename, reopen any Explorer windows that were closed
-        self._reopen_explorer(closed_folders)
+        worker = BatchRenameWorker('f', self._f_groups, self._f_preview, self)
+        self._run_rename_worker(
+            worker,
+            _t("batch_rename_progress"),
+            on_done_extra=lambda done: self._reopen_explorer(closed_folders),
+        )
 
     # ── File tab logic ────────────────────────
     def _p_on_dropped(self,dirs): self._p_ingest(dirs)
@@ -5656,54 +6037,10 @@ class BatchRenamerPanel(QWidget):
         path=QFileDialog.getExistingDirectory(self,_t("batch_btn_file_pick"),"",QFileDialog.ShowDirsOnly)
         if path: self._p_ingest([path])
     def _p_ingest(self,folder_paths):
-        added=0
-        skipped=[]   # folders that contributed no group (consolidated for one final dialog)
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            # O(1) duplicate check via set (was O(N²) any() linear scan)
-            existing=set(g["folder"] for g in self._p_groups)
-            for folder in folder_paths:
-                folder=os.path.normpath(folder)
-                # ── Step 1: check for direct files ────────────────────────
-                try: entries=os.listdir(folder)
-                except OSError as exc: _dlg_warn(self, _t('dlg_ok'), str(exc)); _glog(f"❌ failed to read folder: {folder} — {exc}"); continue
-                files=sorted([os.path.join(folder,f) for f in entries
-                              if os.path.isfile(os.path.join(folder,f))
-                              and not f.startswith('.') and f.lower() not in _SKIP_FILES],
-                             key=natural_sort_key)
-                if files:
-                    # direct files exist → add a single group using the existing approach
-                    if folder not in existing:
-                        existing.add(folder)
-                        self._p_groups.append({"folder":folder,"files":files}); added+=1
-                        _glog(f"📁 [Batch/File] add group: {folder}  ({len(files)} file(s))")
-                else:
-                    # ── Step 2: no direct files → recursively descend into subfolders ──
-                    sub_added=0
-                    for root, dirs, filenames in os.walk(folder):
-                        dirs.sort(key=lambda d: natural_sort_key(os.path.join(root, d)))
-                        if root == folder: continue  # already confirmed top-level has no files
-                        sub_files=sorted([os.path.join(root,f) for f in filenames
-                                         if not f.startswith('.') and f.lower() not in _SKIP_FILES],
-                                        key=natural_sort_key)
-                        if sub_files and root not in existing:
-                            existing.add(root)
-                            self._p_groups.append({"folder":root,"files":sub_files}); sub_added+=1
-                            _glog(f"📁 [Batch/File] add sub-group: {root}  ({len(sub_files)} file(s))")
-                    if sub_added==0:
-                        skipped.append(folder)
-                    else:
-                        added+=sub_added
-        finally:
-            QApplication.restoreOverrideCursor()
-        # consolidated "no files found" dialog (was per-folder popup spam)
-        if skipped:
-            if len(skipped) <= 10:
-                msg = f"{_t('rename_no_files')}\n\n" + "\n".join(skipped)
-            else:
-                msg = f"{_t('rename_no_files')} ({len(skipped)})\n\n" + "\n".join(skipped[:10]) + f"\n... (+{len(skipped)-10})"
-            _dlg_info(self, _t('dlg_ok'), msg)
-        if added: self._p_refresh(False); self._p_btn_preview.setEnabled(True); self._p_btn_rename.setEnabled(False)
+        if not folder_paths: return
+        existing = set(g["folder"] for g in self._p_groups)
+        worker = BatchIngestWorker('p', folder_paths, existing, self)
+        self._run_ingest_worker(worker, _t("batch_ingest_progress"))
     def _p_clear(self):
         self._p_groups.clear(); self._p_preview.clear(); self._p_refresh(False)
         self._p_btn_preview.setEnabled(False); self._p_btn_rename.setEnabled(False)
@@ -5738,24 +6075,7 @@ class BatchRenamerPanel(QWidget):
         pm=dict(self._p_preview) if preview else {}
         total=sum(len(self._p_filtered(g["files"])) for g in self._p_groups)
         self._p_lbl_count.setText(_t("batch_count_file", g=len(self._p_groups), f=total))
-        tbl=self._p_table; tbl.setUpdatesEnabled(False); tbl.blockSignals(True)
-        try:
-            tbl.setRowCount(0); tbl.setRowCount(len(self._p_groups)+total); row=0
-            for grp in self._p_groups:
-                hi=QTableWidgetItem(f"  📂  {grp['folder']}"); hi.setForeground(QColor(ACCENT2)); hi.setBackground(QColor(GRP_BG)); hi.setToolTip(grp['folder'])
-                f=hi.font(); f.setBold(True); f.setPointSize(10); hi.setFont(f)
-                ai=QTableWidgetItem(""); ai.setBackground(QColor(GRP_BG))
-                ni=QTableWidgetItem(_t("batch_folder_label")); ni.setForeground(QColor(MUTED)); ni.setBackground(QColor(GRP_BG))
-                for col,it in enumerate([hi,ai,ni]): it.setFlags(Qt.ItemFlag.ItemIsEnabled); tbl.setItem(row,col,it)
-                tbl.setRowHeight(row,30); row+=1
-                for fp in self._p_filtered(grp["files"]):
-                    oi=QTableWidgetItem(f"    └  {os.path.basename(fp)}"); oi.setForeground(QColor(MUTED)); oi.setToolTip(fp)
-                    ari=QTableWidgetItem("→"); ari.setTextAlignment(Qt.AlignmentFlag.AlignCenter); ari.setForeground(QColor(BORDER))
-                    nwi=QTableWidgetItem(pm[fp]) if fp in pm else QTableWidgetItem(_t("batch_click_preview"))
-                    if fp in pm: nwi.setToolTip(pm[fp])
-                    nwi.setForeground(QColor(ACCENT2) if fp in pm else QColor(BORDER))
-                    tbl.setItem(row,0,oi); tbl.setItem(row,1,ari); tbl.setItem(row,2,nwi); tbl.setRowHeight(row,34); row+=1
-        finally: tbl.blockSignals(False); tbl.setUpdatesEnabled(True)
+        self._p_model.set_data(self._p_groups, pm)
     def _p_do_rename(self):
         if not self._p_preview: _dlg_warn(self, _t('dlg_ok'), _t('rename_no_preview')); return
         pairs=[(o,n) for o,n in self._p_preview if os.path.basename(o)!=n]
@@ -5764,25 +6084,136 @@ class BatchRenamerPanel(QWidget):
         if col: _dlg_error(self, _t('rename_collision'), "\n".join(col[:10])); return
         if not self._confirm(len(pairs),pairs): return
         _glog(f"▶ [Batch/File] running rename — {len(pairs)} item(s)")
-        errors,done=[],0; rm=dict(self._p_preview); undo_map=[]
-        for grp in self._p_groups:
-            nf=[]
-            for fp in grp["files"]:
-                nn=rm.get(fp,os.path.basename(fp))
-                if os.path.basename(fp)==nn: nf.append(fp); continue
-                np2=os.path.join(os.path.dirname(fp),nn)
-                try: os.rename(fp,np2); nf.append(np2); done+=1; undo_map.append((np2,fp)); _glog(f"  ✅ {os.path.basename(fp)}  →  {nn}")
-                except OSError as e: errors.append(f"{os.path.basename(fp)}: {e}"); nf.append(fp); _glog(f"  ❌ {os.path.basename(fp)}: {e}")
-            grp["files"]=nf
-        _glog(f"  done: {done} succeeded / {len(errors)} failed")
-        if done > 0:
-            self._undo_data = ('rename', undo_map)
-            self._p_btn_undo.setEnabled(True)
-            if hasattr(self, '_f_btn_undo'): self._f_btn_undo.setEnabled(False)
-        self._p_preview=[]; self._p_refresh(False); self._p_btn_rename.setEnabled(False)
-        self._show_result(done,errors,_t("batch_sub_file"))
+        worker = BatchRenameWorker('p', self._p_groups, self._p_preview, self)
+        self._run_rename_worker(worker, _t("batch_rename_progress"))
 
     # ── Common utilities ──────────────────────
+    def _run_ingest_worker(self, worker, label):
+        """Common runner for ingest workers (folder + file tabs).
+
+        Shows a modal QProgressDialog with cancel; on sig_done, appends new
+        groups to the appropriate panel state and refreshes the view.
+        Per-folder OS errors are collected and shown as a single consolidated
+        dialog after the worker finishes (avoids dialog spam mid-scan).
+        """
+        dlg = QProgressDialog(label, _t("dlg_cancel"), 0, 100, self)
+        dlg.setWindowTitle("FileNexusSuite")  # override Qt's default sys.argv[0] title
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setMinimumDuration(400)  # don't pop up for quick operations
+        dlg.setAutoClose(True)
+        dlg.setAutoReset(True)
+
+        warn_msgs = []  # consolidated at the end (one dialog instead of N popups)
+
+        def on_progress(pct, path):
+            dlg.setValue(pct)
+            if path:
+                dlg.setLabelText(f"{label}\n{path}")
+
+        def on_warn(msg):
+            warn_msgs.append(msg)
+
+        def on_log(msg):
+            _glog(msg)
+
+        def on_done(new_groups, skipped):
+            dlg.setValue(100)
+            is_f = (worker._kind == 'f')
+            if new_groups:
+                if is_f:
+                    self._f_groups.extend(new_groups)
+                    self._f_refresh(False)
+                    self._f_btn_preview.setEnabled(True)
+                    self._f_btn_rename.setEnabled(False)
+                else:
+                    self._p_groups.extend(new_groups)
+                    self._p_refresh(False)
+                    self._p_btn_preview.setEnabled(True)
+                    self._p_btn_rename.setEnabled(False)
+            # consolidated OS error dialog (one popup for all per-folder failures)
+            if warn_msgs:
+                joined = "\n".join(warn_msgs[:10])
+                if len(warn_msgs) > 10:
+                    joined += f"\n... (+{len(warn_msgs)-10})"
+                _dlg_warn(self, _t('dlg_ok'), joined)
+            # consolidated "no items found" dialog
+            if skipped:
+                no_items_key = 'rename_no_subfolders' if is_f else 'rename_no_files'
+                if len(skipped) <= 10:
+                    msg = f"{_t(no_items_key)}\n\n" + "\n".join(skipped)
+                else:
+                    msg = f"{_t(no_items_key)} ({len(skipped)})\n\n" + "\n".join(skipped[:10]) + f"\n... (+{len(skipped)-10})"
+                _dlg_info(self, _t('dlg_ok'), msg)
+            worker.deleteLater()
+
+        worker.sig_progress.connect(on_progress)
+        worker.sig_warn.connect(on_warn)
+        worker.sig_log.connect(on_log)
+        worker.sig_done.connect(on_done)
+        dlg.canceled.connect(worker.request_cancel)
+
+        worker.start()
+
+    def _run_rename_worker(self, worker, label, on_done_extra=None):
+        """Common runner for rename workers (folder + file tabs).
+
+        Shows a modal QProgressDialog with cancel; on sig_done, replaces the
+        panel's groups with the worker's updated_groups (paths reflect the
+        actual rename outcome) and shows the result dialog.
+
+        on_done_extra: optional callback(done_count) called after the result
+                       dialog (used by the folder tab to reopen Explorer windows
+                       that were auto-closed before the worker started).
+        """
+        dlg = QProgressDialog(label, _t("dlg_cancel"), 0, 100, self)
+        dlg.setWindowTitle("FileNexusSuite")  # override Qt's default sys.argv[0] title
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setMinimumDuration(400)
+        dlg.setAutoClose(True)
+        dlg.setAutoReset(True)
+
+        def on_progress(pct, name):
+            dlg.setValue(pct)
+            if name:
+                dlg.setLabelText(f"{label}\n{name}")
+
+        def on_log(msg):
+            _glog(msg)
+
+        def on_done(done, errors, undo_map, updated_groups):
+            dlg.setValue(100)
+            is_f = (worker._kind == 'f')
+            if is_f:
+                self._f_groups = updated_groups
+                self._f_preview = []
+                self._f_refresh(False)
+                self._f_btn_rename.setEnabled(False)
+            else:
+                self._p_groups = updated_groups
+                self._p_preview = []
+                self._p_refresh(False)
+                self._p_btn_rename.setEnabled(False)
+            if done > 0:
+                self._undo_data = ('rename', undo_map)
+                if is_f:
+                    self._f_btn_undo.setEnabled(True)
+                    if hasattr(self, '_p_btn_undo'): self._p_btn_undo.setEnabled(False)
+                else:
+                    self._p_btn_undo.setEnabled(True)
+                    if hasattr(self, '_f_btn_undo'): self._f_btn_undo.setEnabled(False)
+            sub_key = 'batch_sub_folder' if is_f else 'batch_sub_file'
+            self._show_result(done, errors, _t(sub_key))
+            if on_done_extra is not None:
+                on_done_extra(done)
+            worker.deleteLater()
+
+        worker.sig_progress.connect(on_progress)
+        worker.sig_log.connect(on_log)
+        worker.sig_done.connect(on_done)
+        dlg.canceled.connect(worker.request_cancel)
+
+        worker.start()
+
     def _check_cols(self,pairs):
         errs=[]; bp={}
         for o,n in pairs: bp.setdefault(os.path.dirname(o),[]).append((o,n))
@@ -5882,13 +6313,13 @@ class BatchRenamerPanel(QWidget):
         # folder tab
         self._f_btn_add.setText(_t('batch_btn_folder_pick'))
         if hasattr(self,"_f_btn_clear"): self._f_btn_clear.setText(_t("batch_del_all"))
-        self._f_table.setHorizontalHeaderLabels([_t('batch_col_folder'), _t('batch_col_arrow'), _t('batch_col_new')])
+        self._f_model.refresh_headers()
         self._f_btn_preview.setText(_t('btn_preview'))
         self._f_btn_rename.setText(_t('batch_btn_rename'))
         # file tab
         self._p_btn_fadd.setText(_t('batch_btn_file_pick'))
         if hasattr(self,"_p_btn_clear"): self._p_btn_clear.setText(_t("batch_del_all"))
-        self._p_table.setHorizontalHeaderLabels([_t('batch_col_file'), _t('batch_col_arrow'), _t('batch_col_file_new')])
+        self._p_model.refresh_headers()
         self._p_btn_preview.setText(_t('btn_preview'))
         self._p_btn_rename.setText(_t('batch_btn_rename'))
         # Smart tab GroupBox
