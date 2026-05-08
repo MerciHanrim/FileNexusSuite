@@ -4989,11 +4989,11 @@ class TestBatchRenamerScenarioB(unittest.TestCase):
             with self.subTest(sym=sym):
                 self.assertIn(sym, qtcore_line,
                               f"QtCore에 '{sym}' import 없음")
-        # QtWidgets: QTableView + QProgressDialog (additional import line, see line ~71)
-        for sym in ('QTableView', 'QProgressDialog'):
-            with self.subTest(sym=sym):
-                self.assertIn(sym, self._src,
-                              f"QtWidgets에 '{sym}' import 없음")
+        # QtWidgets: QTableView (additional import line, see line ~71).
+        # NOTE: QProgressDialog was removed in v1.1.0 design polishing —
+        # _build_progress_dlg now provides a FNS-toned modal progress dialog.
+        self.assertIn('QTableView', self._src,
+                      "QtWidgets에 'QTableView' import 없음")
 
     def test_qtablewidget_no_longer_used_in_batch_panel(self):
         """The Batch Renamer panel uses QTableView (not QTableWidget) for both tabs."""
@@ -5032,6 +5032,138 @@ class TestBatchRenamerScenarioB(unittest.TestCase):
             with self.subTest(method=method):
                 self.assertIn(method, model_block,
                               f"BatchPreviewModel에 '{method}' 메서드 없음")
+
+
+class TestBuildProgressDlg(unittest.TestCase):
+    """v1.1.0 design polishing — FNS-toned progress dialog replaces Qt's
+    QProgressDialog (Batch Renamer ingest + rename workers tone-matched
+    with _confirm / _build_dlg helpers).
+
+    Source-grep checks (PySide6 not required) — verify the helper function
+    is defined, both worker runners use it, and Qt's default QProgressDialog
+    is no longer instantiated anywhere in the codebase.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            cls._src = f.read()
+
+    def test_helper_function_defined(self):
+        """_build_progress_dlg helper is defined at module scope."""
+        self.assertIn('def _build_progress_dlg(', self._src,
+                      "_build_progress_dlg helper 정의 없음")
+
+    def test_helper_returns_four_widgets(self):
+        """Helper returns the (dlg, lbl, bar, cancel_btn) tuple expected by callers."""
+        helper_start = self._src.find('def _build_progress_dlg(')
+        self.assertGreater(helper_start, 0)
+        helper_end = self._src.find('\ndef ', helper_start + 10)
+        helper_block = self._src[helper_start:helper_end]
+        # Final return statement
+        self.assertIn('return dlg, lbl, bar, cancel_btn', helper_block,
+                      "_build_progress_dlg 4-tuple 반환 자국 없음")
+
+    def test_helper_uses_fns_tone_palette(self):
+        """Helper applies FNS-toned colors (SURFACE/TEXT/ACCENT/BORDER/BG)."""
+        helper_start = self._src.find('def _build_progress_dlg(')
+        self.assertGreater(helper_start, 0)
+        helper_end = self._src.find('\ndef ', helper_start + 10)
+        helper_block = self._src[helper_start:helper_end]
+        # Background + text color
+        self.assertIn('background:{SURFACE}', helper_block,
+                      "_build_progress_dlg에 SURFACE 배경 없음")
+        # Progress bar accent
+        self.assertIn('background:{ACCENT}', helper_block,
+                      "_build_progress_dlg에 ACCENT 자국 없음")
+        # Border outline
+        self.assertIn('{BORDER}', helper_block,
+                      "_build_progress_dlg에 BORDER 자국 없음")
+        # Cancel button uses _btn_style helper (consistent with _dlg_*)
+        self.assertIn('_btn_style(False)', helper_block,
+                      "_build_progress_dlg 취소 버튼이 _btn_style을 사용하지 않음")
+
+    def test_helper_preserves_modal_behavior(self):
+        """Helper sets WindowModal + minimum width + window flags consistent with _build_dlg."""
+        helper_start = self._src.find('def _build_progress_dlg(')
+        self.assertGreater(helper_start, 0)
+        helper_end = self._src.find('\ndef ', helper_start + 10)
+        helper_block = self._src[helper_start:helper_end]
+        self.assertIn('Qt.WindowModal', helper_block,
+                      "_build_progress_dlg가 WindowModal 양식 미적용")
+        self.assertIn('setMinimumWidth', helper_block,
+                      "_build_progress_dlg에 setMinimumWidth 자국 없음")
+
+    def test_runners_use_helper(self):
+        """Both _run_ingest_worker and _run_rename_worker call _build_progress_dlg."""
+        for runner in ('_run_ingest_worker', '_run_rename_worker'):
+            with self.subTest(runner=runner):
+                runner_start = self._src.find(f'def {runner}(self')
+                self.assertGreater(runner_start, 0,
+                                   f"{runner} 정의 없음")
+                runner_end = self._src.find('\n    def ', runner_start + 10)
+                runner_block = self._src[runner_start:runner_end]
+                self.assertIn('_build_progress_dlg(', runner_block,
+                              f"{runner}가 _build_progress_dlg를 호출하지 않음")
+                # 4-tuple unpacking pattern
+                self.assertIn('dlg, lbl, bar, cancel_btn', runner_block,
+                              f"{runner}에 (dlg, lbl, bar, cancel_btn) 언팩 자국 없음")
+
+    def test_runners_preserve_minimum_duration_400(self):
+        """Both runners preserve QProgressDialog's setMinimumDuration(400) behavior
+        via QTimer.singleShot(400, _maybe_show) gated by completion flag."""
+        for runner in ('_run_ingest_worker', '_run_rename_worker'):
+            with self.subTest(runner=runner):
+                runner_start = self._src.find(f'def {runner}(self')
+                self.assertGreater(runner_start, 0)
+                runner_end = self._src.find('\n    def ', runner_start + 10)
+                runner_block = self._src[runner_start:runner_end]
+                self.assertIn('QTimer.singleShot(400', runner_block,
+                              f"{runner}에 400ms 지연 양식 자국 없음")
+                self.assertIn("_state['done']", runner_block,
+                              f"{runner}에 완료 플래그 자국 없음")
+
+    def test_runners_wire_cancel_button(self):
+        """Both runners connect cancel_btn.clicked to worker.request_cancel."""
+        for runner in ('_run_ingest_worker', '_run_rename_worker'):
+            with self.subTest(runner=runner):
+                runner_start = self._src.find(f'def {runner}(self')
+                self.assertGreater(runner_start, 0)
+                runner_end = self._src.find('\n    def ', runner_start + 10)
+                runner_block = self._src[runner_start:runner_end]
+                self.assertIn('cancel_btn.clicked.connect(worker.request_cancel)',
+                              runner_block,
+                              f"{runner}에 취소 버튼 연결 자국 없음")
+
+    def test_qprogressdialog_no_longer_instantiated(self):
+        """Qt's QProgressDialog should not be instantiated anywhere — replaced
+        by _build_progress_dlg. Mentions in docstrings/comments are allowed."""
+        # Look for instantiation pattern: QProgressDialog(...)
+        # Allow it to appear only in docstrings/comments, not as a callable
+        for line_no, line in enumerate(self._src.splitlines(), 1):
+            stripped = line.strip()
+            # Skip docstrings/comments
+            if stripped.startswith('#'):
+                continue
+            if 'QProgressDialog(' in stripped:
+                # Allow inside docstrings — heuristic: surrounded by triple-quote context
+                # We do a stricter check: the pattern must not look like a call.
+                # If 'dlg = QProgressDialog(' or '= QProgressDialog(' appears outside
+                # a docstring, that's a regression.
+                if '= QProgressDialog(' in stripped:
+                    self.fail(f"Line {line_no}: QProgressDialog() instantiation found — "
+                              f"should use _build_progress_dlg() instead. "
+                              f"Line: {stripped!r}")
+
+    def test_qprogressdialog_import_removed(self):
+        """QProgressDialog import line should no longer include the symbol."""
+        # The import line ~L71: from PySide6.QtWidgets import ..., QTableView
+        # QProgressDialog should not appear in any 'from PySide6.QtWidgets import' line
+        for match in re.finditer(r'from PySide6\.QtWidgets import ([^\n]+)', self._src):
+            import_line = match.group(1)
+            self.assertNotIn('QProgressDialog', import_line,
+                             "QtWidgets import 라인에 QProgressDialog가 남아 있음 — "
+                             "v1.1.0에서 제거 양식")
 
 
 # ════════════════════════════════════════════════════════════════════════

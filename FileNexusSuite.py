@@ -68,7 +68,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QThread, QSize, QRect, QRectF, QPointF, QTimer, QBuffer, QByteArray, QIODevice, QAbstractTableModel, QModelIndex
 from PySide6.QtGui import QColor, QPalette, QCursor, QPainter, QPen, QBrush, QFont, QKeySequence, QLinearGradient, QPolygonF, QIcon, QPixmap, QPainterPath, QImageReader, QShortcut, QTextCharFormat, QTextCursor
-from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle, QTableView, QProgressDialog
+from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle, QTableView
 
 # ═══════════════════════════════════════════════
 # App Version
@@ -6091,24 +6091,30 @@ class BatchRenamerPanel(QWidget):
     def _run_ingest_worker(self, worker, label):
         """Common runner for ingest workers (folder + file tabs).
 
-        Shows a modal QProgressDialog with cancel; on sig_done, appends new
-        groups to the appropriate panel state and refreshes the view.
-        Per-folder OS errors are collected and shown as a single consolidated
-        dialog after the worker finishes (avoids dialog spam mid-scan).
+        Shows a modal FNS-toned progress dialog with cancel; on sig_done,
+        appends new groups to the appropriate panel state and refreshes the
+        view. Per-folder OS errors are collected and shown as a single
+        consolidated dialog after the worker finishes (avoids dialog spam
+        mid-scan).
         """
-        dlg = QProgressDialog(label, _t("dlg_cancel"), 0, 100, self)
-        dlg.setWindowTitle("FileNexusSuite")  # override Qt's default sys.argv[0] title
-        dlg.setWindowModality(Qt.WindowModal)
-        dlg.setMinimumDuration(400)  # don't pop up for quick operations
-        dlg.setAutoClose(True)
-        dlg.setAutoReset(True)
+        dlg, lbl, bar, cancel_btn = _build_progress_dlg(
+            self, "FileNexusSuite", label, _t("dlg_cancel")
+        )
+
+        # Track completion to prevent late show() if work finishes < 400ms
+        _state = {'done': False}
+
+        def _maybe_show():
+            if not _state['done']:
+                dlg.show()
+        QTimer.singleShot(400, _maybe_show)
 
         warn_msgs = []  # consolidated at the end (one dialog instead of N popups)
 
         def on_progress(pct, path):
-            dlg.setValue(pct)
+            bar.setValue(pct)
             if path:
-                dlg.setLabelText(f"{label}\n{path}")
+                lbl.setText(f"{label}\n{path}")
 
         def on_warn(msg):
             warn_msgs.append(msg)
@@ -6117,7 +6123,9 @@ class BatchRenamerPanel(QWidget):
             _glog(msg)
 
         def on_done(new_groups, skipped):
-            dlg.setValue(100)
+            _state['done'] = True
+            bar.setValue(100)
+            dlg.accept()
             is_f = (worker._kind == 'f')
             if new_groups:
                 if is_f:
@@ -6150,38 +6158,45 @@ class BatchRenamerPanel(QWidget):
         worker.sig_warn.connect(on_warn)
         worker.sig_log.connect(on_log)
         worker.sig_done.connect(on_done)
-        dlg.canceled.connect(worker.request_cancel)
+        cancel_btn.clicked.connect(worker.request_cancel)
 
         worker.start()
 
     def _run_rename_worker(self, worker, label, on_done_extra=None):
         """Common runner for rename workers (folder + file tabs).
 
-        Shows a modal QProgressDialog with cancel; on sig_done, replaces the
-        panel's groups with the worker's updated_groups (paths reflect the
-        actual rename outcome) and shows the result dialog.
+        Shows a modal FNS-toned progress dialog with cancel; on sig_done,
+        replaces the panel's groups with the worker's updated_groups (paths
+        reflect the actual rename outcome) and shows the result dialog.
 
         on_done_extra: optional callback(done_count) called after the result
-                       dialog (used by the folder tab to reopen Explorer windows
-                       that were auto-closed before the worker started).
+                       dialog (used by the folder tab to reopen Explorer
+                       windows that were auto-closed before the worker
+                       started).
         """
-        dlg = QProgressDialog(label, _t("dlg_cancel"), 0, 100, self)
-        dlg.setWindowTitle("FileNexusSuite")  # override Qt's default sys.argv[0] title
-        dlg.setWindowModality(Qt.WindowModal)
-        dlg.setMinimumDuration(400)
-        dlg.setAutoClose(True)
-        dlg.setAutoReset(True)
+        dlg, lbl, bar, cancel_btn = _build_progress_dlg(
+            self, "FileNexusSuite", label, _t("dlg_cancel")
+        )
+
+        _state = {'done': False}
+
+        def _maybe_show():
+            if not _state['done']:
+                dlg.show()
+        QTimer.singleShot(400, _maybe_show)
 
         def on_progress(pct, name):
-            dlg.setValue(pct)
+            bar.setValue(pct)
             if name:
-                dlg.setLabelText(f"{label}\n{name}")
+                lbl.setText(f"{label}\n{name}")
 
         def on_log(msg):
             _glog(msg)
 
         def on_done(done, errors, undo_map, updated_groups):
-            dlg.setValue(100)
+            _state['done'] = True
+            bar.setValue(100)
+            dlg.accept()
             is_f = (worker._kind == 'f')
             if is_f:
                 self._f_groups = updated_groups
@@ -6210,7 +6225,7 @@ class BatchRenamerPanel(QWidget):
         worker.sig_progress.connect(on_progress)
         worker.sig_log.connect(on_log)
         worker.sig_done.connect(on_done)
-        dlg.canceled.connect(worker.request_cancel)
+        cancel_btn.clicked.connect(worker.request_cancel)
 
         worker.start()
 
@@ -11312,6 +11327,68 @@ def _btn_style(accent=False) -> str:
             f"border-radius:8px;padding:9px 28px;font-size:12px;font-weight:600;"
             f"min-width:80px;}}"
             f"QPushButton:hover{{background:{SRF2};}}")
+
+
+def _build_progress_dlg(parent, title: str, label: str, cancel_text: str):
+    """Build a FNS-toned modal progress dialog (replaces Qt's QProgressDialog).
+
+    Returns (dlg, lbl, bar, cancel_btn). Caller is responsible for:
+      - bar.setValue(0..100) on progress signals
+      - lbl.setText(...) for status updates
+      - cancel_btn.clicked.connect(...) for cancel handling
+      - dlg.accept() when work completes (manual auto-close)
+      - QTimer.singleShot(400, _maybe_show) gated by completion flag,
+        to preserve QProgressDialog's setMinimumDuration(400) behavior
+
+    Tone-matched with _build_dlg / _btn_style: SURFACE background, ACCENT
+    progress chunk, BORDER outline, padding (28, 24, 28, 20), spacing 16.
+    """
+    dlg = QDialog(parent)
+    dlg.setWindowTitle(title)
+    try:
+        dlg.setWindowIcon(_make_app_icon())
+    except Exception:
+        pass
+    dlg.setMinimumWidth(420)
+    dlg.setWindowFlags(dlg.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+    dlg.setWindowModality(Qt.WindowModal)
+    dlg.setStyleSheet(
+        f"QDialog{{background:{SURFACE};}} "
+        f"QLabel{{background:transparent;color:{TEXT};}}"
+    )
+    root = QVBoxLayout(dlg)
+    root.setContentsMargins(28, 24, 28, 20)
+    root.setSpacing(16)
+
+    # Status label (multi-line for path display)
+    lbl = QLabel(label)
+    lbl.setWordWrap(True)
+    lbl.setStyleSheet(f"color:{TEXT};font-size:13px;background:transparent;")
+    lbl.setMinimumHeight(40)  # reserve space for two-line path display
+    root.addWidget(lbl)
+
+    # Progress bar (FNS-toned)
+    bar = QProgressBar()
+    bar.setRange(0, 100)
+    bar.setValue(0)
+    bar.setTextVisible(True)
+    bar.setStyleSheet(
+        f"QProgressBar{{background:{BG};border:1px solid {BORDER};"
+        f"border-radius:6px;text-align:center;color:{TEXT};"
+        f"font-size:12px;min-height:20px;}}"
+        f"QProgressBar::chunk{{background:{ACCENT};border-radius:5px;}}"
+    )
+    root.addWidget(bar)
+
+    # Cancel button row
+    br = QHBoxLayout()
+    br.addStretch()
+    cancel_btn = QPushButton(cancel_text)
+    cancel_btn.setStyleSheet(_btn_style(False))
+    br.addWidget(cancel_btn)
+    root.addLayout(br)
+
+    return dlg, lbl, bar, cancel_btn
 
 
 def _dlg_info(parent, title: str, msg: str):
