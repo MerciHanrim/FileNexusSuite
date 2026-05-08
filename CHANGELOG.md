@@ -9,6 +9,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Batch Renamer progress dialog tone-matched with FNS theme** — Replaced Qt's default `QProgressDialog` (used in both the ingest worker runner and the rename worker runner) with a new FNS-toned modal progress dialog built via the `_build_progress_dlg` helper. The new dialog inherits the existing `_confirm` / `_build_dlg` palette: `SURFACE` background, `ACCENT` progress-bar chunk, `BORDER` outline, `_btn_style(False)` cancel button, padding (28, 24, 28, 20) consistent with all other FNS dialogs. All existing `QProgressDialog` behaviors are preserved: modal (`Qt.WindowModal`), 400 ms minimum-duration delay (now via `QTimer.singleShot(400, _maybe_show)` gated by a completion flag, preventing dialog flicker for sub-400 ms operations), auto-close on completion (`bar.setValue(100)` → `dlg.accept()`), and cancel propagation (cancel button → `worker.request_cancel()`). The `QProgressDialog` symbol is removed from the `QtWidgets` imports.
+
+### Tests
+- **594 → 602 passing on Hanrim's environment** (+8), 62 classes (+1), zero failures/errors, 5 intentional skips
+- **`TestBuildProgressDlg` (+8)** — Source-grep verification of the new helper and its integration in both worker runners. Covers: helper function definition, the 4-tuple return signature `(dlg, lbl, bar, cancel_btn)`, FNS-tone palette application (`SURFACE` / `ACCENT` / `BORDER` / `_btn_style`), modal behavior (`Qt.WindowModal` + `setMinimumWidth`), runner integration (both `_run_ingest_worker` and `_run_rename_worker` call the helper and unpack the 4-tuple), 400 ms minimum-duration preservation (`QTimer.singleShot(400` + `_state['done']` flag), cancel button wiring (`cancel_btn.clicked.connect(worker.request_cancel)`), and regression guards (no `QProgressDialog()` instantiation anywhere, no `QProgressDialog` in `QtWidgets` imports).
+- **`test_scenario_b_imports_present` updated** — `QProgressDialog` removed from the imports check (replaced by `_build_progress_dlg` helper in v1.1.0).
+
 ## [1.0.11] — 2026-05-08
 
 Post-v1.0.10 track — **English-first transition for the entire codebase and supporting documents** (strengthening accessibility for non-Korean-speaking developers), plus **the Batch Renamer scalability rewrite** (preview-table virtualization + `QThread` workers) that eliminates the large-dataset rendering freeze observed at 154,895 files / 2,714 folders / 86.8 GB. v1.0.11 was released as an unsigned binary; the code-signing track is deferred until project visibility (community adoption, external references) materially benefits from it — independent of any specific provider.

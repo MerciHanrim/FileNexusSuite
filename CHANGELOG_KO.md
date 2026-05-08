@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+### Changed
+- **Batch Renamer 진행률 다이얼로그 FNS 톤 매치** — Batch Renamer ingest worker runner와 rename worker runner가 사용하던 Qt 기본 `QProgressDialog`를 신규 `_build_progress_dlg` 헬퍼로 빌드한 FNS 톤 모달 진행률 다이얼로그로 교체. 새 다이얼로그는 기존 `_confirm` / `_build_dlg`의 색상 팔레트를 그대로 계승: `SURFACE` 배경, `ACCENT` 진행 바 chunk, `BORDER` 외곽선, `_btn_style(False)` 취소 버튼, padding (28, 24, 28, 20)으로 다른 모든 FNS 다이얼로그와 일관성 유지. `QProgressDialog`의 기존 동작은 모두 보존: 모달 (`Qt.WindowModal`), 400 ms 최소 표시 지연 (`QTimer.singleShot(400, _maybe_show)`을 완료 플래그로 게이팅하여 400 ms 미만 작업에서 다이얼로그 깜빡임 방지), 완료 시 자동 닫힘 (`bar.setValue(100)` → `dlg.accept()`), 취소 전파 (취소 버튼 → `worker.request_cancel()`). `QProgressDialog` 심볼은 `QtWidgets` import에서 제거.
+
+### Tests
+- **594 → 602 passing on Hanrim's environment** (+8), 62 classes (+1), 0 failures / 0 errors / 5 intentional skips
+- **`TestBuildProgressDlg` (+8)** — 신규 헬퍼와 두 worker runner 통합에 대한 source-grep 검증. 검증 항목: 헬퍼 함수 정의, 4-tuple 반환 시그니처 `(dlg, lbl, bar, cancel_btn)`, FNS 톤 팔레트 적용 (`SURFACE` / `ACCENT` / `BORDER` / `_btn_style`), 모달 동작 (`Qt.WindowModal` + `setMinimumWidth`), runner 통합 (`_run_ingest_worker`와 `_run_rename_worker` 양쪽이 헬퍼를 호출하고 4-tuple을 언팩하는지), 400 ms 최소 표시 지연 보존 (`QTimer.singleShot(400` + `_state['done']` 플래그), 취소 버튼 연결 (`cancel_btn.clicked.connect(worker.request_cancel)`), 회귀 가드 (코드 어디에도 `QProgressDialog()` 인스턴스화 없음, `QtWidgets` import에 `QProgressDialog` 없음).
+- **`test_scenario_b_imports_present` 갱신** — imports 검증에서 `QProgressDialog` 제거 (v1.1.0에서 `_build_progress_dlg` 헬퍼로 교체).
+
 ## [1.0.11] — 2026-05-08
 
 Post-v1.0.10 트랙 — **메인 코드 + 부속 문서 영문 기본 전환**으로 비한국어권 개발자의 접근성을 두텁게 다지고, **Batch Renamer 대용량 응답성 재작성** (미리보기 테이블 가상화 + `QThread` worker)으로 154,895 파일 / 2,714 폴더 / 86.8 GB 규모 데이터셋의 렌더링 프리징을 해소. v1.0.11은 서명 없는 바이너리로 릴리즈됨 — 코드 서명 트랙은 프로젝트 visibility(커뮤니티 채택, 외부 참조)가 의미 있게 쌓인 시점으로 이월하며, 특정 서명 제공자와는 무관한 형태로.
