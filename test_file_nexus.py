@@ -5166,6 +5166,105 @@ class TestBuildProgressDlg(unittest.TestCase):
                              "v1.1.0에서 제거 양식")
 
 
+class TestSidebarCardPolish(unittest.TestCase):
+    """v1.1.0 design polishing — Sidebar card visual separation strengthened
+    via three coordinated changes (shadow + spacing + accent header). All
+    checks are source-grep based (PySide6 not required).
+
+    Design intent: cards in the right-hand sidebar should feel slightly
+    elevated and visually grouped without changing their information density.
+    The shadow color is derived from BORDER with low alpha so it adapts to
+    light/dark themes; headers use ACCENT instead of MUTED so card titles
+    read as section markers rather than fading captions.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            cls._src = f.read()
+
+    def test_qgraphics_drop_shadow_effect_imported(self):
+        """QGraphicsDropShadowEffect added to PySide6.QtWidgets imports."""
+        # The auxiliary import line at ~L71 should now include the symbol
+        found = False
+        for match in re.finditer(r'from PySide6\.QtWidgets import ([^\n]+)', self._src):
+            if 'QGraphicsDropShadowEffect' in match.group(1):
+                found = True
+                break
+        self.assertTrue(found,
+                        "QGraphicsDropShadowEffect가 QtWidgets imports에 박혀 있지 않음")
+
+    def test_card_shadow_helper_defined(self):
+        """_apply_card_shadow module-level helper is defined."""
+        self.assertIn('def _apply_card_shadow(widget)', self._src,
+                      "_apply_card_shadow 헬퍼 정의 없음")
+
+    def test_card_shadow_uses_subtle_parameters(self):
+        """Shadow uses tuned 'subtle but visible' parameters: blur 18, offset (0, 3),
+        BORDER-derived color with alpha 0.5. These were the values that landed
+        after one round of tuning (v1 was too faint at blur 12 / alpha 0.35)."""
+        helper_start = self._src.find('def _apply_card_shadow(widget)')
+        self.assertGreater(helper_start, 0)
+        helper_end = self._src.find('\ndef ', helper_start + 10)
+        helper_block = self._src[helper_start:helper_end]
+        self.assertIn('setBlurRadius(18)', helper_block,
+                      "_apply_card_shadow blur radius != 18")
+        self.assertIn('setOffset(0, 3)', helper_block,
+                      "_apply_card_shadow offset != (0, 3)")
+        self.assertIn('setAlphaF(0.5)', helper_block,
+                      "_apply_card_shadow alpha != 0.5")
+        self.assertIn('QColor(BORDER)', helper_block,
+                      "_apply_card_shadow color is not derived from BORDER")
+
+    def test_appsuite_applies_shadows_after_build(self):
+        """AppSuite._apply_card_shadows is defined and called from both __init__
+        and apply_theme — the latter is required so shadow color tracks BORDER
+        between light/dark themes."""
+        self.assertIn('def _apply_card_shadows(self)', self._src,
+                      "AppSuite._apply_card_shadows 메서드 정의 없음")
+        # findChildren(QGroupBox) discovery pattern
+        method_start = self._src.find('def _apply_card_shadows(self)')
+        self.assertGreater(method_start, 0)
+        method_end = self._src.find('\n    def ', method_start + 10)
+        if method_end == -1:
+            method_end = self._src.find('\n    @', method_start + 10)
+        method_block = self._src[method_start:method_end]
+        self.assertIn('findChildren(QGroupBox)', method_block,
+                      "_apply_card_shadows가 findChildren(QGroupBox)로 카드를 찾지 않음")
+        self.assertIn('_apply_card_shadow(gb)', method_block,
+                      "_apply_card_shadows가 _apply_card_shadow를 호출하지 않음")
+        # Called at least twice: once in __init__, once in apply_theme
+        call_count = self._src.count('self._apply_card_shadows()')
+        self.assertGreaterEqual(call_count, 2,
+                                f"self._apply_card_shadows() 호출이 2회 미만 ({call_count}회). "
+                                f"__init__와 apply_theme 양쪽에서 호출되어야 함")
+
+    def test_qgroupbox_qss_uses_accent_title_color(self):
+        """The global QGroupBox::title selector uses ACCENT (not MUTED) — section
+        headers should read as accent markers rather than faded captions."""
+        # Find the QGroupBox::title block in the global stylesheet
+        title_start = self._src.find('QGroupBox::title')
+        self.assertGreater(title_start, 0, "QGroupBox::title selector 없음")
+        # Look at the next ~200 chars (the rule body)
+        title_block = self._src[title_start:title_start + 300]
+        self.assertIn("color:{t['ACCENT']}", title_block,
+                      "QGroupBox::title이 ACCENT 색을 사용하지 않음")
+
+    def test_qgroupbox_qss_uses_strengthened_padding_and_margin(self):
+        """The global QGroupBox rule has strengthened spacing for card breathing
+        room: margin-bottom:6px, padding:12px 10px 10px 10px."""
+        # Anchor on 'QGroupBox {{' (the f-string '{{' becomes a literal '{' in Qt,
+        # but the source still has '{{') — distinguishes from QGroupBox::title
+        gb_start = self._src.find('QGroupBox {{')
+        self.assertGreater(gb_start, 0, "QGroupBox 글로벌 rule 없음")
+        # Look at the next 300 chars (the rule body)
+        gb_block = self._src[gb_start:gb_start + 300]
+        self.assertIn('margin-bottom:6px', gb_block,
+                      "QGroupBox에 margin-bottom:6px 없음")
+        self.assertIn('padding:12px 10px 10px 10px', gb_block,
+                      "QGroupBox padding이 강화되지 않음 (예상: 12px 10px 10px 10px)")
+
+
 # ════════════════════════════════════════════════════════════════════════
 # Test runner — auto-discovery (no manual registration needed)
 # ════════════════════════════════════════════════════════════════════════

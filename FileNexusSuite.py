@@ -68,7 +68,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QThread, QSize, QRect, QRectF, QPointF, QTimer, QBuffer, QByteArray, QIODevice, QAbstractTableModel, QModelIndex
 from PySide6.QtGui import QColor, QPalette, QCursor, QPainter, QPen, QBrush, QFont, QKeySequence, QLinearGradient, QPolygonF, QIcon, QPixmap, QPainterPath, QImageReader, QShortcut, QTextCharFormat, QTextCursor
-from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle, QTableView
+from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle, QTableView, QGraphicsDropShadowEffect
 
 # ═══════════════════════════════════════════════
 # App Version
@@ -503,11 +503,11 @@ QMainWindow, QWidget {{
 }}
 QGroupBox {{
     background:{t['SURFACE']}; border:1px solid {t['BORDER']};
-    border-radius:10px; margin-top:22px; padding:10px 8px 8px 8px;
+    border-radius:10px; margin-top:22px; margin-bottom:6px; padding:12px 10px 10px 10px;
 }}
 QGroupBox::title {{
     subcontrol-origin:margin; left:12px; padding:0 4px;
-    color:{t['MUTED']}; font-size:11px; font-weight:700; letter-spacing:1.2px; font-family:"Pretendard","Segoe UI Variable","Segoe UI","Malgun Gothic","Yu Gothic UI","Microsoft YaHei UI","Microsoft JhengHei UI",sans-serif;
+    color:{t['ACCENT']}; font-size:11px; font-weight:700; letter-spacing:1.2px; font-family:"Pretendard","Segoe UI Variable","Segoe UI","Malgun Gothic","Yu Gothic UI","Microsoft YaHei UI","Microsoft JhengHei UI",sans-serif;
 }}
 QTabWidget#main_tabs::pane {{ border:none; background:{t['BG']}; }}
 QTabWidget#main_tabs > QTabBar::tab {{
@@ -11391,6 +11391,29 @@ def _build_progress_dlg(parent, title: str, label: str, cancel_text: str):
     return dlg, lbl, bar, cancel_btn
 
 
+def _apply_card_shadow(widget):
+    """Apply a subtle drop shadow to a card-like widget (QGroupBox, etc.).
+
+    v1.1.0 (다-1) — Strengthens visual separation between sidebar cards
+    without competing with the existing border. Tone-matched with the FNS
+    palette: shadow color derived from BORDER with low opacity, so it
+    naturally adapts to light/dark themes.
+
+    - Blur radius: 18 px (subtle but visible)
+    - Y offset: 3 px (slight elevation, no horizontal displacement)
+    - Color: BORDER with alpha 0.5 (matches existing tone, doesn't compete)
+
+    Idempotent: replaces any existing graphics effect on the widget.
+    """
+    eff = QGraphicsDropShadowEffect(widget)
+    eff.setBlurRadius(18)
+    eff.setOffset(0, 3)
+    shadow_color = QColor(BORDER)
+    shadow_color.setAlphaF(0.5)
+    eff.setColor(shadow_color)
+    widget.setGraphicsEffect(eff)
+
+
 def _dlg_info(parent, title: str, msg: str):
     """Info dialog (OK button)."""
     dlg, root = _build_dlg(parent, title or _t('dlg_info'), msg, "info")
@@ -14984,6 +15007,8 @@ class AppSuite(QMainWindow):
         self._tag_panel.refresh_btn_styles()
         self._merge_panel.refresh_btn_styles()
         self._fixer_panel.refresh_btn_styles()
+        # v1.1.0 (다-1) — Apply card drop shadows after panels are built
+        self._apply_card_shadows()
         # First-run notice popup (shown when first_run_shown is missing in config)
         if not _CFG.get('first_run_shown', False):
             QTimer.singleShot(300, lambda: self._show_first_run())
@@ -15370,6 +15395,22 @@ class AppSuite(QMainWindow):
             self._btn_settings.setIcon(_svg_icon('gear_line', TEXT)); self._btn_settings.setIconSize(QSize(22,22))
 
         # ── SettingsDialog / dialogs auto-refresh on re-open ──
+
+        # ── v1.1.0 (다-1) Card drop shadows refresh ──
+        # Re-apply shadows so the shadow color tracks BORDER changes between
+        # light/dark themes (the shadow is derived from BORDER with low alpha).
+        self._apply_card_shadows()
+
+    def _apply_card_shadows(self):
+        """v1.1.0 (다-1) — Apply subtle drop shadows to all sidebar cards.
+
+        Iterates over every QGroupBox descendant in the window and applies
+        the FNS-toned shadow via _apply_card_shadow. Called once in
+        __init__ after _build(), and again in apply_theme() so shadow
+        color tracks BORDER changes between light and dark themes.
+        """
+        for gb in self.findChildren(QGroupBox):
+            _apply_card_shadow(gb)
 
     @staticmethod
     def _make_palette(t):
