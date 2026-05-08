@@ -9,7 +9,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-Post-v1.0.10 track — **English-first transition for the entire codebase and supporting documents** (strengthening accessibility for non-Korean-speaking developers), plus **the Batch Renamer scalability rewrite** (preview-table virtualization + `QThread` workers) that eliminates the large-dataset rendering freeze observed at 154,895 files / 2,714 folders / 86.8 GB. v1.0.11 will be released as an unsigned binary; the code-signing track is deferred until project visibility (community adoption, external references) materially benefits from it — independent of any specific provider.
+## [1.0.11] — 2026-05-08
+
+Post-v1.0.10 track — **English-first transition for the entire codebase and supporting documents** (strengthening accessibility for non-Korean-speaking developers), plus **the Batch Renamer scalability rewrite** (preview-table virtualization + `QThread` workers) that eliminates the large-dataset rendering freeze observed at 154,895 files / 2,714 folders / 86.8 GB. v1.0.11 was released as an unsigned binary; the code-signing track is deferred until project visibility (community adoption, external references) materially benefits from it — independent of any specific provider.
 
 ### Changed
 - **Main source code translated to English** — 1,133 lines of Korean comments, docstrings, and debug-log strings in `FileNexusSuite.py` translated to English while preserving user-facing UI strings, language-branched help content, and dictionary keys/values intentionally kept in Korean. Split into two commits for safety: Step 1+2 (506 lines, `f54bc81`) and Step 3 final (627 lines, `177598b`). Validated by `ast.parse` per chunk and full `test_file_nexus.py` 535/0/0/0 across both work and Git folders ×2.

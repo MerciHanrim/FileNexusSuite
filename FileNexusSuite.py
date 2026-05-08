@@ -6,7 +6,7 @@
 # No external icon libraries used. No additional attribution required.
 
 """
-File Nexus Suite  —  Integrated File Management Tool
+File Nexus Suite v1.0.11  —  Integrated File Management Tool
 Tab 1: Text Merger     (Merge text/Word/PDF/Excel files)
 Tab 2: Text Converter  (EPUB ↔ TXT conversion)
 Tab 3: Tag Editor      (Bulk edit filename [tags])
@@ -73,7 +73,7 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QProxyStyle, QTableVi
 # ═══════════════════════════════════════════════
 # App Version
 # ═══════════════════════════════════════════════
-APP_VERSION = "1.0.10"
+APP_VERSION = "1.0.11"
 
 # ═══════════════════════════════════════════════
 # Sleep Prevention Utility (Windows only, no-op on other OSes)
