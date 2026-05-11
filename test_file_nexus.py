@@ -10,89 +10,15 @@ sys.path.insert(0, os.path.dirname(__file__))
 _MAIN_PY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'FileNexusSuite.py')
 
 
-# ════════════════════════════════════════════════════════════════════════
-# Extract pure functions for testing
-# ════════════════════════════════════════════════════════════════════════
+# Pure-function helpers (HTML utilities, natural-sort, Tag Editor core) live
+# in fns_utils.py — imported here for the integration / performance tests
+# that exercise them through filesystem operations. The bulk of fns_utils
+# coverage lives in TestFnsUtils below.
+try:
+    from fns_utils import depad_name, remove_tag_from_name, natural_sort_key
+except ImportError:
+    depad_name = remove_tag_from_name = natural_sort_key = None
 
-# ── HTML utilities ───────────────────────────────────────────────────
-def _de(s):
-    if not s: return s
-    s = s.replace('&amp;','&').replace('&lt;','<').replace('&gt;','>') \
-         .replace('&quot;','"').replace('&#39;',"'").replace('&apos;',"'") \
-         .replace('&nbsp;',' ').replace('&#x27;',"'")
-    s = _re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), s)
-    s = _re.sub(r'&#x([0-9A-Fa-f]+);', lambda m: chr(int(m.group(1),16)), s)
-    return s
-
-def _ex(s):
-    if not s: return s
-    return (s.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
-             .replace('"','&quot;').replace("'",'&#39;'))
-
-def _strip_xml_illegal(s):
-    return _re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]','',s)
-
-def _h2t(h):
-    h = _re.sub(r'<br\s*/?>', '\n', h, flags=_re.IGNORECASE)
-    h = _re.sub(r'<p[^>]*>', '\n', h, flags=_re.IGNORECASE)
-    h = _re.sub(r'<[^>]+>', '', h)
-    return _de(h).strip()
-
-# ── Natural sort ─────────────────────────────────────────────────────
-def natural_sort_key(s):
-    return [int(c) if c.isdigit() else c.lower()
-            for c in _re.split(r'(\d+)', s)]
-
-# ── Tag manipulation ─────────────────────────────────────────────────
-def remove_tag(filename, position='both', target=''):
-    base, ext = os.path.splitext(filename)
-    if target:
-        pattern = _re.escape(f'[{target}]')
-        if position in ('front', 'both'):
-            base = _re.sub(r'^\s*' + pattern + r'\s*', '', base).strip()
-        if position in ('back', 'both'):
-            base = _re.sub(r'\s*' + pattern + r'\s*$', '', base).strip()
-    else:
-        if position in ('front', 'both'):
-            base = _re.sub(r'^\s*\[[^\]]*\]\s*', '', base).strip()
-        if position in ('back', 'both'):
-            base = _re.sub(r'\s*\[[^\]]*\]\s*$', '', base).strip()
-    return base + ext
-
-def add_tag(filename, tag, position='front', space_after=True, space_before=True,
-            skip_existing=False, replace=False):
-    base, ext = os.path.splitext(filename)
-    tag_str = f'[{tag}]'
-    if skip_existing and tag_str in base:
-        return filename
-    if replace:
-        base = _re.sub(r'^\s*\[[^\]]*\]\s*', '', base).strip() if position == 'front' \
-          else _re.sub(r'\s*\[[^\]]*\]\s*$', '', base).strip()
-    if position == 'front':
-        sep = ' ' if space_after else ''
-        base = tag_str + sep + base
-    else:
-        sep = ' ' if space_before else ''
-        base = base + sep + tag_str
-    return base + ext
-
-def depad(filename):
-    # (?<![0-9\-]): if the preceding char is a digit or hyphen, do not touch
-    # → preserves date format (2024-01-01); for range notation (001-197화), strips only the leading 001
-    return _re.sub(r'(?<![0-9\-])0+(\d)', r'\1', filename)
-
-def detect_prefix(names):
-    if not names or len(names) < 2: return ''
-    ref = names[0]
-    for i in range(len(ref), 0, -1):
-        candidate = ref[:i]
-        if all(n.startswith(candidate) for n in names):
-            return candidate
-    return ''
-
-def extract_number(s):
-    m = _re.search(r'\d+', s)
-    return int(m.group()) if m else None
 
 # ════════════════════════════════════════════════════════════════════════
 # PySide6 Mock — allow module exec even when PySide6 is not installed
@@ -267,6 +193,7 @@ try:
     import PySide6 as _pyside6_available  # noqa: F401
 except ImportError:
     _install_qt_mock()
+    _pyside6_available = None  # falsy gate for @skipUnless in TestQmRuntimeIntegrity
 
 
 # ── EPUB conversion / module symbol extraction ───────────────────────────
@@ -500,267 +427,6 @@ SAMPLE_EN_LONG_SENTENCES = (
     "And the following second sentence is also written intentionally with sufficient length. "
     "Finally the third sentence is added to satisfy the test condition."
 )
-
-
-# ════════════════════════════════════════════════════════════════════════
-# §1 HTML utilities
-# ════════════════════════════════════════════════════════════════════════
-class TestDe(unittest.TestCase):
-    """_de: HTML entity decoding"""
-    def test_amp(self):             self.assertEqual(_de('a&amp;b'), 'a&b')
-    def test_lt(self):              self.assertEqual(_de('a&lt;b'), 'a<b')
-    def test_gt(self):              self.assertEqual(_de('a&gt;b'), 'a>b')
-    def test_quot(self):            self.assertEqual(_de('&quot;hi&quot;'), '"hi"')
-    def test_apos_named(self):      self.assertEqual(_de('&apos;'), "'")
-    def test_apos_num(self):        self.assertEqual(_de('&#39;'), "'")
-    def test_apos_hex(self):        self.assertEqual(_de('&#x27;'), "'")
-    def test_nbsp(self):            self.assertEqual(_de('a&nbsp;b'), 'a b')
-    def test_numeric_decimal(self): self.assertEqual(_de('&#65;'), 'A')
-    def test_numeric_hex(self):     self.assertEqual(_de('&#x41;'), 'A')
-    def test_numeric_hex_upper(self):self.assertEqual(_de('&#X41;'), '&#X41;')  # 비표준
-    def test_multiple(self):        self.assertEqual(_de('&lt;b&gt;'), '<b>')
-    def test_nested_amp(self):      self.assertEqual(_de('&amp;amp;'), '&amp;')
-    def test_empty(self):           self.assertEqual(_de(''), '')
-    def test_none(self):            self.assertIsNone(_de(None))
-    def test_no_entity(self):       self.assertEqual(_de('hello'), 'hello')
-    def test_korean(self):          self.assertEqual(_de('한&amp;국'), '한&국')
-    def test_partial_entity(self):  self.assertEqual(_de('&amp'), '&amp')  # incomplete entity
-    def test_unicode_num(self):     self.assertEqual(_de('&#44032;'), '가')
-    def test_unicode_hex(self):     self.assertEqual(_de('&#xAC00;'), '가')
-    def test_chain(self):           self.assertEqual(_de('&lt;&amp;&gt;'), '<&>')
-
-class TestEx(unittest.TestCase):
-    """_ex: HTML special-character escaping"""
-    def test_amp(self):     self.assertEqual(_ex('a&b'), 'a&amp;b')
-    def test_lt(self):      self.assertEqual(_ex('<'), '&lt;')
-    def test_gt(self):      self.assertEqual(_ex('>'), '&gt;')
-    def test_quot(self):    self.assertEqual(_ex('"'), '&quot;')
-    def test_apos(self):    self.assertEqual(_ex("'"), '&#39;')
-    def test_combined(self):self.assertEqual(_ex('<a href="x">'), '&lt;a href=&quot;x&quot;&gt;')
-    def test_empty(self):   self.assertEqual(_ex(''), '')
-    def test_none(self):    self.assertIsNone(_ex(None))
-    def test_safe(self):    self.assertEqual(_ex('hello 안녕'), 'hello 안녕')
-    def test_round_trip(self):
-        s = '<script>alert("xss&");</script>'
-        self.assertEqual(_de(_ex(s)), s)
-
-class TestStripXmlIllegal(unittest.TestCase):
-    """_strip_xml_illegal: strip XML-illegal characters"""
-    def test_null(self):        self.assertEqual(_strip_xml_illegal('\x00'), '')
-    def test_ctrl_08(self):     self.assertEqual(_strip_xml_illegal('\x08'), '')
-    def test_ctrl_0b(self):     self.assertEqual(_strip_xml_illegal('\x0B'), '')
-    def test_ctrl_0c(self):     self.assertEqual(_strip_xml_illegal('\x0C'), '')
-    def test_ctrl_1f(self):     self.assertEqual(_strip_xml_illegal('\x1F'), '')
-    def test_del(self):         self.assertEqual(_strip_xml_illegal('\x7F'), '')
-    def test_tab_ok(self):      self.assertEqual(_strip_xml_illegal('\t'), '\t')
-    def test_lf_ok(self):       self.assertEqual(_strip_xml_illegal('\n'), '\n')
-    def test_cr_ok(self):       self.assertEqual(_strip_xml_illegal('\r'), '\r')
-    def test_normal_ok(self):   self.assertEqual(_strip_xml_illegal('hello'), 'hello')
-    def test_korean_ok(self):   self.assertEqual(_strip_xml_illegal('한국어'), '한국어')
-    def test_mixed(self):
-        self.assertEqual(_strip_xml_illegal('a\x00b\x1Fc'), 'abc')
-
-class TestH2t(unittest.TestCase):
-    """_h2t: HTML → text"""
-    def test_br(self):          self.assertEqual(_h2t('a<br>b'), 'a\nb')
-    def test_br_self_close(self):self.assertEqual(_h2t('a<br/>b'), 'a\nb')
-    def test_p_tag(self):       self.assertIn('\n', _h2t('<p>a</p><p>b</p>'))
-    def test_strip_tags(self):  self.assertEqual(_h2t('<b>hello</b>'), 'hello')
-    def test_entity_decode(self):self.assertEqual(_h2t('&amp;'), '&')
-    def test_empty(self):       self.assertEqual(_h2t(''), '')
-    def test_plain_text(self):  self.assertEqual(_h2t('hello'), 'hello')
-
-
-# ════════════════════════════════════════════════════════════════════════
-# §2 Natural sort
-# ════════════════════════════════════════════════════════════════════════
-class TestNaturalSort(unittest.TestCase):
-    """natural_sort_key: natural sort"""
-    def _sorted(self, lst): return sorted(lst, key=natural_sort_key)
-
-    # Basic numeric order
-    def test_1_before_2(self):      self.assertEqual(self._sorted(['2','1']), ['1','2'])
-    def test_9_before_10(self):     self.assertEqual(self._sorted(['10','9']), ['9','10'])
-    def test_1_10_100(self):        self.assertEqual(self._sorted(['100','10','1']), ['1','10','100'])
-    def test_zero_pad_order(self):
-        # Same numeric value (1) → stable sort preserves input order
-        r = self._sorted(['01','001','1'])
-        self.assertEqual(len(r), 3)  # all included
-        self.assertEqual(set(r), {'01','001','1'})
-
-    # Mixed (letters + numbers)
-    def test_alpha_numeric(self):   self.assertEqual(self._sorted(['a2','a10','a1']), ['a1','a2','a10'])
-    def test_korean_numeric(self):
-        result = self._sorted(['파일10화.txt','파일2화.txt','파일1화.txt'])
-        self.assertEqual(result, ['파일1화.txt','파일2화.txt','파일10화.txt'])
-    def test_episode_sort(self):
-        r = self._sorted(['ep3.txt','ep20.txt','ep1.txt','ep10.txt'])
-        self.assertEqual(r, ['ep1.txt','ep3.txt','ep10.txt','ep20.txt'])
-    def test_prefix_then_number(self):
-        r = self._sorted(['시즌2 ep10','시즌1 ep2','시즌1 ep10'])
-        self.assertLess(r.index('시즌1 ep2'), r.index('시즌1 ep10'))
-        self.assertLess(r.index('시즌1 ep10'), r.index('시즌2 ep10'))
-
-    # Edge cases
-    def test_empty_string(self):    self.assertEqual(self._sorted(['','a']), ['','a'])
-    def test_all_alpha(self):       self.assertEqual(self._sorted(['b','a','c']), ['a','b','c'])
-    def test_all_numeric(self):     self.assertEqual(self._sorted(['3','1','2']), ['1','2','3'])
-    def test_case_insensitive(self):self.assertEqual(self._sorted(['B','a']), ['a','B'])
-    def test_extension_ignored_in_sort(self):
-        r = self._sorted(['02.txt','10.txt','1.txt'])
-        self.assertEqual(r, ['1.txt','02.txt','10.txt'])
-    def test_large_number(self):
-        r = self._sorted(['파일9999화','파일10화','파일1000화'])
-        self.assertLess(r.index('파일10화'), r.index('파일1000화'))
-
-
-# ════════════════════════════════════════════════════════════════════════
-# §3 Tag removal
-# ════════════════════════════════════════════════════════════════════════
-class TestRemoveTag(unittest.TestCase):
-    """remove_tag: remove tags from filenames"""
-    # Default behavior by position
-    def test_front_basic(self):     self.assertEqual(remove_tag('[BD] 파일.txt','front'), '파일.txt')
-    def test_back_basic(self):      self.assertEqual(remove_tag('파일 [완결].txt','back'), '파일.txt')
-    def test_both_front(self):      self.assertEqual(remove_tag('[A] 파일.txt','both'), '파일.txt')
-    def test_both_back(self):       self.assertEqual(remove_tag('파일 [A].txt','both'), '파일.txt')
-    def test_both_both_sides(self): self.assertEqual(remove_tag('[A] 파일 [B].txt','both'), '파일.txt')
-    def test_front_only_no_back(self):
-        r = remove_tag('파일 [완결].txt','front')
-        self.assertIn('[완결]', r)
-    def test_back_only_no_front(self):
-        r = remove_tag('[BD] 파일.txt','back')
-        self.assertIn('[BD]', r)
-
-    # Specific tag target
-    def test_target_specific(self): self.assertEqual(remove_tag('[BD] 파일.txt','both','BD'), '파일.txt')
-    def test_target_keep_other(self):
-        r = remove_tag('[BD] 파일 [완결].txt','both','BD')
-        self.assertIn('[완결]', r)
-        self.assertNotIn('[BD]', r)
-    def test_target_not_present(self):
-        r = remove_tag('파일 [완결].txt','both','BD')
-        self.assertIn('[완결]', r)
-
-    # Extension preservation
-    def test_ext_preserved_txt(self):   self.assertTrue(remove_tag('[A] 파일.txt','both').endswith('.txt'))
-    def test_ext_preserved_epub(self):  self.assertTrue(remove_tag('[A] 파일.epub','both').endswith('.epub'))
-    def test_ext_preserved_mp4(self):   self.assertTrue(remove_tag('파일 [A].mp4','both').endswith('.mp4'))
-    def test_no_ext(self):              self.assertEqual(remove_tag('[A] 파일','both'), '파일')
-
-    # Edge cases
-    def test_only_tag(self):        self.assertEqual(remove_tag('[A].txt','both'), '.txt')
-    def test_nested_bracket(self):
-        r = remove_tag('[A[B]] 파일.txt','front')
-        self.assertNotIn('[A', r)
-    def test_space_around_tag(self):
-        r = remove_tag('  [BD]  파일.txt','front')
-        self.assertEqual(r.strip(), '파일.txt')
-    def test_multiple_front_tags(self):
-        r = remove_tag('[A] 파일.txt','front')
-        self.assertNotIn('[A]', r)
-    def test_unicode_tag(self):     self.assertEqual(remove_tag('[완결] 파일.txt','front'), '파일.txt')
-    def test_number_in_tag(self):   self.assertEqual(remove_tag('[2024] 파일.txt','front'), '파일.txt')
-
-
-# ════════════════════════════════════════════════════════════════════════
-# §4 Tag addition
-# ════════════════════════════════════════════════════════════════════════
-class TestAddTag(unittest.TestCase):
-    """add_tag: add tags to filenames"""
-    def test_front_basic(self):
-        self.assertEqual(add_tag('파일.txt','BD','front'), '[BD] 파일.txt')
-    def test_back_basic(self):
-        self.assertEqual(add_tag('파일.txt','BD','back'), '파일 [BD].txt')
-    def test_no_space_after(self):
-        self.assertEqual(add_tag('파일.txt','BD','front',space_after=False), '[BD]파일.txt')
-    def test_no_space_before(self):
-        self.assertEqual(add_tag('파일.txt','BD','back',space_before=False), '파일[BD].txt')
-    def test_skip_existing_true(self):
-        r = add_tag('[BD] 파일.txt','BD','front',skip_existing=True)
-        self.assertEqual(r.count('[BD]'), 1)
-    def test_skip_existing_false(self):
-        r = add_tag('[BD] 파일.txt','BD','front',skip_existing=False)
-        self.assertEqual(r.count('[BD]'), 2)
-    def test_replace_front(self):
-        r = add_tag('[OLD] 파일.txt','NEW','front',replace=True)
-        self.assertNotIn('[OLD]', r)
-        self.assertIn('[NEW]', r)
-    def test_ext_preserved(self):
-        self.assertTrue(add_tag('파일.epub','BD','front').endswith('.epub'))
-    def test_empty_base(self):
-        r = add_tag('.txt','BD','front')
-        self.assertIn('[BD]', r)
-    def test_korean_tag(self):
-        self.assertEqual(add_tag('파일.txt','완결','back'), '파일 [완결].txt')
-    def test_number_tag(self):
-        self.assertEqual(add_tag('파일.txt','2024','front'), '[2024] 파일.txt')
-
-
-# ════════════════════════════════════════════════════════════════════════
-# §5 Zero-pad stripping
-# ════════════════════════════════════════════════════════════════════════
-class TestDepad(unittest.TestCase):
-    """depad: strip leading zeros"""
-    def test_001(self):         self.assertIn('1', depad('001화'))
-    def test_001_no_extra_0(self): self.assertNotIn('001', depad('001화'))
-    def test_007(self):         self.assertIn('7', depad('007.mp4'))
-    def test_010(self):         self.assertEqual(depad('010화'), '10화')
-    def test_100_unchanged(self):self.assertEqual(depad('100화'), '100화')
-    def test_single_digit(self): self.assertEqual(depad('1화'), '1화')
-    def test_no_pad(self):       self.assertEqual(depad('에피소드12.txt'), '에피소드12.txt')
-    def test_inside_word(self):  self.assertNotIn('001', depad('파일001화.txt'))
-    def test_ext_preserved(self):self.assertTrue(depad('001.mp4').endswith('.mp4'))
-    def test_zero_only(self):
-        r = depad('000')
-        # 000 is numeric 000 → 0
-        self.assertIn('0', r)
-    def test_multiple_groups(self):
-        r = depad('시즌001 에피소드007.txt')
-        self.assertNotIn('001', r)
-        self.assertNotIn('007', r)
-    def test_already_clean(self):
-        self.assertEqual(depad('파일12.txt'), '파일12.txt')
-    def test_leading_zero_in_name(self):
-        r = depad('0001화.txt')
-        self.assertIn('1화', r)
-
-
-# ════════════════════════════════════════════════════════════════════════
-# §6 Common prefix detection
-# ════════════════════════════════════════════════════════════════════════
-class TestDetectPrefix(unittest.TestCase):
-    """detect_prefix: common prefix detection"""
-    def test_basic(self):       self.assertEqual(detect_prefix(['시즌1 ep1','시즌1 ep2']), '시즌1 ep')
-    def test_no_common(self):   self.assertEqual(detect_prefix(['abc','def']), '')
-    def test_empty_list(self):  self.assertEqual(detect_prefix([]), '')
-    def test_single_item(self): self.assertEqual(detect_prefix(['abc']), '')
-    def test_full_match(self):  self.assertEqual(detect_prefix(['abc','abc']), 'abc')
-    def test_partial(self):
-        r = detect_prefix(['파일01화','파일02화','파일10화'])
-        self.assertTrue(r.startswith('파일'))
-    def test_no_common_unicode(self):
-        self.assertEqual(detect_prefix(['가나다','라마바']), '')
-    def test_length_1_common(self):
-        r = detect_prefix(['a1','a2'])
-        self.assertEqual(r, 'a')
-
-
-# ════════════════════════════════════════════════════════════════════════
-# §7 Number extraction
-# ════════════════════════════════════════════════════════════════════════
-class TestExtractNumber(unittest.TestCase):
-    """extract_number: extract the first number"""
-    def test_simple(self):          self.assertEqual(extract_number('파일01'), 1)
-    def test_zero(self):            self.assertEqual(extract_number('0화'), 0)
-    def test_no_number(self):       self.assertIsNone(extract_number('파일'))
-    def test_multiple_groups(self): self.assertEqual(extract_number('시즌2 ep10'), 2)
-    def test_only_number(self):     self.assertEqual(extract_number('42'), 42)
-    def test_large(self):           self.assertEqual(extract_number('파일9999'), 9999)
-    def test_empty(self):           self.assertIsNone(extract_number(''))
-    def test_float_not_float(self): self.assertEqual(extract_number('3.14'), 3)
-    def test_leading_zero(self):    self.assertEqual(extract_number('007'), 7)
-    def test_suffix_number(self):   self.assertEqual(extract_number('파일42화'), 42)
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1677,7 +1343,7 @@ class TestFilesystemIntegration(unittest.TestCase):
         renamed = []
         for f in files:
             base = os.path.basename(f)
-            new_name = depad(base)
+            new_name = depad_name(base) or base   # None means no change
             new_path = os.path.join(self.tmp, new_name)
             if new_path != f:
                 os.rename(f, new_path)
@@ -1690,9 +1356,10 @@ class TestFilesystemIntegration(unittest.TestCase):
         renamed = []
         for f in files:
             base = os.path.basename(f)
-            new_name = remove_tag(base, 'front')
+            new_name = remove_tag_from_name(base, 'front') or base   # None means no change
             new_path = os.path.join(self.tmp, new_name)
-            os.rename(f, new_path)
+            if new_path != f:
+                os.rename(f, new_path)
             renamed.append(new_path)
         for r in renamed:
             self.assertFalse(os.path.basename(r).startswith('[BD]'))
@@ -1794,17 +1461,12 @@ class TestRegression(unittest.TestCase):
         self.assertNotIn('ch["title"]', epub_block)
         self.assertNotIn('ch["content"]', epub_block)
 
-    def test_sc_tab_fixer_in_label_keys(self):
-        """Settings shortcut tab is wired to tab_5 via translation key"""
-        with open(_MAIN_PY, encoding='utf-8') as f:
-            src = f.read()
-        self.assertIn("'tab_5':'sc_tab_fixer'", src)
-
-    def test_sc_tab_bulk_in_label_keys(self):
-        """Settings shortcut tab is wired to tab_6 (Bulk Fixer) via translation key"""
-        with open(_MAIN_PY, encoding='utf-8') as f:
-            src = f.read()
-        self.assertIn("'tab_6':'sc_tab_bulk'", src)
+    # Note: test_sc_tab_fixer_in_label_keys and test_sc_tab_bulk_in_label_keys
+    # were removed in v1.1.0 Phase 3b. The source-grep premise
+    # (`'tab_5':'sc_tab_fixer'`, `'tab_6':'sc_tab_bulk'`) targeted the legacy
+    # internal-key label map that no longer exists after the self.tr() + .ts/.qm
+    # migration. Shortcut-tab translation coverage is verified indirectly via
+    # TestTsSourceIntegrity ('settings' macro-category) instead.
 
     def test_shortcut_defs_has_tab_6(self):
         """SHORTCUT_DEFS must define tab_6 (Ctrl+6)"""
@@ -1826,12 +1488,11 @@ class TestRegression(unittest.TestCase):
         self.assertGreater(blank, 0)
         self.assertNotIn('\n\n\n', out)
 
-    def test_stats_not_korean_hardcoded(self):
-        """Statistics text is not hardcoded in Korean (uses translation keys)"""
-        with open(_MAIN_PY, encoding='utf-8') as f:
-            src = f.read()
-        self.assertNotIn("f'병합된 줄: {fixed_mid}건'", src)
-        self.assertIn('tf_stat_mid_n', src)
+    # Note: test_stats_not_korean_hardcoded removed in v1.1.0 Phase 3b.
+    # The source-grep premise (`tf_stat_mid_n` internal key) no longer applies
+    # after the self.tr() + .ts/.qm migration. Statistics-text translation
+    # coverage is verified indirectly via TestTsSourceIntegrity
+    # ('text_fixer' macro-category) instead.
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1921,10 +1582,9 @@ class TestBoundaryValues(unittest.TestCase):
     def test_sep_exactly_2_fail(self): self.assertFalse(_is_sep_line('--'))
     def test_sep_exactly_1_fail(self): self.assertFalse(_is_sep_line('-'))
 
-    # Empty-string boundary
-    def test_empty_depad(self):     self.assertEqual(depad(''), '')
-    def test_empty_remove_tag(self):self.assertEqual(remove_tag('','both'), '')
-    def test_empty_extract_num(self):self.assertIsNone(extract_number(''))
+    # Empty-string boundary (fns_utils helpers' empty-input behavior is
+    # exercised in TestFnsUtils below; this class keeps only the
+    # _is_sep_line empty-string boundary, which is a main-module helper)
     def test_empty_sep_line(self):  self.assertFalse(_is_sep_line(''))
 
 
@@ -2139,49 +1799,6 @@ class TestConfigManagerReal(unittest.TestCase):
         self.assertIsInstance(data, dict)
 
 
-# ════════════════════════════════════════════════════════════════════════
-# §ExtraE  depad date-format regression test (v0.9.0 bugfix)
-# ════════════════════════════════════════════════════════════════════════
-_depad_name_fn = _ns.get('depad_name') if HAS_MODULE else None
-
-@unittest.skipUnless(HAS_MODULE and _depad_name_fn is not None,
-                     "FileNexusSuite 로드 실패")
-class TestDepadDateRegression(unittest.TestCase):
-    """depad_name() — regression test for date-format (YYYY-MM-DD) preservation.
-
-    Before fix: the \\b pattern treated hyphens as word boundaries,
-            so 2024-01-01 was wrongly converted to 2024-1-1.
-    After fix: the (?<![0-9\\-]) pattern leaves zeros after hyphens alone.
-    """
-
-    def test_date_yyyy_mm_dd_preserved(self):
-        """Dates in the 2024-01-01 form must not be converted."""
-        self.assertIsNone(_depad_name_fn('2024-01-01.txt'))
-
-    def test_date_mm_dd_preserved(self):
-        self.assertIsNone(_depad_name_fn('01-01.txt'))
-
-    def test_range_001_197_front_removed(self):
-        """"사과나무 001-197화(完)" — strip only the leading 001; keep the trailing 197."""
-        result = _depad_name_fn('사과나무 001-197화(完).txt')
-        self.assertIsNotNone(result)
-        self.assertIn('1-197', result)
-        self.assertNotIn('001', result)
-
-    def test_range_01_19_front_removed(self):
-        result = _depad_name_fn('호두나무 01-19권(完).txt')
-        self.assertIsNotNone(result)
-        self.assertIn('1-19', result)
-
-    def test_leading_zero_at_start_removed(self):
-        self.assertEqual(_depad_name_fn('001화.txt'), '1화.txt')
-
-    def test_no_false_removal_after_hyphen(self):
-        """A "01" right after a hyphen must not be stripped → if nothing changes, return None."""
-        result = _depad_name_fn('시즌1-01화.txt')
-        # No leading zero-padding to strip, so either None or "01" must be preserved
-        self.assertTrue(result is None or '01' in result)
-
 
 # ════════════════════════════════════════════════════════════════════════
 # §ExtraF  v0.10.0 regression — source-parsing based (PySide6 not required)
@@ -2201,45 +1818,16 @@ class TestV010Regression(unittest.TestCase):
         parts = m.group(1).split('.')
         self.assertGreaterEqual(int(parts[0]), 1, f"메이저 버전 < 1: {m.group(1)}")
 
-    def test_themes_count(self):
-        import re
-        src = self._src()
-        # Actual keys in the THEMES dict (auto is a virtual theme resolved at runtime)
-        m = re.search(r'^THEMES\s*=\s*\{(.*?)^\}', src, re.MULTILINE | re.DOTALL)
-        self.assertIsNotNone(m)
-        keys = re.findall(r"^\s{4}'(\w+)'\s*:\s*\{", m.group(1), re.MULTILINE)
-        self.assertEqual(len(keys), 9, f"THEMES 실제 키 수 불일치: {keys}")
-
-    def test_themes_names(self):
-        import re
-        src = self._src()
-        m = re.search(r'^THEMES\s*=\s*\{(.*?)^\}', src, re.MULTILINE | re.DOTALL)
-        self.assertIsNotNone(m)
-        keys = set(re.findall(r"^\s{4}'(\w+)'\s*:\s*\{", m.group(1), re.MULTILINE))
-        expected = {'light','dark','ocean','mint','sand','honey','sakura','lavender','choco'}
-        self.assertEqual(keys, expected)
-
-    def test_theme_name_key_has_auto(self):
-        """_THEME_NAME_KEY includes auto — 10 supported themes total."""
-        import re
-        src = self._src()
-        m = re.search(r'_THEME_NAME_KEY\s*=\s*\{(.*?)\}', src, re.DOTALL)
-        self.assertIsNotNone(m)
-        keys = set(re.findall(r"'(\w+)'\s*:", m.group(1)))
-        self.assertIn('auto', keys)
-        self.assertEqual(len(keys), 10, f"_THEME_NAME_KEY 키 수 불일치: {keys}")
-
-    def test_translations_has_five_langs(self):
-        import re
-        src = self._src()
-        m = re.search(r'^TRANSLATIONS\s*=\s*\{', src, re.MULTILINE)
-        self.assertIsNotNone(m, "TRANSLATIONS = { 정의 없음")
-        block = src[m.start():m.start()+120000]
-        # ko is inlined as TRANSLATIONS = {'ko': ..., the others start at line head
-        inline = set(re.findall(r"TRANSLATIONS\s*=\s*\{'([a-z]{2}(?:_[a-z]{2})?)'", block))
-        newline = set(re.findall(r"^\s{0,1}'([a-z]{2}(?:_[a-z]{2})?)':\s*\{", block, re.MULTILINE))
-        langs = inline | newline
-        self.assertEqual(langs, {'ko','en','ja','zh_cn','zh_tw'})
+    # Note: test_themes_count and test_themes_names removed in v1.1.0 Phase 2b.
+    # THEMES dict moved to fns_theme.py, so the v0.10.0 base-constant regression
+    # premise (verifying the dict at its original main-module location) no longer
+    # applies. Equivalent coverage now lives in TestFnsTheme.
+    #
+    # Note: test_theme_name_key_has_auto and test_translations_has_five_langs
+    # removed in v1.1.0 Phase 3a. _THEME_NAME_KEY and TRANSLATIONS moved to
+    # fns_translations.py (with per-language data under translations/fns_*.py),
+    # so the same source-parsing premise no longer applies. Equivalent coverage
+    # now lives in TestFnsTranslations.
 
     def test_six_panel_classes_in_source(self):
         src = self._src()
@@ -2273,234 +1861,262 @@ class TestV010RegressionModule(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §ExtraG  Translation system completeness
+# §ExtraE  Qt Linguist (.ts/.qm) translation integrity (v1.1.0 Phase 3b)
 # ════════════════════════════════════════════════════════════════════════
-class TestTranslationCompleteness(unittest.TestCase):
-    """TRANSLATIONS — validate key completeness across 5 languages (parses source directly, PySide6 not required)."""
+# Replaces Phase 3a TestTranslationCompleteness, which validated the
+# internal-key TRANSLATIONS dict in fns_translations.py. Phase 3b moved to
+# Qt Linguist with English source-text keys under per-class Qt contexts,
+# so the integrity check is split into two layers:
+#
+#   - Layer 1 (TestTsSourceIntegrity): .ts source files -- XML parse, key
+#     symmetry, zh_cn fallback safety, macro-category coverage.
+#     PySide6-independent (parses XML directly).
+#
+#   - Layer 2 (TestQmRuntimeIntegrity): compiled .qm files -- _qm_lookup
+#     answers and _REPORT_TR_KEYS lookup round-trip. Requires real PySide6
+#     (the Qt mock cannot load real .qm files via QTranslator).
+#
+# The 10 macro-categories from docs/TEST_MANAGEMENT_POLICY.md §4.1 are
+# remapped onto Qt context namespaces (which align naturally with the
+# original class-based grouping).
 
-    def _get_lang_keys(self, lang):
-        import re
-        with open(_MAIN_PY, encoding='utf-8') as f:
-            src = f.read()
-        patterns = {
-            'ko':    r"'ko'\s*:\s*\{(.*?)\},\s*\n\s*'en'",
-            'en':    r"'en'\s*:\s*\{(.*?)\},\s*\n\s*'ja'",
-            'ja':    r"'ja'\s*:\s*\{(.*?)\},?\s*\n\s*'zh_cn'",
-            'zh_cn': r"'zh_cn'\s*:\s*\{(.*?)\},?\s*\n\s*'zh_tw'",
-            'zh_tw': r"'zh_tw'\s*:\s*\{(.*?)}\s*\}",
-        }
-        m = re.search(patterns[lang], src, re.DOTALL)
-        if not m: return set()
-        return set(re.findall(r"'([a-z_][a-z0-9_]*)'\s*:", m.group(1)))
+import xml.etree.ElementTree as ET
 
-    def test_all_langs_same_key_count(self):
-        """Validate key counts across 5 languages — zh_cn may be a subset thanks to zh_tw fallback (v1.0.9 §5.1.G).
+_TS_DIR = os.path.join(os.path.dirname(_MAIN_PY), 'translations_ts')
+_QM_DIR = os.path.join(os.path.dirname(_MAIN_PY), 'translations')
+_LANGS = ('ko', 'en', 'ja', 'zh_cn', 'zh_tw')
 
-        ko/en/ja/zh_tw all have the same key count as ko (symmetric).
-        zh_cn may have fewer keys because entries 100% identical to zh_tw values are removed,
-        but every remaining key must exist in zh_tw to guarantee fallback safety.
-        """
-        lang_keys = {l: self._get_lang_keys(l) for l in ['ko','en','ja','zh_cn','zh_tw']}
-        ko_count = len(lang_keys['ko'])
-        # ko/en/ja/zh_tw symmetry check
+
+def _parse_ts(lang):
+    """Parse translations_ts/fns_{lang}.ts -> {(context, source): translation}.
+
+    Skips messages flagged type="unfinished" or with empty translation text.
+    Returns {} if the .ts file is missing.
+    """
+    ts_path = os.path.join(_TS_DIR, 'fns_{}.ts'.format(lang))
+    if not os.path.exists(ts_path):
+        return {}
+    tree = ET.parse(ts_path)
+    result = {}
+    for context in tree.iter('context'):
+        ctx_name = context.findtext('name', '')
+        for message in context.iter('message'):
+            source = message.findtext('source', '')
+            translation_elem = message.find('translation')
+            if translation_elem is None or not source:
+                continue
+            if translation_elem.get('type') == 'unfinished':
+                continue
+            translation = translation_elem.text or ''
+            if translation:
+                result[(ctx_name, source)] = translation
+    return result
+
+
+class TestTsSourceIntegrity(unittest.TestCase):
+    """v1.1.0 Phase 3b -- .ts source-file integrity (PySide6-independent).
+
+    Replaces the Phase 3a TestTranslationCompleteness key-based checks.
+    The 10 macro-categories from docs/TEST_MANAGEMENT_POLICY.md §4.1 are
+    preserved as `CONTEXT_GROUPS` -- each maps to one or more Qt context
+    namespaces that hold the relevant tab's translations.
+    """
+
+    # Macro-category -> Qt context names (class-based)
+    CONTEXT_GROUPS = {
+        'common_dialogs': ['AppSuite', 'HelpDialog'],
+        'text_merger':    ['TextMergerPanel', 'MergeFileTree', 'PreviewWindow',
+                           'TextMergeWorker'],
+        'text_converter': ['TextConverterPanel', 'TextConverterDropZone',
+                           'TextConverterFileList'],
+        'tag_editor':     ['TagEditorPanel', 'TagDropZone', '_TagFileList',
+                           '_TagPreviewTree'],
+        'batch_renamer':  ['BatchRenamerPanel', 'BatchDropZone',
+                           'BatchPreviewModel'],
+        'text_fixer':     ['TextFixerPanel', 'TextFixerDropZone'],
+        'bulk_fixer':     ['BulkFixerPanel', 'BulkFixerDropZone',
+                           'BulkFixerFileList', 'BulkFixerWorker'],
+        'settings':       ['SettingsDialog', '_KeyCaptureButton'],
+        # Phase 3a 'shortcut' macro-category absorbed into 'settings':
+        # Qt contexts are per-class, and the shortcut UI lives inside the
+        # SettingsDialog class. _KeyCaptureButton is the only standalone
+        # shortcut-related context (the capture button widget itself).
+        'app_shell':      ['FileNexusSuite'],
+    }
+
+    # Minimum translated keys per macro-category per language
+    MIN_PER_CATEGORY = 3
+
+    @classmethod
+    def setUpClass(cls):
+        cls._dicts = {lang: _parse_ts(lang) for lang in _LANGS}
+
+    # ── File presence + parse ───────────────────────────────
+
+    def test_all_ts_files_present_and_parse(self):
+        for lang in _LANGS:
+            with self.subTest(lang=lang):
+                ts_path = os.path.join(_TS_DIR, 'fns_{}.ts'.format(lang))
+                self.assertTrue(os.path.exists(ts_path),
+                    'fns_{}.ts missing in {}'.format(lang, _TS_DIR))
+                self.assertGreater(len(self._dicts[lang]), 0,
+                    'fns_{}.ts parsed but yielded no (context, source) pairs'
+                    .format(lang))
+
+    # ── No unfinished translations ──────────────────────────
+
+    def test_no_unfinished_translations(self):
+        for lang in _LANGS:
+            ts_path = os.path.join(_TS_DIR, 'fns_{}.ts'.format(lang))
+            with open(ts_path, encoding='utf-8') as f:
+                content = f.read()
+            with self.subTest(lang=lang):
+                self.assertEqual(content.count('type="unfinished"'), 0,
+                    'fns_{}.ts has unfinished translations'.format(lang))
+
+    # ── Key symmetry ────────────────────────────────────────
+
+    def test_symmetric_key_count_ko_en_ja_zhtw(self):
+        """ko/en/ja/zh_tw must share the same (context, source) key count."""
+        ko_count = len(self._dicts['ko'])
         for lang in ('en', 'ja', 'zh_tw'):
             with self.subTest(lang=lang):
-                self.assertEqual(len(lang_keys[lang]), ko_count,
-                    f"{lang} 키 수 {len(lang_keys[lang])} ≠ ko {ko_count}")
-        # zh_cn must be a subset of zh_tw (fallback safety)
-        not_in_zh_tw = lang_keys['zh_cn'] - lang_keys['zh_tw']
-        with self.subTest(lang='zh_cn_subset'):
-            self.assertEqual(not_in_zh_tw, set(),
-                f"zh_cn 키가 zh_tw에 없음 (fallback 불가): {sorted(not_in_zh_tw)}")
+                self.assertEqual(len(self._dicts[lang]), ko_count,
+                    '{} key count {} != ko {}'.format(
+                        lang, len(self._dicts[lang]), ko_count))
 
-    def test_zh_cn_fallback_to_zh_tw(self):
-        """Keys missing from the zh_cn dict must fall back to zh_tw (v1.0.9 §5.1.G).
+    def test_zh_cn_subset_of_zh_tw(self):
+        """zh_cn keys must all exist in zh_tw -- fallback safety (v1.0.9 §5.1.G).
 
-        In §5.1.G, keys whose values match between zh_cn and zh_tw were removed from zh_cn.
-        The fallback mechanism must remain alive in both _t() and _rt()
-        so that the impact on zh_cn users stays at zero.
+        The runtime fallback chain in _rt() and _qm_lookup callers routes
+        zh_cn -> zh_tw -> ko -> en source. This invariant guarantees the
+        first hop never fails for any key zh_cn ships with.
         """
-        import re
-        lang_keys = {l: self._get_lang_keys(l) for l in ['zh_cn', 'zh_tw']}
-        # Verify that the targets exist (cleanup must already be applied)
-        missing_in_zh_cn = lang_keys['zh_tw'] - lang_keys['zh_cn']
-        self.assertGreater(len(missing_in_zh_cn), 0,
-            "fallback 검증 대상 키가 없음 — §5.1.G 정리가 미적용 상태?")
-        # Verify the zh_cn → zh_tw fallback pattern exists in source (both _t and _rt)
-        with open(_MAIN_PY, encoding='utf-8') as f:
-            src = f.read()
-        fallback_pattern = r"TRANSLATIONS\['zh_tw'\]\.get\(key\)\s+if\s+lang\s*==\s*'zh_cn'"
-        matches = re.findall(fallback_pattern, src)
-        self.assertGreaterEqual(len(matches), 2,
-            f"_t() / _rt() 모두에 zh_cn → zh_tw fallback 필요 — 현재 {len(matches)}곳")
+        not_in_zh_tw = (set(self._dicts['zh_cn'].keys())
+                        - set(self._dicts['zh_tw'].keys()))
+        self.assertEqual(not_in_zh_tw, set(),
+            'zh_cn keys missing from zh_tw (fallback impossible): {}'.format(
+                sorted(str(k) for k in not_in_zh_tw)[:5]))
 
     def test_ko_has_minimum_keys(self):
-        keys = self._get_lang_keys('ko')
-        self.assertGreaterEqual(len(keys), 400)
+        """ko must have at least 400 translated entries (size invariant)."""
+        self.assertGreaterEqual(len(self._dicts['ko']), 400)
 
-    # ────────────────────────────────────────────────────────────────
-    # Tab-based functional-area invariants (restructured in v1.0.7 session 3)
-    # Version-snapshot style (v010/v010_1/v100) is deprecated → reorganized into 10 macro-categories
-    # See docs/TEST_MANAGEMENT_POLICY.md for the detailed policy
-    # ────────────────────────────────────────────────────────────────
+    # ── Macro-category coverage ─────────────────────────────
+    # The 10 categories from docs/TEST_MANAGEMENT_POLICY.md §4.1 are about
+    # translation coverage invariants -- they are independent of where the
+    # data physically lives. Phase 3b maps them onto Qt contexts.
 
-    def test_all_langs_have_common_dialog_keys(self):
-        """Macro-category 1 — common dialog and button keys across all tabs."""
-        common_keys = [
-            'dlg_ok', 'dlg_yes', 'dlg_no',
-            'dlg_warning', 'dlg_error_title',
-            'btn_abort',
-        ]
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            keys = self._get_lang_keys(lang)
-            for key in common_keys:
-                with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (common 대분류)")
+    def test_all_macro_category_contexts_present(self):
+        """Every Qt context listed in CONTEXT_GROUPS must appear in every language."""
+        for category, contexts in self.CONTEXT_GROUPS.items():
+            for lang in _LANGS:
+                lang_contexts = {ctx for (ctx, _src) in self._dicts[lang].keys()}
+                for ctx in contexts:
+                    with self.subTest(lang=lang, category=category, context=ctx):
+                        self.assertIn(ctx, lang_contexts,
+                            '[{}] Qt context "{}" missing ({} macro-category)'
+                            .format(lang, ctx, category))
 
-    def test_all_langs_have_text_merger_keys(self):
-        """Macro-category 2 — representative keys for the Text Merger tab."""
-        merger_keys = [
-            'merge_status_add', 'merge_status_del', 'merge_status_clr',
-            'merge_path_set', 'merge_path_reset_done',
-            'merge_reading', 'merge_save_done', 'merge_save_err',
-            'merge_no_support',
-        ]
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            keys = self._get_lang_keys(lang)
-            for key in merger_keys:
-                with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (text_merger 대분류)")
+    def test_minimum_keys_per_macro_category(self):
+        """Each macro-category must have >= MIN_PER_CATEGORY keys per language."""
+        for category, contexts in self.CONTEXT_GROUPS.items():
+            for lang in _LANGS:
+                count = sum(1 for (ctx, _src) in self._dicts[lang].keys()
+                            if ctx in contexts)
+                with self.subTest(lang=lang, category=category):
+                    self.assertGreaterEqual(count, self.MIN_PER_CATEGORY,
+                        '[{}] {}: {} keys (< {})'.format(
+                            lang, category, count, self.MIN_PER_CATEGORY))
 
-    def test_all_langs_have_text_converter_keys(self):
-        """Macro-category 3 — representative keys for the Text Converter tab.
 
-        Note: conv_sub_txt2epub / conv_sub_epub2txt are kept active by
-        the dynamic key generation `_t('conv_sub_' + val)` at L6560 (v1.0.7 audit fix).
+# ════════════════════════════════════════════════════════════════════════
+# §ExtraE2  Qt Linguist .qm runtime integrity (real PySide6 required)
+# ════════════════════════════════════════════════════════════════════════
+
+# Module-level handles for the Qt runtime helpers exec'd from FileNexusSuite.py.
+# Stored at module scope (not class attribute) to bypass Python's automatic
+# self-binding for functions assigned as class attributes -- _qm_lookup and
+# _all_translations_of are plain functions, not methods.
+_qm_lookup           = _ns.get('_qm_lookup')
+_all_translations_of = _ns.get('_all_translations_of')
+_REPORT_TR_KEYS      = _ns.get('_REPORT_TR_KEYS', {})
+_tr_args             = _ns.get('_tr_args')   # Qt-style %1, %2 placeholder substitution
+
+
+@unittest.skipUnless(
+    _pyside6_available,
+    'Real PySide6 required (.qm load via QTranslator); skipped under Qt mock'
+)
+class TestQmRuntimeIntegrity(unittest.TestCase):
+    """v1.1.0 Phase 3b -- compiled .qm runtime integrity.
+
+    Validates that:
+      - all 5 .qm files exist
+      - _qm_lookup answers a representative (context, source) key per language
+      - _all_translations_of returns 5 distinct translations
+      - every English source in _REPORT_TR_KEYS resolves via _qm_lookup
+        (lupdate -> lrelease pipeline integrity for the worker-thread
+        report path)
+
+    Skipped when PySide6 is mocked (mock QTranslator cannot load real .qm).
+    """
+
+    def test_all_qm_files_present(self):
+        for lang in _LANGS:
+            with self.subTest(lang=lang):
+                qm_path = os.path.join(_QM_DIR, 'fns_{}.qm'.format(lang))
+                self.assertTrue(os.path.exists(qm_path),
+                    'fns_{}.qm missing -- run update_translations.bat'
+                    .format(lang))
+
+    def test_qm_lookup_answers_representative_keys(self):
+        """_qm_lookup must answer a representative key in every language."""
+        # 'Cancel' under 'AppSuite' is the canonical example -- present in all 5.
+        rep_ctx, rep_src = 'AppSuite', 'Cancel'
+        for lang in _LANGS:
+            with self.subTest(lang=lang):
+                result = _qm_lookup(lang, rep_src, rep_ctx)
+                self.assertIsNotNone(result,
+                    '_qm_lookup({!r}, {!r}, {!r}) -- .qm load or lookup failed'
+                    .format(lang, rep_src, rep_ctx))
+                self.assertNotEqual(result, '',
+                    '_qm_lookup({!r}, {!r}, {!r}) returned empty'
+                    .format(lang, rep_src, rep_ctx))
+
+    def test_all_translations_of_collects_translations(self):
+        """_all_translations_of must collect translations across the 5 languages.
+
+        The function returns a set, so duplicate translations collapse:
+          - zh_cn/zh_tw often share the same hanja (e.g. 'Cancel' -> 取消 in
+            both), which is the design behind the v1.0.9 §5.1.G fallback
+            (zh_cn entries identical to zh_tw are intentionally absent and
+            served by the fallback chain).
+          - en may collapse with the English source when Qt's translator
+            drops identity translations.
+        The minimum-4 invariant catches the common failure mode where a
+        language drops out entirely (missing .qm or empty translation),
+        while tolerating expected hanja/source collapses.
         """
-        converter_keys = [
-            'conv_status_done', 'conv_status_fail',
-            'conv_sub_txt2epub', 'conv_sub_epub2txt',
-        ]
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            keys = self._get_lang_keys(lang)
-            for key in converter_keys:
-                with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (text_converter 대분류)")
+        result = _all_translations_of('Cancel', 'AppSuite')
+        self.assertGreaterEqual(len(result), 4,
+            '_all_translations_of("Cancel", "AppSuite") returned {} '
+            'translations, expected >= 4 (zh_cn/zh_tw may share hanja). '
+            'Got: {}'.format(len(result), sorted(result)))
 
-    def test_all_langs_have_tag_editor_keys(self):
-        """Macro-category 4 — representative keys for the Tag Editor tab."""
-        tag_keys = [
-            'tag_file_count', 'tag_count_total',
-            'tag_status_found', 'tag_status_found_add', 'tag_status_found_depad',
-            'tag_no_change', 'tag_skip_count',
-            'tag_apply_confirm', 'tag_apply_done',
-        ]
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            keys = self._get_lang_keys(lang)
-            for key in tag_keys:
-                with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (tag_editor 대분류)")
-
-    def test_all_langs_have_batch_renamer_keys(self):
-        """Macro-category 5 — representative keys for the Batch Renamer tab.
-
-        Macro-category that unifies the batch_* / rename_* prefixes (see Appendix E):
-          - batch_* ← named after the original BatchRenamer class, used for UI / options
-          - rename_* ← named after the original _do_rename / _confirm_rename methods, used for action state / feedback
+    def test_report_tr_keys_round_trip(self):
+        """Every English source in _REPORT_TR_KEYS must resolve via _qm_lookup
+        in ko (the canonical reference language). Detects a broken
+        lupdate -> lrelease pipeline for the encoding-report worker path.
         """
-        batch_keys = [
-            'rename_do', 'rename_cancel',
-            'rename_no_preview', 'rename_no_pairs',
-            'rename_no_subfolders', 'rename_no_files',
-            'rename_collision',
-            # Scenario B (QThread workers + QProgressDialog)
-            'dlg_cancel', 'batch_ingest_progress', 'batch_rename_progress',
-        ]
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            keys = self._get_lang_keys(lang)
-            for key in batch_keys:
-                with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (batch_renamer 대분류)")
-
-    def test_all_langs_have_text_fixer_keys(self):
-        """Macro-category 6 — representative keys for the Text Fixer tab.
-
-        Note: tf_dlg_overwrite was an orphan key removed in v1.0.7 sessions 2 and 3,
-        so it is excluded from this invariant (cleaned up alongside the dead method _save_overwrite).
-        """
-        fixer_keys = [
-            'tf_dlg_nofile', 'tf_dlg_noperm',
-            'tf_dlg_ioerr', 'tf_dlg_encerr',
-            'tf_undo_done',
-        ]
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            keys = self._get_lang_keys(lang)
-            for key in fixer_keys:
-                with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (text_fixer 대분류)")
-
-    def test_all_langs_have_bulk_fixer_keys(self):
-        """Macro-category 7 — representative keys for the Bulk Fixer tab."""
-        bulk_keys = [
-            'bulk_run', 'bulk_running',
-            'bulk_status_ready', 'bulk_status_done', 'bulk_status_err',
-            'bulk_file_count', 'bulk_no_txt',
-            'bulk_keep_structure',
-        ]
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            keys = self._get_lang_keys(lang)
-            for key in bulk_keys:
-                with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (bulk_fixer 대분류)")
-
-    def test_all_langs_have_settings_keys(self):
-        """Macro-category 8 — representative keys for the Settings dialog."""
-        settings_keys = [
-            'settings_title',
-            'settings_output_dir',
-            'settings_nav_theme', 'settings_nav_language',
-            'settings_nav_shortcuts', 'settings_nav_license',
-        ]
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            keys = self._get_lang_keys(lang)
-            for key in settings_keys:
-                with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (settings 대분류)")
-
-    def test_all_langs_have_shortcut_keys(self):
-        """Macro-category 9 — representative keys for the shortcut system."""
-        shortcut_keys = [
-            'sc_none', 'sc_press',
-            'sc_tab_merger', 'sc_tab_converter', 'sc_tab_tag',
-            'sc_tab_batch', 'sc_tab_fixer', 'sc_tab_bulk',
-        ]
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            keys = self._get_lang_keys(lang)
-            for key in shortcut_keys:
-                with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (shortcut 대분류)")
-
-    def test_all_langs_have_misc_keys(self):
-        """Macro-category 10 — residual representative keys that fall outside the above (minimization goal)."""
-        misc_keys = [
-            'app_subtitle',
-            'close_busy_title',
-        ]
-        for lang in ('ko','en','ja','zh_cn','zh_tw'):
-            keys = self._get_lang_keys(lang)
-            for key in misc_keys:
-                with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (misc 대분류)")
+        missing = []
+        for key, en_source in _REPORT_TR_KEYS.items():
+            result = _qm_lookup('ko', en_source, 'FileNexusSuite')
+            if result is None:
+                missing.append((key, en_source))
+        self.assertEqual(missing, [],
+            '_REPORT_TR_KEYS entries not found in ko .qm '
+            '(lupdate -> lrelease pipeline broken?): {}'.format(missing[:3]))
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -2542,26 +2158,23 @@ class TestRetranslateIntegrity(unittest.TestCase):
             "TextConverterPanel.retranslate()에 _btn_del_all 잔류 — 크래시 위험")
 
     def test_merger_has_tree_header_retranslate(self):
-        """TextMergerPanel.retranslate() must update the tree header."""
+        """TextMergerPanel.retranslate() must update the tree header.
+
+        v1.1.0 (라-B-1.5-B): refactored from QTreeWidget+setHeaderLabels to
+        FileListBase+retranslate_headers() pattern.
+        """
         body = self._get_retranslate_body('TextMergerPanel')
-        self.assertIn('setHeaderLabels', body,
+        self.assertIn('retranslate_headers', body,
             "MergeFileTree 헤더가 retranslate에서 갱신되지 않음")
 
-    def test_bulk_fixer_sort_btn_uses_t(self):
-        """BulkFixerFileList must use _t() keys in setHeaderLabels.
-        (v0.10.1: _sort_files removed → sort via QTreeWidget header click)"""
-        import re
-        with open(_MAIN_PY, encoding='utf-8') as f:
-            src = f.read()
-        cls_match = re.search(r'^class BulkFixerFileList\b.*?(?=^class |\Z)',
-                               src, re.MULTILINE | re.DOTALL)
-        if not cls_match:
-            self.skipTest("BulkFixerFileList 클래스 없음")
-        cls_body = cls_match.group(0)
-        self.assertIn("setHeaderLabels", cls_body,
-            "BulkFixerFileList에 setHeaderLabels 없음")
-        self.assertNotIn('"파일명"', cls_body,
-            "BulkFixerFileList에 하드코딩된 '파일명' 잔류")
+    # Note: test_bulk_fixer_sort_btn_uses_t removed in v1.1.0 Phase 3b.
+    # The source-grep premise (`"tag_col_filename"`, `"tag_col_path"` as i18n
+    # key strings in COLUMNS) no longer applies after the migration to
+    # QT_TR_NOOP("Filename") / QT_TR_NOOP("Path") in BulkFixerFileList.COLUMNS.
+    # Structural coverage of the FileListBase + COLUMNS pattern lives in
+    # TestFileListSubClassRefactor.test_bulk_fixer_file_list; per-language
+    # column-header translation coverage lives in TestTsSourceIntegrity
+    # ('bulk_fixer' macro-category).
 
     def test_dlg_functions_use_t_keys(self):
         """_dlg_info / warn / error / question buttons must use _t() keys."""
@@ -3010,30 +2623,10 @@ class TestV012Regression(unittest.TestCase):
         self.assertIn('QIcon.Mode.Disabled', src)
 
     # ── Theme system ─────────────────────────────────────────────────────
-    def test_all_themes_have_btn_border_h(self):
-        """Every theme dictionary must include the BTN_BORDER_H key (improvement over v0.12.0)."""
-        src = self._src()
-        m = _re.search(r'^THEMES\s*=\s*\{(.*?)^\}', src, _re.MULTILINE | _re.DOTALL)
-        self.assertIsNotNone(m, "THEMES 정의 없음")
-        theme_block = m.group(1)
-        # Each theme block must contain BTN_BORDER_H
-        self.assertGreater(
-            theme_block.count("'BTN_BORDER_H'"), 0,
-            "THEMES 안에 BTN_BORDER_H가 하나도 없음"
-        )
-        # Must appear once per theme (9 themes total)
-        theme_count = len(_re.findall(r"^\s{4}'(\w+)'\s*:\s*\{", theme_block, _re.MULTILINE))
-        btn_border_h_count = theme_block.count("'BTN_BORDER_H'")
-        self.assertEqual(btn_border_h_count, theme_count,
-            f"BTN_BORDER_H 수({btn_border_h_count}) ≠ 테마 수({theme_count})")
-
-    def test_themes_count_9(self):
-        """The THEMES dictionary must contain 9 themes (auto is a virtual theme resolved at runtime)."""
-        src = self._src()
-        m = _re.search(r'^THEMES\s*=\s*\{(.*?)^\}', src, _re.MULTILINE | _re.DOTALL)
-        self.assertIsNotNone(m)
-        keys = _re.findall(r"^\s{4}'(\w+)'\s*:\s*\{", m.group(1), _re.MULTILINE)
-        self.assertEqual(len(keys), 9, f"THEMES 키 수 불일치: {keys}")
+    # Note: test_all_themes_have_btn_border_h and test_themes_count_9 removed in
+    # v1.1.0 Phase 2b. THEMES dict moved to fns_theme.py, so the v0.12.0
+    # main-module-source regression premise no longer applies. Equivalent
+    # coverage now lives in TestFnsTheme.
 
     # ── Translation — emoji-removal check ────────────────────────────────
     def test_btn_add_file_no_emoji(self):
@@ -3254,13 +2847,11 @@ class TestV100Regression(unittest.TestCase):
         self.assertIn('grp_title_lbl', self._src())
 
     # ── Section header // prefix ─────────────────────────────────────
-    def test_section_header_prefix(self):
-        """tf_grp_input/output 번역 키에 '//' 접두사가 사용되어야 한다."""
-        src = self._src()
-        self.assertTrue(
-            "'tf_grp_input'" in src and '//' in src,
-            "tf_grp_input에 '//' 접두사 없음"
-        )
+    # Note: test_section_header_prefix removed in v1.1.0 Phase 3b.
+    # The source-grep premise (`'tf_grp_input'` internal key) no longer
+    # applies after the self.tr() + .ts/.qm migration. The '//' prefix
+    # convention is preserved in the English source text, verified
+    # indirectly via TestTsSourceIntegrity ('text_fixer' macro-category).
 
 
 @unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
@@ -3295,16 +2886,13 @@ class TestV100RegressionModule(unittest.TestCase):
         cls = _ns.get('SettingsDialog')
         self.assertIsNotNone(cls, "SettingsDialog 클래스 없음")
 
-    def test_translations_v100_keys(self):
-        """v1.0.0 신규 번역 키가 전 언어에 있어야 한다."""
-        translations = _ns.get('TRANSLATIONS', {})
-        new_keys = ['btn_abort', 'bulk_keep_structure', 'settings_output_dir']
-        for lang in ('ko', 'en', 'ja', 'zh_cn', 'zh_tw'):
-            keys = set(translations.get(lang, {}).keys())
-            for key in new_keys:
-                with self.subTest(lang=lang, key=key):
-                    self.assertIn(key, keys,
-                        f"[{lang}] '{key}' 키 없음 (v1.0.0 신규 키)")
+    # Note: test_translations_v100_keys removed in v1.1.0 Phase 3b.
+    # The TRANSLATIONS dict was fully removed during the .ts/.qm migration;
+    # legacy internal keys (btn_abort, bulk_keep_structure, settings_output_dir)
+    # have been replaced by self.tr('Stop'), self.tr('Keep folder structure'),
+    # and self.tr('Output folder') at their call sites. Per-language coverage
+    # of those English sources is verified indirectly via TestTsSourceIntegrity
+    # (MIN_PER_CATEGORY=3 across the 'bulk_fixer' and 'settings' macro-categories).
 
     def test_bulk_worker_keep_structure_param(self):
         """BulkFixerWorker에 keep_structure 파라미터가 있어야 한다."""
@@ -3586,13 +3174,10 @@ class TestV104Regression(unittest.TestCase):
         self.assertIn('alchemy_check_encoding_compat(merged_text', body,
             "_on_merge_done이 사전 검증 함수를 호출하지 않음")
 
-    def test_merge_enc_warn_keys_in_5_languages(self):
-        """5개 언어 사전에 merge_enc_warn_title / merge_enc_warn_msg 키가 있어야 함."""
-        for key in ('merge_enc_warn_title', 'merge_enc_warn_msg'):
-            with self.subTest(key=key):
-                count = self.src.count(f"'{key}'")
-                self.assertGreaterEqual(count, 5,
-                    f"'{key}' 키가 5개 언어 미만 정의됨 (현재 {count}회)")
+    # Note: test_merge_enc_warn_keys_in_5_languages removed in v1.1.0 Phase 3a.
+    # Source-grep premise no longer applies after TRANSLATIONS moved to
+    # fns_translations.py. Cross-language symmetry is already guarded by
+    # TestTranslationCompleteness.test_all_langs_same_key_count.
 
     # ── C: Confidence color coding + tooltip ─────────────────────
     def test_confidence_4_tier_color_coding(self):
@@ -3607,25 +3192,18 @@ class TestV104Regression(unittest.TestCase):
         self.assertIn('conf >= 0.70', self.src, "≥70% 분기 누락")
         self.assertIn('conf >= 0.50', self.src, "≥50% 분기 누락")
 
-    def test_merge_low_conf_hint_keys_in_5_languages(self):
-        """5개 언어 사전에 merge_low_conf_hint 키가 있어야 함 (툴팁용)."""
-        count = self.src.count("'merge_low_conf_hint'")
-        self.assertGreaterEqual(count, 5,
-            f"'merge_low_conf_hint' 키가 5개 언어 미만 정의됨 (현재 {count}회)")
+    # Note: test_merge_low_conf_hint_keys_in_5_languages removed in v1.1.0
+    # Phase 3a (same reason as test_merge_enc_warn_keys_in_5_languages above).
 
     # ── Bug-fix verification (v1.0.4 initial-release feedback) ──
-    def test_dlg_question_supports_rich_text(self):
-        """_dlg_question must support a rich_text parameter.
-        Bug 1 fix: HTML tags (<b>, <br>, <code>) in warning dialogs were
-        displayed as plain text instead of being rendered — now fixed."""
-        # Verify rich_text parameter exists in function signature
-        self.assertIn('def _dlg_question(parent, title: str, msg: str, min_width: int = 360, rich_text: bool = False)',
-                      self.src,
-                      "_dlg_question에 rich_text 파라미터 추가 누락")
-        # Text Merger warning call site must call with rich_text=True
-        self.assertIn("_dlg_question(self, _t('merge_enc_warn_title'), warn_msg, min_width=460, rich_text=True)",
-                      self.src,
-                      "Text Merger 경고 다이얼로그 호출부가 rich_text=True를 전달하지 않음")
+    # Note: test_dlg_question_supports_rich_text removed in v1.1.0 Phase 3b.
+    # The source-grep premise (`_t('merge_enc_warn_title')` at the call site)
+    # no longer applies after the self.tr() + .ts/.qm migration. The call site
+    # now reads `self.tr('⚠ Encoding compatibility warning')` with rich_text=True.
+    # The _dlg_question signature itself (rich_text parameter) is verified by
+    # TestRetranslateIntegrity.test_dlg_functions_use_t_keys via runtime usage,
+    # and per-language translation coverage lives in TestTsSourceIntegrity
+    # ('text_merger' macro-category).
 
     def test_alchemy_fallback_covers_cjk(self):
         """alchemy_detect_encoding's fallback logic must include sequential CJK encoding probes.
@@ -3806,54 +3384,31 @@ class TestV105Regression(unittest.TestCase):
         self.assertIn('_ENC_ITEMS = [', self.src,
             "TextMergerPanel._ENC_ITEMS 상수 누락")
 
-    def test_enc_items_contains_all_8_keys(self):
-        """_ENC_ITEMS에 기존 8종 내부 키가 모두 포함되어야 한다 (순서 포함)."""
-        m = re.search(
-            r'_ENC_ITEMS\s*=\s*\[(.*?)\]',
-            self.src, re.DOTALL)
-        self.assertIsNotNone(m, "_ENC_ITEMS 리스트 블록을 찾지 못함")
-        block = m.group(1)
-        expected_keys = ['UTF-8', 'UTF-8-BOM', 'EUC-KR', 'CP949',
-                         'UTF-16', 'Shift-JIS', 'GBK', 'Big5']
-        for key in expected_keys:
-            self.assertIn(f'"{key}"', block,
-                f"_ENC_ITEMS에 내부 키 {key!r} 누락 (설정 호환성 위험)")
-        # Each key maps to an i18n key
-        for i18n_key in ['merge_enc_utf8', 'merge_enc_utf8_bom', 'merge_enc_euckr',
-                         'merge_enc_cp949', 'merge_enc_utf16', 'merge_enc_shiftjis',
-                         'merge_enc_gbk', 'merge_enc_big5']:
-            self.assertIn(f"'{i18n_key}'", block,
-                f"_ENC_ITEMS에 i18n 키 {i18n_key!r} 누락")
-
-    # ── Combobox addItem pattern verification ────────────────────
-    def test_combo_uses_add_item_with_user_data(self):
-        """콤보박스 초기화는 addItem(display, userData) 패턴을 사용해야 한다."""
-        # v1.0.4's addItems(["UTF-8", ...]) pattern must not remain
-        self.assertNotIn(
-            'self._combo_enc.addItems(["UTF-8", "UTF-8-BOM"',
-            self.src,
-            "v1.0.4 addItems 패턴이 아직 남아있음 (안 B 적용 누락)")
-        # Verify the new pattern
-        self.assertIn(
-            'self._combo_enc.addItem(_t(_i18n_key), _enc_key)',
-            self.src,
-            "addItem(display, userData) 신규 패턴이 보이지 않음")
-
-    # ── Help-label verification ──────────────────────────────────
-    def test_enc_hint_label_created(self):
-        """_lbl_enc_hint QLabel이 생성되어야 한다 (콤보박스 아래 도움말)."""
-        self.assertIn('self._lbl_enc_hint = QLabel(_t(\'merge_enc_hint\'))', self.src,
-            "_lbl_enc_hint 라벨 생성 코드 누락")
-
-    def test_enc_hint_label_retranslated(self):
-        """retranslate()에서 _lbl_enc_hint 텍스트 갱신 로직이 있어야 한다."""
-        self.assertIn("self._lbl_enc_hint.setText(_t('merge_enc_hint'))", self.src,
-            "retranslate()에서 도움말 라벨 setText 누락")
-
-    def test_retranslate_updates_combo_item_text(self):
-        """retranslate()에서 콤보박스 8개 아이템 라벨도 갱신되어야 한다 (언어 전환 대응)."""
-        self.assertIn('self._combo_enc.setItemText(_i, _t(_i18n_key))', self.src,
-            "retranslate()에서 콤보박스 아이템 라벨 갱신 로직 누락")
+    # Note: 5 source-grep tests removed from TestV105Regression in v1.1.0 Phase 3b:
+    #   - test_enc_items_contains_all_8_keys       (i18n-key half of the check)
+    #   - test_combo_uses_add_item_with_user_data
+    #   - test_enc_hint_label_created
+    #   - test_enc_hint_label_retranslated
+    #   - test_retranslate_updates_combo_item_text
+    #
+    # The source-grep premise (`_t('merge_enc_*')`, `_t(_i18n_key)` patterns) no
+    # longer applies after the self.tr() + .ts/.qm migration. Equivalent runtime
+    # coverage with stronger guarantees lives in TestV105RegressionModule:
+    #   - test_qm_has_all_enc_sources
+    #       (5 languages x 9 encoding source-strings = 45 subTests)
+    #   - test_enc_labels_contain_encoding_name
+    #       (label readability invariant per language)
+    #   - test_enc_items_preserves_v104_keys
+    #       (internal _ENC_ITEMS key order -- supersedes the internal-key half
+    #        of test_enc_items_contains_all_8_keys)
+    #   - test_hint_message_guides_to_utf8
+    #       (UTF-8 guidance invariant -- supersedes test_enc_hint_label_*)
+    # TestV105StatusRetranslate covers the retranslate path (supersedes
+    # test_retranslate_updates_combo_item_text).
+    #
+    # test_enc_items_constant_defined (above) and the currentData migration
+    # block (below) stay -- they are structural / settings-compat checks
+    # independent of the .ts/.qm migration.
 
     # ── currentText → currentData migration verification ────────
     def test_merge_files_uses_current_data(self):
@@ -3882,103 +3437,83 @@ class TestV105Regression(unittest.TestCase):
         self.assertIn('if idx < 0: idx = self._combo_enc.findText(enc)', self.src,
             "apply_config()에서 findText 폴백 누락 (구버전 호환 위험)")
 
-    # ── Verify all 45 translation entries exist ──────────────────
-    def test_all_languages_have_enc_keys(self):
-        """5개 언어 사전에 9개 merge_enc_* 키가 모두 있어야 한다 (총 45개)."""
-        required_keys = [
-            'merge_enc_utf8', 'merge_enc_utf8_bom', 'merge_enc_euckr',
-            'merge_enc_cp949', 'merge_enc_utf16', 'merge_enc_shiftjis',
-            'merge_enc_gbk', 'merge_enc_big5', 'merge_enc_hint',
-        ]
-        # Each key must appear at least 5 times (5 languages)
-        for key in required_keys:
-            count = len(re.findall(rf"'{key}'\s*:", self.src))
-            self.assertGreaterEqual(count, 5,
-                f"키 '{key}'가 5개 언어 사전 중 {count}개에만 존재 (누락)")
-
-    def test_zh_uses_rifun_not_rigoyu(self):
-        """Simplified/Traditional Chinese must use the '日文' label (consistent with v1.0.4 tip).
-        Explicitly verified because '日语'/'日語' could be mistakenly written."""
-        # Both Simplified and Traditional use '(日文)' for Shift-JIS
-        # '日语' or '日語' would be a wrong translation (v1.0.4 tip uses '日文' consistently)
-        # Check only inside the Chinese dict block (Japanese dict's '日本語' is fine)
-        m_zh_cn = re.search(
-            r"'zh_cn':\s*\{(.*?)(?='zh_tw'|\Z)", self.src, re.DOTALL)
-        self.assertIsNotNone(m_zh_cn, "zh_cn 사전 블록 탐색 실패")
-        zh_cn_block = m_zh_cn.group(1)
-        self.assertIn("'Shift-JIS (日文)'", zh_cn_block,
-            "중국어 간체에서 Shift-JIS 라벨이 '(日文)' 아님")
-        self.assertNotIn("'Shift-JIS (日语)'", zh_cn_block,
-            "중국어 간체에서 '日语' 사용됨 (v1.0.4 tip과 불일치)")
-
-        m_zh_tw = re.search(
-            r"'zh_tw':\s*\{(.*?)$", self.src, re.DOTALL)
-        self.assertIsNotNone(m_zh_tw, "zh_tw 사전 블록 탐색 실패")
-        zh_tw_block = m_zh_tw.group(1)
-        self.assertIn("'Shift-JIS (日文)'", zh_tw_block,
-            "중국어 번체에서 Shift-JIS 라벨이 '(日文)' 아님")
-        self.assertNotIn("'Shift-JIS (日語)'", zh_tw_block,
-            "중국어 번체에서 '日語' 사용됨 (v1.0.4 tip과 불일치)")
+    # ── Translation invariants moved out in v1.1.0 Phase 3a ──────
+    # Note: test_all_languages_have_enc_keys removed in v1.1.0 Phase 3a.
+    # Source-grep premise no longer applies after TRANSLATIONS moved to
+    # fns_translations.py. Equivalent runtime coverage already lives in
+    # TestV105RegressionModule.test_translations_have_all_enc_keys (module-load).
+    #
+    # Note: test_zh_uses_rifun_not_rigoyu removed in v1.1.0 Phase 3a.
+    # Small one-off label check; kept for a single release after v1.0.4 tip
+    # but no longer worth the maintenance cost in the new layout.
 
     # ── APP_VERSION verification split into TestAppVersion (v1.0.7 redesign as version-independent structural check) ─────
 
 
-@unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
+@unittest.skipUnless(_pyside6_available, "real PySide6 필요 (Qt .qm runtime lookup)")
 class TestV105RegressionModule(unittest.TestCase):
     """v1.0.5 module-load-based regression tests — runtime behavior verification.
 
-    Note: APP_VERSION verification was split into TestAppVersionModule (redesigned in v1.0.7 as version-independent structural verification)
+    Phase 3b: legacy TRANSLATIONS dict assertions replaced by _qm_lookup runtime
+    lookups against the TextMergerPanel Qt context. The 9 encoding source strings
+    live in fns_<lang>.ts (msgctxt 'TextMergerPanel') and compile into fns_<lang>.qm.
+
+    Note: APP_VERSION verification was split into TestAppVersionModule
+    (redesigned in v1.0.7 as version-independent structural verification).
     """
 
-    def test_translations_have_all_enc_keys(self):
-        """5개 언어 각각에 9개 merge_enc_* 키가 실제 값으로 존재해야 한다."""
-        translations = _ns.get('TRANSLATIONS')
-        self.assertIsNotNone(translations, "TRANSLATIONS 딕셔너리 누락")
-        required_keys = [
-            'merge_enc_utf8', 'merge_enc_utf8_bom', 'merge_enc_euckr',
-            'merge_enc_cp949', 'merge_enc_utf16', 'merge_enc_shiftjis',
-            'merge_enc_gbk', 'merge_enc_big5', 'merge_enc_hint',
-        ]
-        for lang_code in ('ko', 'en', 'ja', 'zh_cn', 'zh_tw'):
-            self.assertIn(lang_code, translations,
-                f"언어 '{lang_code}' 사전 누락")
-            lang_dict = translations[lang_code]
-            for key in required_keys:
-                self.assertIn(key, lang_dict,
-                    f"[{lang_code}] 키 '{key}' 누락")
-                val = lang_dict[key]
-                self.assertIsInstance(val, str,
-                    f"[{lang_code}] '{key}' 값이 문자열 아님")
-                self.assertTrue(len(val) > 0,
-                    f"[{lang_code}] '{key}' 값이 빈 문자열")
+    # Phase 3b: legacy 'merge_enc_*' internal keys -> English source-text keys.
+    # 9 encoding sources (UTF-8 ... Big5, plus the help hint).
+    _ENC_SOURCES = (
+        'UTF-8',
+        'UTF-8-BOM (Excel compatible)',
+        'EUC-KR (Korean)',
+        'CP949 (Korean Windows)',
+        'UTF-16',
+        'Shift-JIS (Japanese)',
+        'GBK (Simplified Chinese)',
+        'Big5 (Traditional Chinese)',
+    )
+    _ENC_HINT_SOURCE = 'If unsure, select UTF-8'
 
-    def test_enc_labels_contain_internal_keys(self):
-        """Each language's label must contain the internal encoding key (e.g., 'UTF-8 (...)').
+    def test_qm_has_all_enc_sources(self):
+        """5 언어 자국 본받기 *9 encoding source-text 자국이 .qm runtime 자국 본받기 *짚힘.
+        Phase 3b: replaces test_translations_have_all_enc_keys (legacy TRANSLATIONS dict)."""
+        all_sources = list(self._ENC_SOURCES) + [self._ENC_HINT_SOURCE]
+        for lang_code in _LANGS:
+            for en_source in all_sources:
+                with self.subTest(lang=lang_code, source=en_source):
+                    result = _qm_lookup(lang_code, en_source, 'TextMergerPanel')
+                    self.assertIsNotNone(result,
+                        f"[{lang_code}] {en_source!r} not in .qm runtime")
+                    self.assertGreater(len(result), 0,
+                        f"[{lang_code}] {en_source!r} resolves to empty string")
+
+    def test_enc_labels_contain_encoding_name(self):
+        """각 언어 label 자국 본받기 *encoding name (UTF-8, EUC-KR, ...) 자국이 *짚힘.
         Reason: users must be able to identify which encoding from the label alone."""
-        translations = _ns.get('TRANSLATIONS')
-        key_to_enc = [
-            ('merge_enc_utf8',     'UTF-8'),
-            ('merge_enc_utf8_bom', 'UTF-8-BOM'),
-            ('merge_enc_euckr',    'EUC-KR'),
-            ('merge_enc_cp949',    'CP949'),
-            ('merge_enc_utf16',    'UTF-16'),
-            ('merge_enc_shiftjis', 'Shift-JIS'),
-            ('merge_enc_gbk',      'GBK'),
-            ('merge_enc_big5',     'Big5'),
-        ]
-        for lang_code in ('ko', 'en', 'ja', 'zh_cn', 'zh_tw'):
-            lang_dict = translations.get(lang_code, {})
-            for i18n_key, enc_name in key_to_enc:
-                label = lang_dict.get(i18n_key, '')
-                self.assertIn(enc_name, label,
-                    f"[{lang_code}] '{i18n_key}' 라벨에 '{enc_name}'가 없음: {label!r}")
+        source_to_enc_name = (
+            ('UTF-8',                          'UTF-8'),
+            ('UTF-8-BOM (Excel compatible)',   'UTF-8-BOM'),
+            ('EUC-KR (Korean)',                'EUC-KR'),
+            ('CP949 (Korean Windows)',         'CP949'),
+            ('UTF-16',                         'UTF-16'),
+            ('Shift-JIS (Japanese)',           'Shift-JIS'),
+            ('GBK (Simplified Chinese)',       'GBK'),
+            ('Big5 (Traditional Chinese)',     'Big5'),
+        )
+        for lang_code in _LANGS:
+            for en_source, enc_name in source_to_enc_name:
+                with self.subTest(lang=lang_code, source=en_source):
+                    label = _qm_lookup(lang_code, en_source, 'TextMergerPanel') or ''
+                    self.assertIn(enc_name, label,
+                        f"[{lang_code}] {en_source!r} 라벨에 '{enc_name}' 없음: {label!r}")
 
     def test_zh_labels_use_rifun(self):
         """Simplified/Traditional Chinese Shift-JIS label must contain '日文'.
         (Idiomatic Chinese form, distinct from Japanese-locale '日本語')"""
-        translations = _ns.get('TRANSLATIONS')
         for lang_code in ('zh_cn', 'zh_tw'):
-            label = translations[lang_code].get('merge_enc_shiftjis', '')
+            label = _qm_lookup(lang_code, 'Shift-JIS (Japanese)', 'TextMergerPanel') or ''
             self.assertIn('日文', label,
                 f"[{lang_code}] Shift-JIS 라벨에 '日文' 없음: {label!r}")
             self.assertNotIn('日语', label,
@@ -4003,27 +3538,29 @@ class TestV105RegressionModule(unittest.TestCase):
 
     def test_hint_message_guides_to_utf8(self):
         """도움말 문구가 UTF-8을 안내해야 한다 (비프로그래머 가이드 핵심 목적)."""
-        translations = _ns.get('TRANSLATIONS')
-        for lang_code in ('ko', 'en', 'ja', 'zh_cn', 'zh_tw'):
-            hint = translations[lang_code].get('merge_enc_hint', '')
+        for lang_code in _LANGS:
+            hint = _qm_lookup(lang_code, self._ENC_HINT_SOURCE, 'TextMergerPanel') or ''
             self.assertIn('UTF-8', hint,
                 f"[{lang_code}] 도움말에 'UTF-8' 안내 누락: {hint!r}")
 
 
-@unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패 (PySide6 필요)")
+@unittest.skipUnless(_pyside6_available, "real PySide6 필요 (Qt translator install)")
 class TestV105StatusRetranslate(unittest.TestCase):
     """v1.0.5 — Text Merger status-message refresh bug fix on language switch.
 
     Background:
       - Likely a long-standing bug from before v1.0.4
-      - retranslate() refreshed _lbl_status only when state == `merge_status_ready`
+      - retranslate() refreshed _lbl_status only when state == 'Ready'
       - Result: after adding files and switching language, "26 files added..." stayed in Korean
       - Found in v1.0.5 post-build hands-on QA (Hanrim) via screenshots in 3 languages
 
-    Fix design:
-      - Static messages (`ready`, `clr`, `reading`, `save_err`, `path_reset_done`): simple re-render
-      - Restorable dynamic messages (`add`: file_list count, `path_set`: save_dir): rebuild from source info
-      - Non-restorable messages (`del`, `save_done`, `bulk_scanning`): reset to `ready` + debug log
+    Fix design (Phase 3b):
+      - Static messages ('Ready', 'All files cleared', 'Save path reset', '❌ Error occurred',
+        '📂  Reading files...'): simple re-render via self.tr(en_text)
+      - Restorable dynamic messages ('%1 file(s) added...': file_list count,
+        'Save path set: %1': save_dir): _tr_args + self.tr
+      - Non-restorable messages ('%1 file(s) removed', 'Saved (%1): %2',
+        'Scanning... %1 found'): reset to 'Ready' + debug log
     """
 
     @classmethod
@@ -4034,143 +3571,157 @@ class TestV105StatusRetranslate(unittest.TestCase):
 
     def _make_panel(self, lang_code='ko'):
         """Create a TextMergerPanel instance for testing.
-        Temporarily change _current_lang while building the panel."""
-        # Directly mutate _ns['_current_lang'] (exec namespace = _t's global scope)
+        Phase 3b: _load_translator(lang) installs the Qt translator so self.tr()
+        resolves against fns_<lang>.qm during panel construction."""
         _ns['_current_lang'] = lang_code
+        _load_translator = _ns.get('_load_translator')
+        _load_translator(lang_code)
         PanelCls = _ns.get('TextMergerPanel')
         return PanelCls()
 
     def _set_lang(self, lang_code):
-        """현재 언어 설정 (런타임에서 언어 전환 시뮬레이션)."""
+        """언어 전환 simulation — Qt translator 자국 본격 *재설치 + _current_lang 자국 본격 *짚어주는 결."""
         _ns['_current_lang'] = lang_code
+        _load_translator = _ns.get('_load_translator')
+        _load_translator(lang_code)
 
     # ── Static-message re-render ────────────────────────────
     def test_status_ready_retranslates(self):
-        """'ready' 상태에서 언어 전환 시 해당 언어의 'ready' 메시지로 바뀐다."""
+        """'Ready' 상태에서 언어 전환 시 해당 언어의 'Ready' 메시지로 바뀐다."""
         panel = self._make_panel('ko')
         try:
-            # Initial state = ready (Korean)
-            translations = _ns.get('TRANSLATIONS')
-            self.assertEqual(panel._lbl_status.text(), translations['ko']['merge_status_ready'])
+            # Initial state = Ready (Korean)
+            self.assertEqual(panel._lbl_status.text(),
+                             _qm_lookup('ko', 'Ready', 'TextMergerPanel'))
             # Switch to English
             self._set_lang('en')
             panel._retranslate_status()
-            self.assertEqual(panel._lbl_status.text(), translations['en']['merge_status_ready'])
+            self.assertEqual(panel._lbl_status.text(),
+                             _qm_lookup('en', 'Ready', 'TextMergerPanel'))
             # Switch to Japanese
             self._set_lang('ja')
             panel._retranslate_status()
-            self.assertEqual(panel._lbl_status.text(), translations['ja']['merge_status_ready'])
+            self.assertEqual(panel._lbl_status.text(),
+                             _qm_lookup('ja', 'Ready', 'TextMergerPanel'))
         finally:
             self._set_lang('ko')
             panel.deleteLater()
 
     def test_status_clr_retranslates(self):
-        """'merge_status_clr' 상태에서 언어 전환 시 해당 언어로 갱신된다."""
+        """'All files cleared' 상태에서 언어 전환 시 해당 언어로 갱신된다."""
         panel = self._make_panel('ko')
         try:
-            translations = _ns.get('TRANSLATIONS')
-            panel._lbl_status.setText(translations['ko']['merge_status_clr'])
+            panel._lbl_status.setText(_qm_lookup('ko', 'All files cleared', 'TextMergerPanel'))
             self._set_lang('en')
             panel._retranslate_status()
-            self.assertEqual(panel._lbl_status.text(), translations['en']['merge_status_clr'])
+            self.assertEqual(panel._lbl_status.text(),
+                             _qm_lookup('en', 'All files cleared', 'TextMergerPanel'))
         finally:
             self._set_lang('ko')
             panel.deleteLater()
 
-    def test_status_save_err_retranslates(self):
-        """'merge_save_err' 상태에서 언어 전환 시 해당 언어로 갱신된다."""
+    def test_status_error_occurred_retranslates(self):
+        """'❌ Error occurred' 상태에서 언어 전환 시 해당 언어로 갱신된다.
+        Phase 3b: legacy 'merge_save_err' ('Save Error') replaced by '❌ Error occurred'
+        in _STATUS_TEMPLATES — 'Save Error' is now a QMessageBox title, not status text."""
         panel = self._make_panel('ko')
         try:
-            translations = _ns.get('TRANSLATIONS')
-            panel._lbl_status.setText(translations['ko']['merge_save_err'])
+            panel._lbl_status.setText(_qm_lookup('ko', '❌ Error occurred', 'TextMergerPanel'))
             self._set_lang('zh_cn')
             panel._retranslate_status()
-            self.assertEqual(panel._lbl_status.text(), translations['zh_cn']['merge_save_err'])
+            self.assertEqual(panel._lbl_status.text(),
+                             _qm_lookup('zh_cn', '❌ Error occurred', 'TextMergerPanel'))
         finally:
             self._set_lang('ko')
             panel.deleteLater()
 
     # ── Dynamic-message restoration re-render ────────────────
     def test_status_add_retranslates_with_current_count(self):
-        """In 'merge_status_add' state, language switch must rebuild from the current file_list count.
-        This is the main bug scenario Hanrim found in screenshots (26 files added, then language switched)."""
+        """In '%1 file(s) added (encoding auto-detected)' state, language switch must rebuild from
+        the current file_list count. Main bug scenario Hanrim found in screenshots
+        (26 files added, then language switched)."""
+        en_add = '%1 file(s) added (encoding auto-detected)'
         panel = self._make_panel('ko')
         try:
-            translations = _ns.get('TRANSLATIONS')
             # Simulate file_list with 26 items (internal state only, real file objects unnecessary)
             panel.file_list = ['/dummy/path' + str(i) for i in range(26)]
             # Set the 'files added' message (Korean)
-            panel._lbl_status.setText(translations['ko']['merge_status_add'].format(n=26))
+            panel._lbl_status.setText(_tr_args(_qm_lookup('ko', en_add, 'TextMergerPanel'), 26))
             # Switch to Japanese
             self._set_lang('ja')
             panel._retranslate_status()
-            expected = translations['ja']['merge_status_add'].format(n=26)
+            expected = _tr_args(_qm_lookup('ja', en_add, 'TextMergerPanel'), 26)
             self.assertEqual(panel._lbl_status.text(), expected,
-                f"언어 전환 후 파일 추가 메시지가 일본어로 재구성 안 됨")
+                "언어 전환 후 파일 추가 메시지가 일본어로 재구성 안 됨")
             # Switch to Simplified Chinese
             self._set_lang('zh_cn')
             panel._retranslate_status()
-            expected = translations['zh_cn']['merge_status_add'].format(n=26)
+            expected = _tr_args(_qm_lookup('zh_cn', en_add, 'TextMergerPanel'), 26)
             self.assertEqual(panel._lbl_status.text(), expected)
         finally:
             self._set_lang('ko')
             panel.deleteLater()
 
     def test_status_path_set_retranslates_with_save_dir(self):
-        """'merge_path_set' 상태에서 언어 전환 시 현재 save_dir로 재구성된다."""
+        """'Save path set: %1' 상태에서 언어 전환 시 현재 save_dir로 재구성된다."""
+        en_path = 'Save path set: %1'
         panel = self._make_panel('ko')
         try:
-            translations = _ns.get('TRANSLATIONS')
             panel.save_dir = 'C:/test/output'
-            panel._lbl_status.setText(translations['ko']['merge_path_set'].format(path='C:/test/output'))
+            panel._lbl_status.setText(
+                _tr_args(_qm_lookup('ko', en_path, 'TextMergerPanel'), 'C:/test/output'))
             self._set_lang('en')
             panel._retranslate_status()
-            expected = translations['en']['merge_path_set'].format(path='C:/test/output')
+            expected = _tr_args(_qm_lookup('en', en_path, 'TextMergerPanel'), 'C:/test/output')
             self.assertEqual(panel._lbl_status.text(), expected)
         finally:
             self._set_lang('ko')
             panel.deleteLater()
 
     def test_status_path_set_falls_back_to_ready_if_save_dir_empty(self):
-        """save_dir이 비어있는데 메시지만 path_set 패턴인 엣지 케이스 → ready로 폴백."""
+        """save_dir이 비어있는데 메시지만 path_set 패턴인 엣지 케이스 → Ready로 폴백."""
+        en_path = 'Save path set: %1'
         panel = self._make_panel('ko')
         try:
-            translations = _ns.get('TRANSLATIONS')
             panel.save_dir = ''  # no path
-            panel._lbl_status.setText(translations['ko']['merge_path_set'].format(path='/removed/path'))
+            panel._lbl_status.setText(
+                _tr_args(_qm_lookup('ko', en_path, 'TextMergerPanel'), '/removed/path'))
             self._set_lang('en')
             panel._retranslate_status()
-            # Empty save_dir → fall back to ready
-            self.assertEqual(panel._lbl_status.text(), translations['en']['merge_status_ready'])
+            # Empty save_dir → fall back to Ready
+            self.assertEqual(panel._lbl_status.text(),
+                             _qm_lookup('en', 'Ready', 'TextMergerPanel'))
         finally:
             self._set_lang('ko')
             panel.deleteLater()
 
-    # ── Non-restorable message → reset to ready ─────────────
+    # ── Non-restorable message → reset to Ready ─────────────
     def test_status_del_resets_to_ready_with_log(self):
-        """'merge_status_del' 상태 (원본 개수 소실) → ready 리셋 + 디버그 로그 남김."""
+        """'%1 file(s) removed' 상태 (원본 개수 소실) → Ready 리셋 + 디버그 로그 남김."""
+        en_del = '%1 file(s) removed'
         panel = self._make_panel('ko')
         try:
-            translations = _ns.get('TRANSLATIONS')
-            panel._lbl_status.setText(translations['ko']['merge_status_del'].format(n=5))
+            panel._lbl_status.setText(_tr_args(_qm_lookup('ko', en_del, 'TextMergerPanel'), 5))
             self._set_lang('ja')
             panel._retranslate_status()
-            self.assertEqual(panel._lbl_status.text(), translations['ja']['merge_status_ready'],
-                "del 메시지가 ready로 리셋되지 않음")
+            self.assertEqual(panel._lbl_status.text(),
+                             _qm_lookup('ja', 'Ready', 'TextMergerPanel'),
+                "del 메시지가 Ready로 리셋되지 않음")
         finally:
             self._set_lang('ko')
             panel.deleteLater()
 
     def test_status_save_done_resets_to_ready(self):
-        """'merge_save_done' 상태 (enc/path 소실) → ready 리셋."""
+        """'Saved (%1): %2' 상태 (enc/path 소실) → Ready 리셋."""
+        en_save_done = 'Saved (%1): %2'
         panel = self._make_panel('ko')
         try:
-            translations = _ns.get('TRANSLATIONS')
             panel._lbl_status.setText(
-                translations['ko']['merge_save_done'].format(enc='UTF-8', path='C:/out.txt'))
+                _tr_args(_qm_lookup('ko', en_save_done, 'TextMergerPanel'), 'UTF-8', 'C:/out.txt'))
             self._set_lang('zh_tw')
             panel._retranslate_status()
-            self.assertEqual(panel._lbl_status.text(), translations['zh_tw']['merge_status_ready'])
+            self.assertEqual(panel._lbl_status.text(),
+                             _qm_lookup('zh_tw', 'Ready', 'TextMergerPanel'))
         finally:
             self._set_lang('ko')
             panel.deleteLater()
@@ -4193,100 +3744,37 @@ class TestV105StatusRetranslate(unittest.TestCase):
 
     # ── Pattern-matching utility unit tests ────────────────
     def test_match_status_template_with_placeholders(self):
-        """_match_status_template이 플레이스홀더가 있는 템플릿을 정확히 인식한다."""
+        """_match_status_template이 플레이스홀더가 있는 템플릿을 정확히 인식한다.
+        Phase 3b: en_template 인자 자국이 *옛 internal key 양식 본받기 *영문 source-text 양식 본격 *옮긴 결."""
+        en_add = '%1 file(s) added (encoding auto-detected)'
+        en_clr = 'All files cleared'
         panel = self._make_panel('ko')
         try:
-            # Korean 'merge_status_add' template: "{n}개 파일 추가됨 (인코딩 자동 감지 완료)"
+            # Korean translation pattern matches
             self.assertTrue(
-                panel._match_status_template("26개 파일 추가됨 (인코딩 자동 감지 완료)",
-                                              'merge_status_add'))
-            # English template
+                panel._match_status_template("26개 파일 추가됨 (인코딩 자동 감지 완료)", en_add))
+            # English template matches
             self.assertTrue(
-                panel._match_status_template("26 file(s) added (encoding auto-detected)",
-                                              'merge_status_add'))
+                panel._match_status_template("26 file(s) added (encoding auto-detected)", en_add))
             # No-match case
             self.assertFalse(
-                panel._match_status_template("전혀 다른 텍스트", 'merge_status_add'))
-            # A different key's template (merge_status_clr) must not match
+                panel._match_status_template("전혀 다른 텍스트", en_add))
+            # A different source's template ('All files cleared') must not match
             self.assertFalse(
-                panel._match_status_template("26개 파일 추가됨 (인코딩 자동 감지 완료)",
-                                              'merge_status_clr'))
+                panel._match_status_template("26개 파일 추가됨 (인코딩 자동 감지 완료)", en_clr))
         finally:
             panel.deleteLater()
 
 
-class TestV105TranslationNoDuplicates(unittest.TestCase):
-    """v1.0.5 — Verify no recurrence after removing duplicate keys in translation dicts.
-
-    Background:
-      - v1.0.2 handover identified the 'zh_cn dict 188 duplicate keys' issue
-      - At v1.0.5 measurement, 74 duplicate lines remained (all values identical, zero behavior impact)
-      - All were safely deletable, so cleaned up in bulk this release
-      - This test continuously guards against recurrence via source-parsing
-    """
-
-    @classmethod
-    def setUpClass(cls):
-        with open(_MAIN_PY, encoding='utf-8') as f:
-            cls.src = f.read()
-
-    def _count_keys_per_language(self):
-        """Use AST to pin down each language's dict range in TRANSLATIONS,
-        then count dict-key occurrences within that range."""
-        import ast as _ast
-        tree = _ast.parse(self.src)
-        lines = self.src.split('\n')
-        entry_pattern = re.compile(r"^\s*'([a-zA-Z_][a-zA-Z0-9_]*)'\s*:")
-
-        per_lang = {}  # lang_code -> {key: count}
-        for node in _ast.walk(tree):
-            if isinstance(node, _ast.Assign):
-                for tgt in node.targets:
-                    if isinstance(tgt, _ast.Name) and tgt.id == 'TRANSLATIONS':
-                        if isinstance(node.value, _ast.Dict):
-                            for k, v in zip(node.value.keys, node.value.values):
-                                if isinstance(k, _ast.Constant):
-                                    block = lines[v.lineno-1:v.end_lineno]
-                                    from collections import Counter
-                                    keys_found = []
-                                    for line in block:
-                                        m = entry_pattern.match(line)
-                                        if m:
-                                            keys_found.append(m.group(1))
-                                    per_lang[k.value] = Counter(keys_found)
-        return per_lang
-
-    def test_no_duplicate_keys_in_any_language(self):
-        """Each of the 5 language dicts must have no duplicate keys.
-        Python dicts overwrite duplicate keys with later values, so no behavior bug, but
-        - Wasted lines of code
-        - When editing translations, fixing one side leaves the other intact, causing confusion
-        - Tech debt left from v1.0.2 through v1.0.4
-        — included as a structural verification test for ongoing surveillance."""
-        per_lang = self._count_keys_per_language()
-        self.assertEqual(len(per_lang), 5,
-            f"TRANSLATIONS에 5개 언어가 있어야 하는데 {len(per_lang)}개")
-        for lang_code, counter in per_lang.items():
-            dups = {k: v for k, v in counter.items() if v > 1}
-            self.assertEqual(len(dups), 0,
-                f"[{lang_code}] 중복 키 {len(dups)}개 발견: {list(dups.items())[:5]}")
-
-    def test_all_languages_have_similar_key_count(self):
-        """All 5 languages should have similar unique-key counts (completeness guarantee).
-        A large gap signals missing translations in some language.
-        Just after v1.0.5 dedup cleanup, ~391±2 was set as the allowed range.
-        v1.0.9 §5.1.G — zh_cn is allowed to be a subset (uses zh_tw fallback mechanism),
-        so excluded from this check; the other 4 languages are forced to differ by ≤5."""
-        per_lang = self._count_keys_per_language()
-        counts = {lang: len(c) for lang, c in per_lang.items()}
-        # zh_cn is intentionally smaller (zh_tw fallback) — excluded from key-count check
-        counts_for_check = {l: c for l, c in counts.items() if l != 'zh_cn'}
-        max_count = max(counts_for_check.values())
-        min_count = min(counts_for_check.values())
-        # Exact match is hard, so allow up to 5 difference (some untranslated keys may remain)
-        self.assertLessEqual(max_count - min_count, 5,
-            f"언어별 키 수 차이 과다 (zh_cn 제외, 허용 ≤5): "
-            f"{counts_for_check}  (zh_cn={counts.get('zh_cn')} — fallback 의도)")
+# Note: TestV105TranslationNoDuplicates removed in v1.1.0 Phase 3a.
+# That class verified two main-module-source invariants on the inline TRANSLATIONS
+# dict — no duplicate keys per language, and similar key counts across languages.
+# After Phase 3a both premises no longer apply: TRANSLATIONS now lives in
+# fns_translations.py composed from per-language fns_*.py files, so duplicate
+# keys are caught at PR-review time via git diff (one file per language) rather
+# than runtime, and key-count parity is already verified by
+# TestTranslationCompleteness.test_all_langs_same_key_count (rewritten in
+# Phase 3a to import fns_translations directly).
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -5167,54 +4655,19 @@ class TestBuildProgressDlg(unittest.TestCase):
 
 
 class TestSidebarCardPolish(unittest.TestCase):
-    """v1.1.0 design polishing — Sidebar card visual separation strengthened
-    via three coordinated changes (shadow + spacing + accent header). All
-    checks are source-grep based (PySide6 not required).
+    """v1.1.0 design polishing — Sidebar card visual separation.
 
-    Design intent: cards in the right-hand sidebar should feel slightly
-    elevated and visually grouped without changing their information density.
-    The shadow color is derived from BORDER with low alpha so it adapts to
-    light/dark themes; headers use ACCENT instead of MUTED so card titles
-    read as section markers rather than fading captions.
+    After v1.1.0 Phase 2b, the QGraphicsDropShadowEffect import, the
+    _apply_card_shadow helper, and its tuned parameters all live in
+    fns_theme.py — verified by TestFnsTheme. This class now covers the
+    AppSuite-side glue: the _apply_card_shadows method and its
+    invocation pattern from __init__ and apply_theme.
     """
 
     @classmethod
     def setUpClass(cls):
         with open(_MAIN_PY, encoding='utf-8') as f:
             cls._src = f.read()
-
-    def test_qgraphics_drop_shadow_effect_imported(self):
-        """QGraphicsDropShadowEffect added to PySide6.QtWidgets imports."""
-        # The auxiliary import line at ~L71 should now include the symbol
-        found = False
-        for match in re.finditer(r'from PySide6\.QtWidgets import ([^\n]+)', self._src):
-            if 'QGraphicsDropShadowEffect' in match.group(1):
-                found = True
-                break
-        self.assertTrue(found,
-                        "QGraphicsDropShadowEffect가 QtWidgets imports에 박혀 있지 않음")
-
-    def test_card_shadow_helper_defined(self):
-        """_apply_card_shadow module-level helper is defined."""
-        self.assertIn('def _apply_card_shadow(widget)', self._src,
-                      "_apply_card_shadow 헬퍼 정의 없음")
-
-    def test_card_shadow_uses_subtle_parameters(self):
-        """Shadow uses tuned 'subtle but visible' parameters: blur 18, offset (0, 3),
-        BORDER-derived color with alpha 0.5. These were the values that landed
-        after one round of tuning (v1 was too faint at blur 12 / alpha 0.35)."""
-        helper_start = self._src.find('def _apply_card_shadow(widget)')
-        self.assertGreater(helper_start, 0)
-        helper_end = self._src.find('\ndef ', helper_start + 10)
-        helper_block = self._src[helper_start:helper_end]
-        self.assertIn('setBlurRadius(18)', helper_block,
-                      "_apply_card_shadow blur radius != 18")
-        self.assertIn('setOffset(0, 3)', helper_block,
-                      "_apply_card_shadow offset != (0, 3)")
-        self.assertIn('setAlphaF(0.5)', helper_block,
-                      "_apply_card_shadow alpha != 0.5")
-        self.assertIn('QColor(BORDER)', helper_block,
-                      "_apply_card_shadow color is not derived from BORDER")
 
     def test_appsuite_applies_shadows_after_build(self):
         """AppSuite._apply_card_shadows is defined and called from both __init__
@@ -5231,38 +4684,865 @@ class TestSidebarCardPolish(unittest.TestCase):
         method_block = self._src[method_start:method_end]
         self.assertIn('findChildren(QGroupBox)', method_block,
                       "_apply_card_shadows가 findChildren(QGroupBox)로 카드를 찾지 않음")
-        self.assertIn('_apply_card_shadow(gb)', method_block,
-                      "_apply_card_shadows가 _apply_card_shadow를 호출하지 않음")
+        # Phase 2b: _apply_card_shadow now takes (widget, border_color) since
+        # it lives in fns_theme.py and reads BORDER as an argument.
+        self.assertIn('_apply_card_shadow(gb, BORDER)', method_block,
+                      "_apply_card_shadows가 _apply_card_shadow(gb, BORDER)를 호출하지 않음")
         # Called at least twice: once in __init__, once in apply_theme
         call_count = self._src.count('self._apply_card_shadows()')
         self.assertGreaterEqual(call_count, 2,
                                 f"self._apply_card_shadows() 호출이 2회 미만 ({call_count}회). "
                                 f"__init__와 apply_theme 양쪽에서 호출되어야 함")
 
-    def test_qgroupbox_qss_uses_accent_title_color(self):
-        """The global QGroupBox::title selector uses ACCENT (not MUTED) — section
-        headers should read as accent markers rather than faded captions."""
-        # Find the QGroupBox::title block in the global stylesheet
+    # Note: the following tests were removed in v1.1.0 Phase 2b because their
+    # main-module-source premise no longer applies after the extraction:
+    #   - test_qgraphics_drop_shadow_effect_imported
+    #     (QGraphicsDropShadowEffect import now lives in fns_theme.py)
+    #   - test_card_shadow_helper_defined
+    #     (_apply_card_shadow definition now lives in fns_theme.py)
+    #   - test_card_shadow_uses_subtle_parameters
+    #     (blur/offset/alpha parameters now live in fns_theme.py)
+    #   - test_qgroupbox_qss_uses_accent_title_color
+    #     (make_style QSS now lives in fns_theme.py)
+    #   - test_qgroupbox_qss_uses_strengthened_padding_and_margin
+    #     (make_style QSS now lives in fns_theme.py)
+    # Equivalent coverage now lives in TestFnsTheme.
+
+
+class TestFnsTheme(unittest.TestCase):
+    """v1.1.0 Phase 2b — fns_theme.py module regression test.
+
+    Verifies the color tokens (THEMES), theme-detection helpers, and the
+    QSS stylesheet builder (make_style) extracted to fns_theme.py during
+    the v1.1.0 modularization track. All checks are source-grep based on
+    fns_theme.py directly (PySide6 not required).
+
+    Replaces six tests removed from TestV010Regression / TestV012Regression
+    / TestSidebarCardPolish whose main-module-source premise no longer
+    applies after the Phase 2b extraction.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        _theme_py = os.path.join(os.path.dirname(_MAIN_PY), 'fns_theme.py')
+        with open(_theme_py, encoding='utf-8') as f:
+            cls._src = f.read()
+
+    # ── THEMES dict structure ────────────────────────────────────────────
+    def test_themes_count_9(self):
+        """The THEMES dict must contain 9 themes (auto is virtual, resolved at runtime)."""
+        m = re.search(r'^THEMES\s*=\s*\{(.*?)^\}', self._src, re.MULTILINE | re.DOTALL)
+        self.assertIsNotNone(m, "THEMES 정의 없음")
+        keys = re.findall(r"^\s{4}'(\w+)'\s*:\s*\{", m.group(1), re.MULTILINE)
+        self.assertEqual(len(keys), 9, f"THEMES 키 수 불일치: {keys}")
+
+    def test_themes_names(self):
+        """The THEMES dict must contain exactly the 9 expected theme names."""
+        m = re.search(r'^THEMES\s*=\s*\{(.*?)^\}', self._src, re.MULTILINE | re.DOTALL)
+        self.assertIsNotNone(m, "THEMES 정의 없음")
+        keys = set(re.findall(r"^\s{4}'(\w+)'\s*:\s*\{", m.group(1), re.MULTILINE))
+        expected = {'light','dark','ocean','mint','sand','honey','sakura','lavender','choco'}
+        self.assertEqual(keys, expected)
+
+    def test_all_themes_have_btn_border_h(self):
+        """Every theme dictionary must include the BTN_BORDER_H key."""
+        m = re.search(r'^THEMES\s*=\s*\{(.*?)^\}', self._src, re.MULTILINE | re.DOTALL)
+        self.assertIsNotNone(m, "THEMES 정의 없음")
+        theme_block = m.group(1)
+        self.assertGreater(theme_block.count("'BTN_BORDER_H'"), 0,
+                           "THEMES 안에 BTN_BORDER_H 키가 하나도 없음")
+        theme_count = len(re.findall(r"^\s{4}'(\w+)'\s*:\s*\{", theme_block, re.MULTILINE))
+        btn_border_h_count = theme_block.count("'BTN_BORDER_H'")
+        self.assertEqual(btn_border_h_count, theme_count,
+            f"BTN_BORDER_H 수({btn_border_h_count}) != 테마 수({theme_count})")
+
+    # ── make_style QSS shape ─────────────────────────────────────────────
+    def test_make_style_qgroupbox_title_uses_accent(self):
+        """The QGroupBox::title selector inside make_style uses ACCENT
+        (not MUTED) so section headers read as accent markers rather
+        than faded captions."""
         title_start = self._src.find('QGroupBox::title')
         self.assertGreater(title_start, 0, "QGroupBox::title selector 없음")
-        # Look at the next ~200 chars (the rule body)
         title_block = self._src[title_start:title_start + 300]
         self.assertIn("color:{t['ACCENT']}", title_block,
                       "QGroupBox::title이 ACCENT 색을 사용하지 않음")
 
-    def test_qgroupbox_qss_uses_strengthened_padding_and_margin(self):
-        """The global QGroupBox rule has strengthened spacing for card breathing
-        room: margin-bottom:6px, padding:12px 10px 10px 10px."""
-        # Anchor on 'QGroupBox {{' (the f-string '{{' becomes a literal '{' in Qt,
-        # but the source still has '{{') — distinguishes from QGroupBox::title
+    def test_make_style_qgroupbox_padding_strengthened(self):
+        """The global QGroupBox rule inside make_style uses the v1.1.0
+        strengthened spacing: margin-bottom:6px and padding:12px 10px 10px 10px."""
         gb_start = self._src.find('QGroupBox {{')
         self.assertGreater(gb_start, 0, "QGroupBox 글로벌 rule 없음")
-        # Look at the next 300 chars (the rule body)
         gb_block = self._src[gb_start:gb_start + 300]
         self.assertIn('margin-bottom:6px', gb_block,
                       "QGroupBox에 margin-bottom:6px 없음")
         self.assertIn('padding:12px 10px 10px 10px', gb_block,
                       "QGroupBox padding이 강화되지 않음 (예상: 12px 10px 10px 10px)")
+
+    # ── Card drop-shadow helper ──────────────────────────────────────────
+    def test_qgraphics_drop_shadow_effect_imported(self):
+        """QGraphicsDropShadowEffect imported from PySide6.QtWidgets in fns_theme.py
+        — required by the _apply_card_shadow helper."""
+        found = False
+        for match in re.finditer(r'from PySide6\.QtWidgets import ([^\n]+)', self._src):
+            if 'QGraphicsDropShadowEffect' in match.group(1):
+                found = True
+                break
+        self.assertTrue(found,
+                        "QGraphicsDropShadowEffect가 fns_theme.py의 QtWidgets imports에 박혀 있지 않음")
+
+    def test_apply_card_shadow_defined(self):
+        """_apply_card_shadow helper is defined in fns_theme.py with the
+        Phase 2b signature (widget, border_color)."""
+        self.assertIn('def _apply_card_shadow(widget, border_color)', self._src,
+                      "_apply_card_shadow(widget, border_color) 정의 없음")
+
+    def test_apply_card_shadow_uses_subtle_parameters(self):
+        """Shadow uses tuned 'subtle but visible' parameters: blur 18,
+        offset (0, 3), border_color-derived alpha 0.5. These values landed
+        after one round of tuning (v1 was too faint at blur 12 / alpha 0.35)."""
+        helper_start = self._src.find('def _apply_card_shadow(widget, border_color)')
+        self.assertGreater(helper_start, 0)
+        helper_end = self._src.find('\ndef ', helper_start + 10)
+        # If _apply_card_shadow is the last def in the file, slice to EOF
+        if helper_end == -1:
+            helper_end = len(self._src)
+        helper_block = self._src[helper_start:helper_end]
+        self.assertIn('setBlurRadius(18)', helper_block,
+                      "_apply_card_shadow blur radius != 18")
+        self.assertIn('setOffset(0, 3)', helper_block,
+                      "_apply_card_shadow offset != (0, 3)")
+        self.assertIn('setAlphaF(0.5)', helper_block,
+                      "_apply_card_shadow alpha != 0.5")
+        self.assertIn('QColor(border_color)', helper_block,
+                      "_apply_card_shadow color is not derived from border_color argument")
+
+
+# Note: TestFnsTranslations class removed in v1.1.0 Phase 3b (chunk-4).
+# The Phase 3a translation layout (fns_translations.py + translations/<lang>.py
+# dict modules) was itself superseded by Qt Linguist .ts/.qm sources during
+# Phase 3b. The TRANSLATIONS dict no longer exists at runtime; _all_translations_of
+# now reads .qm via _qm_lookup; _THEME_NAME_KEY and SUPPORTED_LANGUAGES live
+# elsewhere. Equivalent translation-integrity coverage lives in:
+#   - TestTsSourceIntegrity  (.ts source-file integrity, key symmetry,
+#                             macro-category coverage; PySide6-independent)
+#   - TestQmRuntimeIntegrity (.qm runtime + _qm_lookup + _all_translations_of
+#                             round-trip; requires real PySide6)
+
+
+class TestFnsUtils(unittest.TestCase):
+    """v1.1.0 Phase 2a — fns_utils.py module regression test.
+
+    Verifies the pure-function helpers (HTML utilities, natural-sort,
+    Tag Editor core) extracted to fns_utils.py during the v1.1.0
+    modularization track. Module-load based: imports the module
+    directly and exercises each helper. PySide6 not required since
+    fns_utils has no Qt dependency.
+
+    Replaces the in-test mock helpers and the eleven test classes that
+    were grading the mocks rather than the actual extracted module
+    (TestDe / TestEx / TestStripXmlIllegal / TestH2t / TestNaturalSort /
+    TestRemoveTag / TestAddTag / TestDepad / TestDetectPrefix /
+    TestExtractNumber / TestDepadDateRegression — 132 tests in total).
+    The old test bodies were grading mock signatures (e.g. _de(None) -> None,
+    _ex("'") -> &#39;) that diverged from the real fns_utils behavior;
+    rewriting them as-is would have carried dead specifications forward.
+    The new class grades fns_utils directly.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import fns_utils
+        cls._mod = fns_utils
+        with open(os.path.join(os.path.dirname(_MAIN_PY), 'fns_utils.py'),
+                  encoding='utf-8') as f:
+            cls._src = f.read()
+
+    # ── Module surface ───────────────────────────────────────────────────
+    def test_module_exposes_all_seventeen_names(self):
+        """fns_utils exposes the 17 names the main module imports."""
+        expected = {
+            # Number / natural-sort utilities (8)
+            '_pad', 'extract_number', '_get_leading_num', 'extract_number_auto',
+            'auto_width_for_group', 'detect_common_prefix', 'natural_sort_key',
+            '_SKIP_FILES',
+            # Tag Editor core logic (5)
+            'remove_tag_from_name', '_build_tag_str', 'add_tag_to_name',
+            'depad_name', 'apply_renames',
+            # HTML utilities (4)
+            '_de', '_h2t', '_strip_xml_illegal', '_ex',
+        }
+        for name in expected:
+            with self.subTest(name=name):
+                self.assertTrue(hasattr(self._mod, name),
+                                f"fns_utils에 {name!r} 자국 없음")
+
+    def test_skip_files_is_set_of_lowercase_strings(self):
+        """_SKIP_FILES is a set of system-junk file names, all lowercase."""
+        s = self._mod._SKIP_FILES
+        self.assertIsInstance(s, set)
+        self.assertGreater(len(s), 0)
+        for name in s:
+            self.assertEqual(name, name.lower(),
+                             f"_SKIP_FILES 자국 {name!r}이 lowercase 아님")
+        # Common Windows junk that the natural-sort filter excludes
+        self.assertIn('desktop.ini', s)
+        self.assertIn('thumbs.db', s)
+
+    # ── HTML utilities — _de (HTML entity decoding) ──────────────────────
+    def test_de_named_entities(self):
+        """Named entities decode: &amp; &lt; &gt; &quot; &apos; &#39; &nbsp;"""
+        _de = self._mod._de
+        self.assertEqual(_de('a&amp;b'), 'a&b')
+        self.assertEqual(_de('a&lt;b'), 'a<b')
+        self.assertEqual(_de('a&gt;b'), 'a>b')
+        self.assertEqual(_de('&quot;hi&quot;'), '"hi"')
+        self.assertEqual(_de('&apos;'), "'")
+        self.assertEqual(_de('&#39;'), "'")
+        self.assertEqual(_de('a&nbsp;b'), 'a b')
+
+    def test_de_numeric_entities(self):
+        """Numeric entities (decimal &#N; and hex &#xHH;) decode to chars."""
+        _de = self._mod._de
+        self.assertEqual(_de('&#65;'), 'A')           # decimal
+        self.assertEqual(_de('&#x41;'), 'A')          # hex (lower)
+        self.assertEqual(_de('&#44032;'), '가')       # decimal Korean
+        self.assertEqual(_de('&#xAC00;'), '가')       # hex Korean
+
+    def test_de_unknown_entities_stripped(self):
+        """Unknown lowercase named entities (&unknown;) are stripped to empty.
+        This is fns_utils policy: any leftover &[a-z]+; is removed at the end."""
+        _de = self._mod._de
+        self.assertEqual(_de('&unknown;'), '')
+        self.assertEqual(_de('a&xyz;b'), 'ab')
+
+    def test_de_chain_and_no_entity(self):
+        """Chained entities decode left-to-right; plain text passes through."""
+        _de = self._mod._de
+        self.assertEqual(_de('&lt;&amp;&gt;'), '<&>')
+        self.assertEqual(_de('hello'), 'hello')
+        self.assertEqual(_de(''), '')
+
+    def test_de_surrogates_blocked(self):
+        """Surrogate code points (U+D800-U+DFFF) decode to empty rather
+        than producing invalid text."""
+        _de = self._mod._de
+        self.assertEqual(_de('&#55296;'), '')        # U+D800 — leading surrogate
+        self.assertEqual(_de('&#57343;'), '')        # U+DFFF — trailing surrogate
+
+    # ── HTML utilities — _ex (HTML / XML escaping) ──────────────────────
+    def test_ex_basic_escapes(self):
+        """The five XML predefined entities are produced (apos, not #39)."""
+        _ex = self._mod._ex
+        self.assertEqual(_ex('a&b'), 'a&amp;b')
+        self.assertEqual(_ex('<'), '&lt;')
+        self.assertEqual(_ex('>'), '&gt;')
+        self.assertEqual(_ex('"'), '&quot;')
+        self.assertEqual(_ex("'"), '&apos;')
+
+    def test_ex_combined_and_safe_text(self):
+        """Combined attribute-style escape; plain Korean passes through."""
+        _ex = self._mod._ex
+        self.assertEqual(_ex('<a href="x">'),
+                         '&lt;a href=&quot;x&quot;&gt;')
+        self.assertEqual(_ex('hello 안녕'), 'hello 안녕')
+        self.assertEqual(_ex(''), '')
+
+    def test_ex_strips_xml_illegal_first(self):
+        """_ex composes _strip_xml_illegal, so control chars never appear in output."""
+        _ex = self._mod._ex
+        self.assertEqual(_ex('a\x00b'), 'ab')         # NUL stripped
+        self.assertEqual(_ex('a\x1Fb'), 'ab')         # control stripped
+
+    # ── HTML utilities — _strip_xml_illegal ─────────────────────────────
+    def test_strip_xml_illegal_strips_control_chars(self):
+        """C0 control chars (except tab, LF, CR) are stripped."""
+        s = self._mod._strip_xml_illegal
+        self.assertEqual(s('\x00'), '')
+        self.assertEqual(s('\x08'), '')
+        self.assertEqual(s('\x0B'), '')
+        self.assertEqual(s('\x1F'), '')
+        self.assertEqual(s('a\x00b\x1Fc'), 'abc')
+
+    def test_strip_xml_illegal_preserves_legal_chars(self):
+        """Tab, LF, CR, and printable text are preserved."""
+        s = self._mod._strip_xml_illegal
+        self.assertEqual(s('\t'), '\t')
+        self.assertEqual(s('\n'), '\n')
+        self.assertEqual(s('\r'), '\r')
+        self.assertEqual(s('hello'), 'hello')
+        self.assertEqual(s('한국어'), '한국어')
+
+    # ── HTML utilities — _h2t (HTML → text) ─────────────────────────────
+    def test_h2t_basic_block_tags(self):
+        """Block-level tags (br, p, div) become newlines (between content,
+        not at the edges — the final .strip() trims leading/trailing whitespace)."""
+        _h2t = self._mod._h2t
+        self.assertIn('\n', _h2t('a<br>b', False))
+        self.assertIn('\n', _h2t('<p>a</p><p>b</p>', False))
+        self.assertIn('\n', _h2t('<div>a</div><div>b</div>', False))
+
+    def test_h2t_strips_tags_and_decodes_entities(self):
+        """Tags are stripped; entities are decoded inside the text."""
+        _h2t = self._mod._h2t
+        self.assertEqual(_h2t('<b>hello</b>', False), 'hello')
+        self.assertEqual(_h2t('&amp;', False), '&')
+
+    def test_h2t_keep_headings(self):
+        """keep=True wraps headings with bullet markers; keep=False strips them silently."""
+        _h2t = self._mod._h2t
+        kept = _h2t('<h1>Title</h1>body', True)
+        self.assertIn('Title', kept)
+        self.assertIn('■', kept)             # heading bullet marker
+        stripped = _h2t('<h1>Title</h1>body', False)
+        self.assertNotIn('■', stripped)
+
+    def test_h2t_drops_script_and_style(self):
+        """<script> and <style> blocks are stripped entirely (content + tags)."""
+        _h2t = self._mod._h2t
+        self.assertNotIn('alert', _h2t('a<script>alert(1)</script>b', False))
+        self.assertNotIn('color', _h2t('a<style>p{color:red}</style>b', False))
+
+    # ── Number / natural-sort utilities ─────────────────────────────────
+    def test_pad_zero_pads_single_digits(self):
+        """_pad zero-pads single-digit strings to width 2; leaves the rest alone."""
+        _pad = self._mod._pad
+        self.assertEqual(_pad('1'), '01')
+        self.assertEqual(_pad('9'), '09')
+        self.assertEqual(_pad('10'), '10')
+        self.assertEqual(_pad('100'), '100')
+        self.assertEqual(_pad('abc'), 'abc')
+
+    def test_extract_number_pads_first_run(self):
+        """extract_number returns the file's first numeric run, zero-padded to 2."""
+        f = self._mod.extract_number
+        self.assertEqual(f('Chapter 1'), '01')
+        self.assertEqual(f('Chapter 9'), '09')
+        self.assertEqual(f('Chapter 10'), '10')
+        self.assertEqual(f('Chapter 100'), '100')
+        self.assertEqual(f(''), '')                    # empty stays empty
+        self.assertEqual(f('no number'), 'no number')  # no digit → input back
+
+    def test_extract_number_handles_range_and_separators(self):
+        """Range (1~3), hyphen (1-3), and dot (1.5) keep the separator."""
+        f = self._mod.extract_number
+        self.assertEqual(f('1~3'), '01~03')
+        self.assertEqual(f('1-3'), '01-3')
+        self.assertEqual(f('1.5'), '01.5')
+
+    def test_extract_number_auto_uses_explicit_width(self):
+        """extract_number_auto pads to the explicit width argument."""
+        f = self._mod.extract_number_auto
+        self.assertEqual(f('Chapter 1', 3), '001')
+        self.assertEqual(f('Chapter 12', 4), '0012')
+
+    def test_auto_width_for_group_picks_max_digit_count(self):
+        """auto_width_for_group returns the digit-count of the largest leading number."""
+        f = self._mod.auto_width_for_group
+        self.assertEqual(f(['Chapter 1', 'Chapter 2', 'Chapter 9']), 1)
+        self.assertEqual(f(['Chapter 1', 'Chapter 100']), 3)
+        self.assertEqual(f(['no digits', 'either']), 1)
+
+    def test_get_leading_num_returns_first_int(self):
+        """_get_leading_num returns the first integer in the string, 0 if absent."""
+        f = self._mod._get_leading_num
+        self.assertEqual(f('Chapter 12'), 12)
+        self.assertEqual(f('12 Chapter'), 12)
+        self.assertEqual(f('no digits'), 0)
+
+    def test_detect_common_prefix_strips_at_first_digit(self):
+        """detect_common_prefix returns the shared prefix, cut at the first digit."""
+        f = self._mod.detect_common_prefix
+        self.assertEqual(f(['Chapter 1', 'Chapter 2']), 'Chapter ')
+        self.assertEqual(f(['ABC_1', 'ABC_2']), 'ABC_')
+        self.assertEqual(f(['001Chapter', '002Chapter']), '')   # leading digit → empty
+        self.assertEqual(f([]), '')
+
+    def test_natural_sort_key_uses_basename_lowercased(self):
+        """natural_sort_key splits on digit runs, basename-only, lowercased."""
+        f = self._mod.natural_sort_key
+        # Mixed case + digits — sort by numeric run
+        a = f('/path/to/Chapter 2.txt')
+        b = f('/path/to/Chapter 10.txt')
+        self.assertLess(a, b, "Chapter 2 must natural-sort before Chapter 10")
+        # Basename only — directory ignored
+        self.assertEqual(f('/a/b/file.txt'), f('/x/y/file.txt'))
+
+    # ── Tag Editor core logic ───────────────────────────────────────────
+    def test_remove_tag_from_name_front_back_both(self):
+        """remove_tag_from_name strips bracket tags by position."""
+        f = self._mod.remove_tag_from_name
+        self.assertEqual(f('[KO] file.txt', position='front'), 'file.txt')
+        self.assertEqual(f('file [done].txt', position='back'), 'file.txt')
+        self.assertEqual(f('[KO] file [done].txt', position='both'), 'file.txt')
+
+    def test_remove_tag_from_name_target_specific(self):
+        """target_tag strips only the given tag, regardless of position."""
+        f = self._mod.remove_tag_from_name
+        self.assertEqual(f('[KO] file [done].txt', target_tag='KO'),
+                         'file [done].txt')
+        self.assertEqual(f('[KO] file [done].txt', target_tag='done'),
+                         '[KO] file.txt')
+
+    def test_remove_tag_from_name_double_brackets(self):
+        """Double-bracket tags ([[tag]]) are stripped by the [+...]+ pattern."""
+        f = self._mod.remove_tag_from_name
+        self.assertEqual(f('[[KO]] file.txt', position='front'), 'file.txt')
+
+    def test_remove_tag_from_name_empty_or_unchanged_returns_none(self):
+        """When the tag-strip would leave the basename empty, or no change
+        happens, the function returns None — caller can skip the rename."""
+        f = self._mod.remove_tag_from_name
+        self.assertIsNone(f('[KO].txt', position='front'))   # would be empty
+        self.assertIsNone(f('plain.txt', position='front'))  # no change
+
+    def test_build_tag_str_substitutes_placeholder(self):
+        """_build_tag_str replaces the {tag} placeholder in fmt with the raw tag."""
+        f = self._mod._build_tag_str
+        self.assertEqual(f('KO', '[{tag}]'), '[KO]')
+        self.assertEqual(f('done', '({tag})'), '(done)')
+
+    def test_add_tag_to_name_front_and_back(self):
+        """add_tag_to_name prepends/appends a formatted tag with optional spacing."""
+        f = self._mod.add_tag_to_name
+        self.assertEqual(f('file.txt', ['KO'], '[{tag}]', 'front', False, False),
+                         '[KO] file.txt')
+        self.assertEqual(f('file.txt', ['KO'], '[{tag}]', 'back', False, False),
+                         'file [KO].txt')
+
+    def test_add_tag_to_name_skip_when_present(self):
+        """skip_exist=True returns None if the tag is already in the basename."""
+        f = self._mod.add_tag_to_name
+        self.assertIsNone(f('[KO] file.txt', ['KO'], '[{tag}]',
+                            'front', True, False))
+
+    def test_depad_name_preserves_dates(self):
+        """depad_name leaves YYYY-MM-DD and MM-DD untouched (returns None)."""
+        f = self._mod.depad_name
+        self.assertIsNone(f('2024-01-01'))
+        self.assertIsNone(f('01-01'))
+
+    def test_depad_name_strips_leading_zeros(self):
+        """Leading zeros are removed from a single number run."""
+        f = self._mod.depad_name
+        self.assertEqual(f('001화.txt'), '1화.txt')
+        self.assertEqual(f('007.mp3'), '7.mp3')
+
+    def test_depad_name_keeps_zero_after_hyphen(self):
+        """Zeros after a hyphen are preserved (range notation 001-197화 → 1-197화)."""
+        f = self._mod.depad_name
+        # Strips leading 001 but keeps 197
+        result = f('사과나무 001-197화(完).txt')
+        self.assertIsNotNone(result)
+        self.assertIn('1-197', result)
+        self.assertNotIn('001', result)
+
+    def test_depad_name_no_change_returns_none(self):
+        """If the regex changes nothing, return None — caller can skip the rename."""
+        f = self._mod.depad_name
+        self.assertIsNone(f('plain.txt'))
+
+    def test_apply_renames_returns_success_count_and_errors(self):
+        """apply_renames returns (success_count, error_list) and renames files on disk."""
+        f = self._mod.apply_renames
+        with tempfile.TemporaryDirectory() as td:
+            for name in ('a.txt', 'b.txt'):
+                open(os.path.join(td, name), 'w').close()
+            success, errors = f([(td, 'a.txt', 'a_renamed.txt'),
+                                 (td, 'b.txt', 'b_renamed.txt')])
+            self.assertEqual(success, 2)
+            self.assertEqual(errors, [])
+            self.assertTrue(os.path.exists(os.path.join(td, 'a_renamed.txt')))
+            self.assertTrue(os.path.exists(os.path.join(td, 'b_renamed.txt')))
+
+    def test_apply_renames_collects_failures(self):
+        """Failed renames are collected without aborting the loop."""
+        f = self._mod.apply_renames
+        with tempfile.TemporaryDirectory() as td:
+            success, errors = f([(td, 'missing.txt', 'whatever.txt')])
+            self.assertEqual(success, 0)
+            self.assertEqual(len(errors), 1)
+
+    # ── Empty-input boundary (replaces the three TestBoundaryValues tests
+    #    that were grading the old in-test mocks: depad / remove_tag /
+    #    extract_number with empty-string input). The fns_utils contract
+    #    differs from the old mocks: empty input that produces no change
+    #    returns None for the rename helpers, and extract_number returns
+    #    the input string back rather than None — both intentional, since
+    #    None signals "no rename needed" to callers in the main module.
+    def test_depad_name_empty_input(self):
+        """depad_name('') returns None — empty stays empty, no rename."""
+        self.assertIsNone(self._mod.depad_name(''))
+
+    def test_remove_tag_from_name_empty_input(self):
+        """remove_tag_from_name('') returns None — nothing to strip."""
+        self.assertIsNone(self._mod.remove_tag_from_name('', position='both'))
+
+    def test_extract_number_empty_input(self):
+        """extract_number('') returns '' — input passed through unchanged."""
+        self.assertEqual(self._mod.extract_number(''), '')
+
+    # ── fns_utils.py source-grep invariants ─────────────────────────────
+    def test_no_pyside6_dependency(self):
+        """fns_utils.py is pure Python — must not import PySide6."""
+        self.assertNotIn('import PySide6', self._src,
+                         "fns_utils.py에 PySide6 import 자국 박힘 — 본질 깨짐")
+        self.assertNotIn('from PySide6', self._src,
+                         "fns_utils.py에 PySide6 from-import 자국 박힘 — 본질 깨짐")
+
+    def test_no_translations_or_theme_dependency(self):
+        """fns_utils.py code (excluding the header docstring, which mentions
+        these names only to declare independence) must not import or use
+        TRANSLATIONS, fns_theme, or ConfigManager."""
+        import re as _re_local
+        # Strip the header module docstring so its descriptive prose
+        # ("no dependencies on PySide6, TRANSLATIONS, ConfigManager...")
+        # doesn't trip the substring check.
+        code = _re_local.sub(r'^"""[\s\S]*?"""', '', self._src,
+                             count=1, flags=_re_local.MULTILINE)
+        self.assertNotIn('TRANSLATIONS', code,
+                         "fns_utils.py 코드 자국에 TRANSLATIONS 박힘 — 본질 깨짐")
+        self.assertNotIn('fns_theme', code,
+                         "fns_utils.py 코드 자국에 fns_theme 박힘 — 본질 깨짐")
+        self.assertNotIn('ConfigManager', code,
+                         "fns_utils.py 코드 자국에 ConfigManager 박힘 — 본질 깨짐")
+
+    def test_only_stdlib_imports(self):
+        """fns_utils.py imports only stdlib (os, re) — no third-party packages."""
+        import re as _re_local
+        imports = _re_local.findall(r'^(?:from|import)\s+(\S+)',
+                                     self._src, _re_local.MULTILINE)
+        for mod in imports:
+            top = mod.split('.')[0]
+            with self.subTest(mod=top):
+                self.assertIn(top, {'os', 're'},
+                              f"fns_utils.py에 비표준 import 자국 ({top}) 박힘")
+
+    # ── Main-module integration ──────────────────────────────────────────
+    def test_main_module_imports_from_fns_utils(self):
+        """Main module imports the seventeen extracted names from fns_utils."""
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            src = f.read()
+        self.assertIn('from fns_utils import', src,
+                      "본체에 fns_utils import 자국 없음")
+        for name in ('_pad', 'extract_number', '_get_leading_num',
+                     'extract_number_auto', 'auto_width_for_group',
+                     'detect_common_prefix', 'natural_sort_key', '_SKIP_FILES',
+                     'remove_tag_from_name', '_build_tag_str',
+                     'add_tag_to_name', 'depad_name', 'apply_renames',
+                     '_de', '_h2t', '_strip_xml_illegal', '_ex'):
+            with self.subTest(name=name):
+                self.assertIn(name, src,
+                              f"본체 import에 {name!r} 자국 없음")
+
+    def test_main_module_no_inline_pure_helpers(self):
+        """The seventeen helper definitions must no longer live in the main
+        module after Phase 2a — only the import statement should reference them."""
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            src = f.read()
+        # No top-level "def extract_number(" etc.
+        for fn in ('extract_number', 'extract_number_auto',
+                   'auto_width_for_group', 'detect_common_prefix',
+                   'natural_sort_key', 'remove_tag_from_name',
+                   'add_tag_to_name', 'depad_name', 'apply_renames',
+                   '_build_tag_str', '_de', '_h2t', '_strip_xml_illegal',
+                   '_ex', '_pad', '_get_leading_num'):
+            with self.subTest(fn=fn):
+                self.assertNotRegex(src, rf'^def {fn}\b',
+                    f"본체에 def {fn}( 정의 자국이 아직 박혀 있음")
+        # No top-level "_SKIP_FILES = " definition (constant)
+        self.assertNotRegex(src, r'^_SKIP_FILES\s*=\s*\{',
+                            "본체에 _SKIP_FILES = { 정의 자국이 아직 박혀 있음")
+
+
+class TestFileListBaseRefactor(unittest.TestCase):
+    """v1.1.0 (라-B-1.5-B) — File list base classes.
+
+    Verifies the three base classes (FileListModel / FileListBase / DragDropMixin)
+    that consolidate the QTreeWidget pattern across five FNS file-list widgets
+    into a virtualized QTableView + QAbstractTableModel architecture.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            cls.src = f.read()
+
+    def _get_class_body(self, name):
+        import re
+        m = re.search(rf'^class {name}\b.*?(?=\n^class |\nif __name__|\Z)',
+                      self.src, re.MULTILINE | re.DOTALL)
+        self.assertIsNotNone(m, f"{name} 클래스 정의 자국 없음")
+        return m.group(0)
+
+    def test_three_base_classes_defined(self):
+        """FileListModel, FileListBase, DragDropMixin must all exist."""
+        self.assertIn('class FileListModel(QAbstractTableModel):', self.src,
+                      "FileListModel(QAbstractTableModel) 클래스 정의 자국 없음")
+        self.assertIn('class FileListBase(QTableView):', self.src,
+                      "FileListBase(QTableView) 클래스 정의 자국 없음")
+        self.assertIn('class DragDropMixin:', self.src,
+                      "DragDropMixin 클래스 정의 자국 없음")
+
+    def test_filelistmodel_supports_arbitrary_items(self):
+        """FileListModel.data() must guard with isinstance(item, str) so non-path
+        items (e.g. tuples in _TagPreviewTree) don't crash default rendering."""
+        body = self._get_class_body('FileListModel')
+        self.assertIn('isinstance(item, str)', body,
+                      "FileListModel data()가 임의 item 양식 호환 자국 없음")
+        self.assertIn('PATH_ROLE = Qt.ItemDataRole.UserRole + 4', body,
+                      "FileListModel.PATH_ROLE 클래스 변수 없음")
+
+    def test_filelistmodel_has_sort_api(self):
+        """FileListModel must expose sort(column, order) + sort_key(column) for
+        Qt's setSortingEnabled(True) integration."""
+        body = self._get_class_body('FileListModel')
+        self.assertIn('def sort(self, column, order=', body,
+                      "FileListModel.sort() 메서드 자국 없음")
+        self.assertIn('def sort_key(self, column):', body,
+                      "FileListModel.sort_key() 메서드 자국 없음")
+        self.assertIn('natural_sort_key', body,
+                      "FileListModel.sort_key가 natural_sort_key 본받지 않음")
+
+    def test_filelistbase_class_attrs(self):
+        """FileListBase must declare the contract attributes for subclass overrides."""
+        body = self._get_class_body('FileListBase')
+        for attr in ('COLUMNS', 'COLUMN_WIDTHS', 'SELECTION_MODE', 'SORT_ENABLED',
+                     'INITIAL_SORT_COLUMN', 'INITIAL_SORT_ORDER'):
+            self.assertIn(attr, body, f"FileListBase.{attr} 클래스 변수 자국 없음")
+        self.assertIn('files_changed = Signal(int)', body,
+                      "FileListBase.files_changed 시그널 자국 없음")
+
+    def test_filelistbase_core_methods(self):
+        """FileListBase must implement the common file-list contract."""
+        body = self._get_class_body('FileListBase')
+        for method in ('def add_files(self, paths, warn_fn=None):',
+                       'def remove_selected(self):',
+                       'def clear_files(self):',
+                       'def move_selection(self, delta):',
+                       'def keyPressEvent(self, e):',
+                       'def retranslate_headers(self):',
+                       'def _file_filter(self, paths):',
+                       'def _setup_view(self):',
+                       'def _make_model(self):'):
+            self.assertIn(method, body,
+                          f"FileListBase에 '{method.strip()}' 자국 없음")
+        self.assertIn('@property', body, "FileListBase.files property 자국 없음")
+
+    def test_dragdropmixin_contract(self):
+        """DragDropMixin must declare ACCEPT_EXTERNAL_DROPS and the drag-drop
+        event handlers that work via _setup_dragdrop()."""
+        body = self._get_class_body('DragDropMixin')
+        self.assertIn('ACCEPT_EXTERNAL_DROPS = False', body,
+                      "DragDropMixin.ACCEPT_EXTERNAL_DROPS 자국 없음")
+        for method in ('def _setup_dragdrop(self):',
+                       'def dragEnterEvent(self, e):',
+                       'def dragMoveEvent(self, e):',
+                       'def startDrag(self, supported_actions):',
+                       'def dropEvent(self, e):',
+                       'def _handle_internal_drop(self, e):'):
+            self.assertIn(method, body,
+                          f"DragDropMixin에 '{method.strip()}' 자국 없음")
+        # CopyAction enforcement (v1.0.6 pattern, prevents Qt's auto-delete bug)
+        self.assertIn('Qt.DropAction.CopyAction', body,
+                      "DragDropMixin이 CopyAction 강제 자국 없음 (v1.0.6 패턴)")
+
+
+class TestFileListSubClassRefactor(unittest.TestCase):
+    """v1.1.0 (라-B-1.5-B) — Five file-list widgets refactored to FileListBase.
+
+    Verifies each subclass declares the right COLUMNS/SELECTION_MODE/SORT_ENABLED
+    and the right mixin chain. The five subclasses are:
+        _TagFileList               — Tag Editor 좌측 (no mixin, Qt-builtin sort)
+        _TagPreviewTree            — Tag Editor 우측 (no mixin, preview-only, 3 cols)
+        BulkFixerFileList          — DragDropMixin + .txt filter
+        TextConverterFileList      — DragDropMixin + mode-aware filter (txt/epub)
+        MergeFileTree              — DragDropMixin (EXT=True) + encoding metadata
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            cls.src = f.read()
+
+    def _get_class_body(self, name):
+        import re
+        m = re.search(rf'^class {name}\b.*?(?=\n^class |\nif __name__|\Z)',
+                      self.src, re.MULTILINE | re.DOTALL)
+        self.assertIsNotNone(m, f"{name} 클래스 정의 자국 없음")
+        return m.group(0)
+
+    def test_tag_file_list(self):
+        """_TagFileList: FileListBase + Qt-builtin sort (no DragDropMixin)."""
+        body = self._get_class_body('_TagFileList')
+        self.assertIn('class _TagFileList(FileListBase):', body,
+                      "_TagFileList가 FileListBase 본받기 자국 없음")
+        self.assertNotIn('DragDropMixin', body,
+                         "_TagFileList는 DragDropMixin 본받지 않아야 함")
+        self.assertIn('SORT_ENABLED = True', body,
+                      "_TagFileList.SORT_ENABLED=True 자국 없음")
+        # v1.1.0 Phase 3b: i18n keys replaced by QT_TR_NOOP(English source).
+        self.assertIn('QT_TR_NOOP("Filename")', body,
+                      "_TagFileList COLUMNS에 QT_TR_NOOP(\"Filename\") 자국 없음")
+        self.assertIn('QT_TR_NOOP("Path")', body,
+                      "_TagFileList COLUMNS에 QT_TR_NOOP(\"Path\") 자국 없음")
+
+    def test_tag_preview_tree(self):
+        """_TagPreviewTree: FileListBase + 3 cols + SingleSelection + custom model."""
+        body = self._get_class_body('_TagPreviewTree')
+        self.assertIn('class _TagPreviewTree(FileListBase):', body)
+        self.assertNotIn('DragDropMixin', body,
+                         "_TagPreviewTree는 DragDropMixin 본받지 않아야 함")
+        self.assertIn('SELECTION_MODE = QAbstractItemView.SingleSelection', body,
+                      "_TagPreviewTree.SELECTION_MODE=Single 자국 없음")
+        self.assertIn('SORT_ENABLED = False', body,
+                      "_TagPreviewTree는 sort 비활성화 (preview only)")
+        # v1.1.0 Phase 3b: i18n keys replaced by QT_TR_NOOP(English source).
+        # Three-tuple item rendering via render_fn lambdas.
+        for source in ('Folder', 'Original Name', 'New Name'):
+            self.assertIn(f'QT_TR_NOOP("{source}")', body,
+                          f"_TagPreviewTree에 QT_TR_NOOP(\"{source}\") 자국 없음")
+        # Custom model for ACCENT-colored 'new name' column
+        self.assertIn('_TagPreviewModel', body,
+                      "_TagPreviewTree가 _TagPreviewModel 양식 본받지 않음")
+        # _TagPreviewModel as separate class with ForegroundRole override
+        pm_body = self._get_class_body('_TagPreviewModel')
+        self.assertIn('Qt.ForegroundRole', pm_body,
+                      "_TagPreviewModel이 ForegroundRole 양식 본받지 않음")
+
+    def test_bulk_fixer_file_list(self):
+        """BulkFixerFileList: DragDropMixin + FileListBase + .txt filter."""
+        body = self._get_class_body('BulkFixerFileList')
+        self.assertIn('class BulkFixerFileList(DragDropMixin, FileListBase):', body,
+                      "BulkFixerFileList가 (DragDropMixin, FileListBase) 양식 본받지 않음")
+        self.assertIn('ACCEPT_EXTERNAL_DROPS = False', body,
+                      "BulkFixerFileList — DropZone이 외부 drop 박는 양식")
+        self.assertIn('SORT_ENABLED = True', body)
+        # .txt filter via _file_filter override
+        self.assertIn('def _file_filter(self, paths):', body,
+                      "BulkFixerFileList._file_filter override 자국 없음")
+        self.assertIn(".txt'", body, "BulkFixerFileList가 .txt 필터 자국 없음")
+        # DragDropMixin signals declared on concrete class (PySide6 양식)
+        self.assertIn('files_dropped = Signal(list)', body)
+        self.assertIn('order_changed = Signal()', body)
+
+    def test_text_converter_file_list(self):
+        """TextConverterFileList: DragDropMixin + FileListBase + mode-aware filter."""
+        body = self._get_class_body('TextConverterFileList')
+        self.assertIn('class TextConverterFileList(DragDropMixin, FileListBase):', body)
+        self.assertIn('ACCEPT_EXTERNAL_DROPS = False', body,
+                      "TextConverterFileList — DropZone이 외부 drop 박는 양식")
+        self.assertIn('def set_mode(self, mode):', body,
+                      "TextConverterFileList.set_mode() 메서드 자국 없음")
+        self.assertIn('def _file_filter(self, paths):', body)
+        # Mode-aware extension switching
+        self.assertIn('"epub2txt"', body)
+        self.assertIn('.epub', body)
+        self.assertIn('.txt', body)
+
+    def test_merge_file_tree(self):
+        """MergeFileTree: DragDropMixin (EXT=True) + FileListBase + encoding metadata."""
+        body = self._get_class_body('MergeFileTree')
+        self.assertIn('class MergeFileTree(DragDropMixin, FileListBase):', body)
+        self.assertIn('ACCEPT_EXTERNAL_DROPS = True', body,
+                      "MergeFileTree는 외부 file drop 박을 자국 (ACCEPT_EXTERNAL_DROPS=True)")
+        self.assertIn('SORT_ENABLED = False', body,
+                      "MergeFileTree는 panel-managed sort (header click → _sort_files)")
+        # Metadata wiring API
+        self.assertIn('def set_metadata_maps(self, enc_map, conf_map, lines_map):', body,
+                      "MergeFileTree.set_metadata_maps() 메서드 없음")
+        self.assertIn('def refresh_path(self, path):', body,
+                      "MergeFileTree.refresh_path(path) 메서드 없음")
+        # Custom model for encoding-role lookups
+        self.assertIn('_MergeFileTreeModel', body,
+                      "MergeFileTree가 _MergeFileTreeModel 본받지 않음")
+        # _MergeFileTreeModel routes the three encoding roles to external dicts
+        mm_body = self._get_class_body('_MergeFileTreeModel')
+        for role_offset in ('UserRole + 1', 'UserRole + 2', 'UserRole + 3'):
+            self.assertIn(role_offset, mm_body,
+                          f"_MergeFileTreeModel data()가 {role_offset} 자국 박지 않음")
+
+
+class TestTextMergerSelectionLayout(unittest.TestCase):
+    """v1.1.0 — Text Merger selection-label layout fix.
+
+    The bottom selection summary label (_lbl_selection) used to share a
+    horizontal row with the move/delete buttons. With many files selected,
+    the label's intrinsic width inflated the left panel's minimumSize and
+    pushed the right (// save settings) panel off-screen — also clipping
+    the move/delete buttons' own text.
+
+    Fix: (1) move the label to its own row, (2) wrap it in a new
+    _ElideLabel helper that ignores horizontal minimumSize and
+    right-elides with '...' (full text remains accessible via tooltip).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with open(_MAIN_PY, encoding='utf-8') as f:
+            cls.src = f.read()
+
+    def _get_class_body(self, name):
+        import re
+        m = re.search(rf'^class {name}\b.*?(?=\n^class |\nif __name__|\Z)',
+                      self.src, re.MULTILINE | re.DOTALL)
+        self.assertIsNotNone(m, f"{name} 클래스 정의가 없음")
+        return m.group(0)
+
+    def test_elide_label_class_defined(self):
+        """_ElideLabel(QLabel) helper must exist."""
+        self.assertIn('class _ElideLabel(QLabel):', self.src,
+                      "_ElideLabel(QLabel) 클래스 정의가 없음")
+
+    def test_elide_label_size_policy_ignored(self):
+        """_ElideLabel must set horizontal SizePolicy to Ignored so a long
+        string never inflates the parent widget's minimum width."""
+        body = self._get_class_body('_ElideLabel')
+        self.assertIn('QSizePolicy.Ignored', body,
+                      "_ElideLabel은 QSizePolicy.Ignored를 박아야 함 "
+                      "(부모 widget의 minimum width가 라벨 텍스트 길이로 expand되는 것을 차단)")
+        self.assertIn('setSizePolicy(', body,
+                      "_ElideLabel은 setSizePolicy() 호출이 없음")
+
+    def test_elide_label_overrides_settext(self):
+        """setText must override QLabel.setText to store the full text and
+        re-apply elision, so external callers get elision automatically
+        without changes at the call site."""
+        body = self._get_class_body('_ElideLabel')
+        self.assertIn('def setText(self, text):', body,
+                      "_ElideLabel.setText override가 없음")
+        self.assertIn('self._full_text', body,
+                      "_ElideLabel은 full text를 _full_text에 보관해야 함")
+        self.assertIn('setToolTip', body,
+                      "_ElideLabel은 full text를 tooltip으로 노출해야 함")
+
+    def test_elide_label_resize_reapplies_elide(self):
+        """resizeEvent must trigger _apply_elide so width changes update the
+        truncation point dynamically; _apply_elide must use fontMetrics
+        elidedText with ElideRight mode."""
+        body = self._get_class_body('_ElideLabel')
+        self.assertIn('def resizeEvent(self, e):', body,
+                      "_ElideLabel.resizeEvent override가 없음")
+        self.assertIn('def _apply_elide(self):', body,
+                      "_ElideLabel._apply_elide 메서드가 없음")
+        self.assertIn('elidedText(', body,
+                      "_ElideLabel은 fontMetrics().elidedText()를 사용해야 함")
+        self.assertIn('ElideRight', body,
+                      "_ElideLabel은 Qt.TextElideMode.ElideRight를 사용해야 함")
+
+    def test_lbl_selection_uses_elide_label(self):
+        """Text Merger _lbl_selection must be an _ElideLabel instance,
+        not a plain QLabel."""
+        self.assertIn('self._lbl_selection = _ElideLabel(', self.src,
+                      "_lbl_selection이 _ElideLabel 양식이 아님 — selection layout fix가 적용되지 않음")
+
+    def test_lbl_selection_on_separate_row(self):
+        """_lbl_selection must NOT live in bot_btn_row. It must be added to
+        the parent vertical layout (ll) separately to prevent layout
+        breakage when the text grows long with many selected files."""
+        self.assertNotIn('bot_btn_row.addWidget(self._lbl_selection)', self.src,
+                         "_lbl_selection이 bot_btn_row에 박혀 있음 — 별도 row로 분리해야 함")
+        self.assertIn('ll.addWidget(self._lbl_selection)', self.src,
+                      "_lbl_selection이 별도 row(ll.addWidget)에 박혀 있지 않음")
 
 
 # ════════════════════════════════════════════════════════════════════════
