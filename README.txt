@@ -1,5 +1,5 @@
 ═══════════════════════════════════════════════════
-  File Nexus Suite v1.0.11
+  File Nexus Suite v1.1.0
   Unified file operations for text, e-books, and media
 ═══════════════════════════════════════════════════
 

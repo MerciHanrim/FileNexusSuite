@@ -16,6 +16,8 @@ This policy aims to prevent recurrence of the same problem. As a result of execu
 - Addition of "preemptive verification of invariant registration" to the dead-code criteria (§4.2)
 - Codification of the through-line: *"History is the responsibility of Git logs and the CHANGELOG; tests are maintained as the specification of what is currently alive."*
 
+**v1.1.0 modularization track update (2026-05-09)**: The modularization track introduced module-level test classes (`TestFnsTheme` (with the `fns_theme.py` extraction), `TestFnsTranslations` (with the i18n migration to Qt Linguist)) as a complement to the tab-based functional invariants. The two axes are independent — module classes verify the extracted-module surface and package shape, while tab-based macro-categories verify cross-language translation invariants regardless of where the data physically lives. When module extraction breaks the premise of an existing source-grep test (the parsed definition no longer lives in the main module), the test is either rewritten as source-grep against the new module or excised entirely if equivalent runtime coverage already exists elsewhere.
+
 ---
 
 ## 2. The Two Layers of Testing
@@ -93,6 +95,8 @@ A test file is not "yesterday's snapshot" but "today's specification." The fact 
 - ❌ **No new adoption of version-snapshot patterns** — patterns such as `test_all_langs_have_vXXX_keys` are subject to recurrence prevention
 - ❌ **No accumulation of historical artifacts in tests** — past version markers are not left in test code
 - ❌ **No invariants persisting for removed features** — when a feature is removed, its invariants are simultaneously updated
+- ❌ **No retention of source-grep tests broken by module extraction** — when a definition migrates to `fns_<module>.py`, source-grep tests that parsed the main module's source are either rewritten against the new module or removed (v1.1.0 modularization track)
+- ❌ **No retention of source-grep tests when equivalent runtime coverage exists** — if the invariant is also enforced by a module-load test, a new `TestFns*` class, or cross-language symmetry, the source-grep version is removed
 
 ### 4.5 Recommendations
 
@@ -100,6 +104,9 @@ A test file is not "yesterday's snapshot" but "today's specification." The fact 
 - ✅ When adding a new key, review whether to update the representative-key set of the corresponding category test
 - ✅ When removing a feature, immediately delete the entry from the same category test
 - ✅ For keys with ambiguous category boundaries: assign to the **first UI tab in which the key appears** preferentially; if used commonly across tabs, place under `common`; remaining edge cases under `misc` (target: minimization)
+- ✅ **`TestFns<Module>` class pattern for module-track regressions** — when a module is extracted, add a dedicated test class covering: (a) module surface (public dicts, functions, constants), (b) package shape if the extraction includes a sub-package (sub-files present, each file exposes its expected variable), (c) source-grep invariants on the new module (import statements, composition patterns), (d) main-module integration (import block present, old definitions absent)
+- ✅ **Prefer module-load tests over source-grep tests** when both express the same invariant — module-load is more stable across formatting changes
+- ✅ **Source-only invariants may be retired** when data moves to per-language files where the same property is caught at PR-review time via `git diff` (e.g., duplicate keys in a Python dict literal that the runtime silently overwrites)
 
 ---
 
@@ -153,3 +160,4 @@ Even when these are adopted, the Five Principles in §3 and the through-line in 
 | Version | Date | Change |
 |---|---|---|
 | v1 | 2026-04-22 | Initial draft — v1.0.7 Session 3. Codified as the result of cleaning up 15 orphaned translation keys and restructuring invariants. |
+| v2 | 2026-05-09 | v1.1.0 modularization track — added module-level test class pattern (`TestFnsTheme` (with the `fns_theme.py` extraction), `TestFnsTranslations` (with the i18n migration to Qt Linguist)). Source-grep tests broken by module extraction are subject to surgical excision when equivalent coverage exists elsewhere (§4.4 / §4.5 expanded). To be revised to v3 after v1.1.0 release with `TestFnsUtils` (`fns_utils.py` extraction backfill) and any future package-track conventions. |

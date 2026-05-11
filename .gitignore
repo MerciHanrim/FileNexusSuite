@@ -1,53 +1,53 @@
-# ═══════════════════════════════════════════════
-# File Nexus Suite — .gitignore
-# ═══════════════════════════════════════════════
-# ── Python 캐시 및 컴파일 결과 ────────────────
+# ===============================================
+# File Nexus Suite -- .gitignore (Private Backup)
+# ===============================================
+
+# -- Python cache and compiled files --
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-# ── 가상 환경 ─────────────────────────────────
+
+# -- Virtual environments --
 venv/
 .venv/
 env/
 ENV/
-# ── PyInstaller 빌드 결과 ─────────────────────
+
+# -- PyInstaller build artifacts --
 build/
 dist/
 *.spec.bak
 *.manifest
 *.zip
-# ── 앱 실행 시 생성되는 파일 ──────────────────
+
+# -- App-generated runtime files --
 FileNexusSuite.json
 logs/
 Output/
 _internal/
-# ── IDE / 에디터 설정 ─────────────────────────
+
+# -- IDE / editor settings --
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-# ── OS 생성 파일 ──────────────────────────────
+
+# -- OS-generated files --
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 .DS_Store
-# ── 배포 / 패키징 ────────────────────────────
+
+# -- Distribution / packaging --
 *.egg-info/
 *.egg
 MANIFEST
-# ── 개인 작업 파일 (공개 제외) ────────────────
-참고 자료/
-HANDOVER.md
-# README.txt  (v1.0.2부터 빌드 자동 복사 대상이라 추적함)
-# test_file_nexus.py  (v1.0.3부터 공개 — 저작권 없는 중립 샘플로 교체 완료)
-preview_ui.py
-*.md.bak
-# ── 임시 파일 ────────────────────────────────
+
+# -- Temporary files --
 *.tmp
 *.temp
 *.log
 *~
-# ── 개인 작업 기록 (깃허브에 올리지 않음) ───────────────────
-Claude_Handover_FileNexusSuite.md
+*.md.bak
