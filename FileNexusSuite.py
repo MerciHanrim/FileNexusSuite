@@ -1036,11 +1036,12 @@ def _check_single_instance():
 def _resource_dir() -> str:
     """Return the runtime resource directory.
 
-    PyInstaller frozen builds: directory containing the executable.
+    PyInstaller frozen builds: sys._MEIPASS (contents directory where
+    --add-data resources are bundled — _internal/ in onedir mode 6.x).
     Source-mode runs: directory containing this script.
     """
     if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
+        return getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
     return os.path.dirname(os.path.abspath(__file__))
 
 
