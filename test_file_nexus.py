@@ -48,7 +48,7 @@ def _install_qt_mock():
         def __call__(self, *a, **kw): return self  # handles the Signal(int) pattern
 
     # ── QColor stub ──────────────────────────────────────────────────────
-    # _mix() inside _build_help_html calls red()/green()/blue().
+    # _mix() inside HelpDialog._render_section() calls red()/green()/blue().
     class _QColor:
         def __init__(self, *a, **kw): pass
         def red(self):   return 0
@@ -202,10 +202,22 @@ try:
         _src = _f.read()
     _ns = {'__file__': _MAIN_PY, '__name__': '__exec__'}
     exec(compile(_src, 'FileNexusSuite.py', 'exec'), _ns)
+    # v1.1.1: register _ns as sys.modules['FileNexusSuite'] so that fns_help.py's
+    # lazy `from FileNexusSuite import ...` statements (called when HelpDialog
+    # instance methods such as _render_section() run) resolve against the _ns
+    # dict instead of triggering a fresh module load. A second load would re-
+    # register the `_fns_track` codec error handler with a new
+    # _decode_tracking_state closure, severing the link between the _ns-based
+    # _decode_with_failure_tracking and the active handler, leaving
+    # TestDecodeWithFailureTracking and TestSafeReadTextWithReport with empty
+    # `failures` lists. Wrap _ns as a ModuleType so attribute access works.
+    import types as _types_mod
+    _fns_module_obj = _types_mod.ModuleType('FileNexusSuite')
+    _fns_module_obj.__dict__.update(_ns)
+    sys.modules['FileNexusSuite'] = _fns_module_obj
     txt_to_epub             = _ns.get('txt_to_epub')
     epub_to_text            = _ns.get('epub_to_text')
     _alchemy_detect_enc     = _ns.get('alchemy_detect_encoding')
-    _build_help_html        = _ns.get('_build_help_html')
     _APP_VERSION            = _ns.get('APP_VERSION')
     _ConfigManager          = _ns.get('ConfigManager')
     HAS_EPUB = txt_to_epub is not None
@@ -214,7 +226,7 @@ except Exception as _e:
     HAS_EPUB = False
     HAS_MODULE = False
     txt_to_epub = epub_to_text = None
-    _alchemy_detect_enc = _build_help_html = _APP_VERSION = None
+    _alchemy_detect_enc = _APP_VERSION = None
     _ConfigManager = None
     print(f'[Warning] Failed to load FileNexusSuite: {_e}')
 
@@ -1675,51 +1687,130 @@ class TestAlchemyDetectEncoding(unittest.TestCase):
 
 
 # ════════════════════════════════════════════════════════════════════════
-# §ExtraC  Help HTML — _build_help_html()
+# §ExtraC  Help HTML — HelpDialog instance methods via QTranslator
 # ════════════════════════════════════════════════════════════════════════
-@unittest.skipUnless(HAS_MODULE and _build_help_html is not None,
-                     "FileNexusSuite 로드 실패 또는 _build_help_html 없음")
+@unittest.skipUnless(HAS_MODULE, "FileNexusSuite 로드 실패")
 class TestBuildHelpHtml(unittest.TestCase):
-    """_build_help_html() — validate help generation for 5 languages."""
+    """HelpDialog — validate help generation for 5 languages via QTranslator stack.
 
-    def test_ko_returns_string(self):
-        result = _build_help_html(_data_only=False, _lang='ko')
-        self.assertIsInstance(result, str)
+    Phase 3/4 migration: replaced direct _build_help_html(_data_only, _lang) calls
+    with QTranslator install/remove cycle around HelpDialog instance methods.
+    The legacy entry point was removed when help content moved to fns_help.py
+    and was wrapped in self.tr() for runtime translation.
+    """
 
-    def test_ko_nonempty(self):
-        result = _build_help_html(_data_only=False, _lang='ko')
-        self.assertGreater(len(result), 100)
+    LANGS = ('ko', 'en', 'ja', 'zh_cn', 'zh_tw')
 
-    def test_en_returns_string(self):
-        result = _build_help_html(_data_only=False, _lang='en')
-        self.assertIsInstance(result, str)
+    @classmethod
+    def setUpClass(cls):
+        try:
+            from pathlib import Path
+            from PySide6.QtWidgets import QApplication
+            from PySide6.QtCore import QTranslator
+            from fns_help import HelpDialog
+        except ImportError as e:
+            raise unittest.SkipTest(f"PySide6 또는 fns_help 로드 실패: {e}")
+        cls.QTranslator = QTranslator
+        cls.HelpDialog = HelpDialog
+        cls.app = QApplication.instance() or QApplication([])
+        cls.translations_dir = Path(__file__).parent / 'translations'
 
-    def test_ja_returns_string(self):
-        result = _build_help_html(_data_only=False, _lang='ja')
-        self.assertIsInstance(result, str)
+    def setUp(self):
+        self._installed = None
 
-    def test_zh_cn_returns_string(self):
-        result = _build_help_html(_data_only=False, _lang='zh_cn')
-        self.assertIsInstance(result, str)
+    def tearDown(self):
+        if self._installed is not None:
+            self.app.removeTranslator(self._installed)
+            self._installed = None
 
-    def test_zh_tw_returns_string(self):
-        result = _build_help_html(_data_only=False, _lang='zh_tw')
-        self.assertIsInstance(result, str)
+    def _install(self, lang):
+        """Install help_<lang>.qm; previous translator removed first."""
+        if self._installed is not None:
+            self.app.removeTranslator(self._installed)
+            self._installed = None
+        qm = self.translations_dir / f'help_{lang}.qm'
+        if not qm.exists():
+            self.skipTest(f'{qm} not found — run scripts/update_translations.bat')
+        tr = self.QTranslator()
+        self.assertTrue(tr.load(str(qm)), f'failed to load {qm}')
+        self.app.installTranslator(tr)
+        self._installed = tr
 
-    def test_all_langs_nonempty(self):
-        for lang in ('ko', 'en', 'ja', 'zh_cn', 'zh_tw'):
+    # ── Group 1: build artifact integrity ──
+
+    def test_all_qm_files_exist(self):
+        """5개 언어 help_*.qm 빌드 결과물 존재."""
+        for lang in self.LANGS:
             with self.subTest(lang=lang):
-                result = _build_help_html(_data_only=False, _lang=lang)
-                self.assertGreater(len(result), 100, f"{lang} 도움말이 비어있음")
+                qm = self.translations_dir / f'help_{lang}.qm'
+                self.assertTrue(qm.exists(),
+                              f'{qm} missing — run scripts/update_translations.bat')
 
-    def test_data_only_returns_tuple(self):
-        result = _build_help_html(_data_only=True, _lang='ko')
-        self.assertIsInstance(result, tuple)
-        self.assertEqual(len(result), 2)
+    # ── Group 2: _get_intro() ──
 
-    def test_data_only_second_is_collection(self):
-        _, sections = _build_help_html(_data_only=True, _lang='ko')
-        self.assertTrue(isinstance(sections, (dict, list)))
+    def test_intro_returns_string_all_langs(self):
+        """_get_intro() 반환 타입 = str."""
+        for lang in self.LANGS:
+            with self.subTest(lang=lang):
+                self._install(lang)
+                self.assertIsInstance(self.HelpDialog()._get_intro(), str)
+
+    def test_intro_nonempty_all_langs(self):
+        """_get_intro() 비어있지 않음."""
+        for lang in self.LANGS:
+            with self.subTest(lang=lang):
+                self._install(lang)
+                self.assertGreater(len(self.HelpDialog()._get_intro()), 0,
+                                 f'{lang} intro empty')
+
+    # ── Group 3: _get_sections() ──
+
+    def test_sections_returns_list_all_langs(self):
+        """_get_sections() 반환 타입 = list."""
+        for lang in self.LANGS:
+            with self.subTest(lang=lang):
+                self._install(lang)
+                self.assertIsInstance(self.HelpDialog()._get_sections(), list)
+
+    def test_sections_nonempty_all_langs(self):
+        """_get_sections() 비어있지 않음."""
+        for lang in self.LANGS:
+            with self.subTest(lang=lang):
+                self._install(lang)
+                self.assertGreater(len(self.HelpDialog()._get_sections()), 0,
+                                 f'{lang} sections empty')
+
+    # ── Group 4: _render_section() ──
+
+    def test_render_section_returns_string_all_langs(self):
+        """_render_section()이 str 반환."""
+        for lang in self.LANGS:
+            with self.subTest(lang=lang):
+                self._install(lang)
+                dlg = self.HelpDialog()
+                sections = dlg._get_sections()
+                self.assertIsInstance(dlg._render_section(sections[0]), str)
+
+    def test_render_section_nonempty_all_langs(self):
+        """_render_section() 결과 비어있지 않음."""
+        for lang in self.LANGS:
+            with self.subTest(lang=lang):
+                self._install(lang)
+                dlg = self.HelpDialog()
+                sections = dlg._get_sections()
+                self.assertGreater(len(dlg._render_section(sections[0])), 0,
+                                 f'{lang} rendered section empty')
+
+    # ── Group 5: QTranslator install/remove cycle ──
+
+    def test_translator_swap_changes_output(self):
+        """ko → en translator 전환 시 intro 다른 결과 — install/remove 사이클 동작 보장."""
+        self._install('ko')
+        intro_ko = self.HelpDialog()._get_intro()
+        self._install('en')
+        intro_en = self.HelpDialog()._get_intro()
+        self.assertNotEqual(intro_ko, intro_en,
+                          'ko/en intro 동일 — QTranslator install이 동작 안 함')
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1923,8 +2014,11 @@ class TestTsSourceIntegrity(unittest.TestCase):
     """
 
     # Macro-category -> Qt context names (class-based)
+    # Phase 4 (2026-05-13): HelpDialog moved from fns_*.ts to help_*.ts via
+    # the dedicated help_*.qm runtime translator stack; LicenseDialog was
+    # added to fns_*.ts as a new common-dialog context.
     CONTEXT_GROUPS = {
-        'common_dialogs': ['AppSuite', 'HelpDialog'],
+        'common_dialogs': ['AppSuite', 'LicenseDialog'],
         'text_merger':    ['TextMergerPanel', 'MergeFileTree', 'PreviewWindow',
                            'TextMergeWorker'],
         'text_converter': ['TextConverterPanel', 'TextConverterDropZone',
@@ -2806,8 +2900,13 @@ class TestV100Regression(unittest.TestCase):
         self.assertIn('class _ScrollHint', self._src())
 
     def test_help_button_class(self):
-        """_HelpButton 클래스가 정의되어 있어야 한다."""
-        self.assertIn('class _HelpButton', self._src())
+        """_HelpButton class must be defined (extracted to fns_help.py in v1.1.1)."""
+        # v1.1.1: _HelpButton was extracted from FileNexusSuite.py to fns_help.py
+        # in the help modularization track. Read the new home directly so the
+        # source-grep assertion still verifies the class definition location.
+        _HELP_PY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fns_help.py')
+        with open(_HELP_PY, encoding='utf-8') as f:
+            self.assertIn('class _HelpButton', f.read())
 
     def test_gear_button_class(self):
         """_GearButton 클래스가 정의되어 있어야 한다."""
