@@ -153,8 +153,11 @@ def run_pyinstaller(has_icon, has_version_file, upx_exe):
         for exc in upx_excludes:
             cmd += ["--upx-exclude", exc]
 
-    # Bundled data files — translations (.qm), required for i18n at runtime
-    cmd += ["--add-data", "translations;translations"]
+    # Bundled data files — translations (.qm), required for i18n at runtime.
+    # Explicit wildcards: only ship compiled fns_*.qm and help_*.qm.
+    # Excludes .ts source files and any other accidental contents of translations/.
+    cmd += ["--add-data", "translations/fns_*.qm;translations"]
+    cmd += ["--add-data", "translations/help_*.qm;translations"]
 
     # Hidden imports — runtime optional dependencies (handled with ImportError, but must be declared explicitly when packaging)
     hidden = [
@@ -183,7 +186,7 @@ def run_pyinstaller(has_icon, has_version_file, upx_exe):
     print(f"    Icon           : {'✅' if has_icon else 'none'}")
     print(f"    Version file   : {'✅' if has_version_file else 'none'}")
     print(f"    UPX            : {'✅' if upx_exe else 'none'}")
-    print(f"    Bundled data   : translations/")
+    print(f"    Bundled data   : translations/fns_*.qm + help_*.qm")
     print(f"    Hidden imports : {', '.join(hidden)}")
     print()
     return subprocess.run(cmd).returncode == 0
