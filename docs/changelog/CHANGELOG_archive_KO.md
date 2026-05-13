@@ -1,8 +1,8 @@
-# Changelog
+# Changelog Archive (v1.0.x ~ v1.1.0)
 
-본 프로젝트의 주요 변경사항을 버전별로 기록합니다.
+본 파일은 File Nexus Suite **v1.0.x 시리즈와 v1.1.0**의 변경 이력 archive입니다.
 
-각 버전의 코드 변경 상세는 [`RELEASE_NOTE_vX.X.X.md`](./) 파일을 참조하세요.
+최신 변경 이력은 [`CHANGELOG_KO.md`](../../CHANGELOG_KO.md) 본체를 참조하세요.
 포맷은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따릅니다.
 
 ---
