@@ -6,7 +6,7 @@
 # No external icon libraries used. No additional attribution required.
 
 """
-File Nexus Suite v1.0.11  —  Integrated File Management Tool
+File Nexus Suite v1.1.1  —  Integrated File Management Tool
 Tab 1: Text Merger     (Merge text/Word/PDF/Excel files)
 Tab 2: Text Converter  (EPUB ↔ TXT conversion)
 Tab 3: Tag Editor      (Bulk edit filename [tags])
@@ -94,6 +94,7 @@ from fns_theme import (
     _detect_system_theme, _resolve_theme, make_style,
     _apply_card_shadow,
 )
+from fns_help import HelpDialog, _HelpButton, LicenseDialog
 
 # Composed TRANSLATIONS registry, theme-name key map, supported-language list,
 # and the lang-independent _all_translations_of() helper. Extracted in v1.1.0
@@ -105,7 +106,7 @@ from fns_theme import (
 # ═══════════════════════════════════════════════
 # App Version
 # ═══════════════════════════════════════════════
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 
 # ═══════════════════════════════════════════════
 # Sleep Prevention Utility (Windows only, no-op on other OSes)
@@ -138,16 +139,6 @@ _EMOJI_FONT_FAMILY = (
 )
 
 
-def _emoji_pix(char: str, pt: int = 16, size: int = 24) -> QPixmap:
-    """Render emoji as QPixmap — for tab QIcon (cross-OS consistency)."""
-    pix = QPixmap(size, size); pix.fill(Qt.GlobalColor.transparent)
-    p = QPainter(pix); p.setRenderHint(QPainter.TextAntialiasing)
-    f = QFont(); f.setPointSize(pt)
-    try: f.setFamilies(["Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji","Noto Emoji"])
-    except AttributeError: f.setFamily("Segoe UI Emoji")   # Qt < 5.13 fallback
-    p.setFont(f)
-    p.drawText(QRect(0, 0, size, size), Qt.AlignmentFlag.AlignCenter, char)
-    p.end(); return pix
 
 
 # ── SVG Icon System ────────────────────────────────────────────────────────
@@ -369,22 +360,25 @@ def _svg_icon_dual(key: str, normal_color: str, active_color: str, size: int = 1
         return icon
     except Exception:
         return icon
+    
 
+def _svg_html_img(*args, **kwargs):
+    """Preserved as a no-op stub for regression guards.
 
-def _svg_html_img(key: str, color: str, size: int = 32) -> str:
-    """Convert SVG icon to base64 PNG and return as an HTML <img> tag — for Qt HTML renderer."""
-    try:
-        icon = _svg_icon(key, color, size)
-        pix = icon.pixmap(QSize(size * 2, size * 2))
-        ba = QByteArray()
-        buf = QBuffer(ba)
-        buf.open(QIODevice.WriteOnly)
-        pix.save(buf, 'PNG')
-        b64 = ba.toBase64().data().decode('ascii')
-        return (f"<img src='data:image/png;base64,{b64}' "
-                f"width='{size}' height='{size}' style='vertical-align:middle;'/>")
-    except Exception:
-        return ""
+    The original SVG-to-base64 PNG HTML <img> helper became unused after
+    the help-renderer reorganization in v1.1.0 (helpers moved into
+    fns_help.py and rebuilt as instance methods). The symbol is kept
+    callable so the following regression guards in test_file_nexus.py
+    continue to pass:
+      - TestV012Regression.test_svg_html_img_preserved_unused
+      - TestV012RegressionModule.test_svg_html_img_callable
+
+    These guards predate the cleanup and the intent behind them is
+    unclear; rather than removing them, the symbol is preserved as a
+    no-op stub. Do not remove this stub without simultaneously updating
+    both regression tests.
+    """
+    return ""
 
 
 def _accent_alpha(alpha: float = 0.12) -> str:
@@ -1046,7 +1040,8 @@ def _resource_dir() -> str:
 
 
 # ── Qt translator (Phase 3b: Qt Linguist runtime loader) ───────────
-_qt_translator = None  # global QTranslator, re-loaded on language switch
+_qt_translator = None       # global QTranslator for fns_*.qm, re-loaded on language switch
+_help_qt_translator = None  # global QTranslator for help_*.qm, re-loaded on language switch
 
 # Native display names for locales QLocale conflates or labels poorly
 # (en → "American English", zh_cn vs zh_tw → both labelled "Chinese", etc.).
@@ -1111,6 +1106,36 @@ def _load_translator(lang: str) -> bool:
     if tr.load(qm_path):
         app.installTranslator(tr)
         _qt_translator = tr
+        return True
+    return False
+
+
+def _load_help_translator(lang: str) -> bool:
+    """Load translations/help_<lang>.qm into the global help QTranslator and install it.
+
+    Removes any previously installed help translator first. Returns True on success.
+    Safe to call before QApplication exists (returns False silently in that case).
+    """
+    global _help_qt_translator
+    from PySide6.QtCore import QTranslator
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None:
+        return False
+
+    if _help_qt_translator is not None:
+        app.removeTranslator(_help_qt_translator)
+        _help_qt_translator = None
+
+    qm_path = os.path.join(_resource_dir(), 'translations', f'help_{lang}.qm')
+    if not os.path.exists(qm_path):
+        return False
+
+    tr = QTranslator()
+    if tr.load(qm_path):
+        app.installTranslator(tr)
+        _help_qt_translator = tr
         return True
     return False
 
@@ -1669,7 +1694,7 @@ def epub_to_text(path, opts):
         out,ch=[],0
         if t:
             out.append(f"■ {t}")
-            if a: out.append(f"저자: {a}")
+            if a: out.append(QCoreApplication.translate('EpubConverter', 'Author: ') + a)
             out.append("")
         names=zf.namelist()
         for iid in spine:
@@ -1750,60 +1775,6 @@ def txt_to_epub(path, out_path, meta):
 
 # ── Help button (sine-wave up/down animation on hover) ──
 
-
-
-class _HelpButton(QPushButton):
-    """Button with a sine-wave animation: the icon lifts slightly upward and returns on hover."""
-
-    def __init__(self, parent=None):
-        super().__init__("", parent)
-        self._phase = 0.0
-        self._hovered = False
-        self._timer = QTimer(self)
-        self._timer.setInterval(30)
-        self._timer.timeout.connect(self._tick)
-        self._offset = 0.0
-
-    def _tick(self):
-        import math as _math
-        self._phase += 0.12
-        self._offset = -abs(_math.sin(self._phase)) * 4  # upward only, ±4px
-        if not self._hovered and abs(self._offset) < 0.1:
-            self._timer.stop()
-            self._phase = 0.0
-            self._offset = 0.0
-        self.update()
-
-    def enterEvent(self, e):
-        self._hovered = True
-        self._phase = 0.0
-        self._timer.start()
-        super().enterEvent(e)
-
-    def leaveEvent(self, e):
-        self._hovered = False
-        super().leaveEvent(e)
-
-    def paintEvent(self, e):
-        # paint only the button background/border (excluding the icon)
-        from PySide6.QtWidgets import QStylePainter, QStyleOptionButton, QStyle
-        from PySide6.QtGui import QIcon
-        painter = QStylePainter(self)
-        opt = QStyleOptionButton()
-        self.initStyleOption(opt)
-        opt.icon = QIcon()  # remove icon → render background/border only
-        painter.drawControl(QStyle.ControlElement.CE_PushButton, opt)
-        painter.end()
-        # draw the icon directly with the offset applied
-        icon = self.icon()
-        if icon.isNull(): return
-        p2 = QPainter(self)
-        r = self.rect()
-        sz = self.iconSize()
-        ix = (r.width() - sz.width()) // 2
-        iy = (r.height() - sz.height()) // 2 + int(self._offset)
-        icon.paint(p2, ix, iy, sz.width(), sz.height())
-        p2.end()
 
 
 class _GearButton(QPushButton):
@@ -4437,6 +4408,13 @@ class TextConverterPanel(QWidget):
         body_lay.addWidget(left, stretch=5)
 
         # ── Right: per-mode options ─────────────
+        # Wrapped in ScrollHintArea so the panel remains usable when Debug Log
+        # is expanded and the vertical space shrinks (same pattern as Batch
+        # Renamer's right options panel — fixes Book Info labels being hidden
+        # under their input boxes when widgets get squashed below minimum size).
+        right_scroll = ScrollHintArea()
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         right = QWidget()
         right_lay = QVBoxLayout(right)
         right_lay.setContentsMargins(0, 0, 0, 0)
@@ -4592,7 +4570,8 @@ class TextConverterPanel(QWidget):
 
         right_lay.addStretch()
 
-        body_lay.addWidget(right, stretch=4)
+        right_scroll.setWidget(right)
+        body_lay.addWidget(right_scroll, stretch=4)
         root.addWidget(body, stretch=1)
         self._switch("txt2epub")
 
@@ -5074,6 +5053,11 @@ class TagEditorPanel(QWidget):
         body_lay.addWidget(left, stretch=3)
 
         # ── Right: options + preview ────────────
+        # Wrapped in ScrollHintArea so the panel stays usable when Debug Log
+        # is expanded (same pattern as BatchRenamer / TextConverter right panels).
+        right_scroll = ScrollHintArea()
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         right=QWidget()
         rl=QVBoxLayout(right); rl.setContentsMargins(0,0,0,0); rl.setSpacing(8)
 
@@ -5120,7 +5104,8 @@ class TagEditorPanel(QWidget):
         self._status_lbl.setWordWrap(True)
         rl.addWidget(self._status_lbl)
 
-        body_lay.addWidget(right, stretch=3)
+        right_scroll.setWidget(right)
+        body_lay.addWidget(right_scroll, stretch=3)
         root.addWidget(body,1)
 
 
@@ -7532,6 +7517,11 @@ class BulkFixerPanel(QWidget):
         # ══════════════════════════════════════
         # Right: options + preview + save + run
         # ══════════════════════════════════════
+        # Wrapped in ScrollHintArea so the panel stays usable when Debug Log
+        # is expanded (same pattern as BatchRenamer / TextConverter right panels).
+        right_scroll = ScrollHintArea()
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         right = QWidget()
         right_lay = QVBoxLayout(right)
         right_lay.setContentsMargins(0, 0, 0, 0); right_lay.setSpacing(10)
@@ -7736,7 +7726,8 @@ class BulkFixerPanel(QWidget):
         right_lay.addWidget(self._lbl_status)
 
         right_lay.addStretch()
-        body_lay.addWidget(right, 5)
+        right_scroll.setWidget(right)
+        body_lay.addWidget(right_scroll, 5)
         root.addWidget(body, 1)
 
     # ── Internal helpers ───────────────────────
@@ -8340,6 +8331,11 @@ class TextMergerPanel(QWidget):
         body_lay.addWidget(left, stretch=3)
 
         # ══ Right: settings + actions ═══════════════
+        # Wrapped in ScrollHintArea so the panel stays usable when Debug Log
+        # is expanded (same pattern as BatchRenamer / TextConverter right panels).
+        right_scroll = ScrollHintArea()
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         right = QWidget()
         rl = QVBoxLayout(right); rl.setContentsMargins(0, 0, 0, 0); rl.setSpacing(10)
 
@@ -8440,7 +8436,8 @@ class TextMergerPanel(QWidget):
         self._lbl_status = QLabel(self.tr('Ready'))
         self._lbl_status.setStyleSheet("font-size:13px;"); rl.addWidget(self._lbl_status)
 
-        body_lay.addWidget(right, stretch=2)
+        right_scroll.setWidget(right)
+        body_lay.addWidget(right_scroll, stretch=2)
         root.addWidget(body, stretch=1)
 
     # v1.0.4: removed _detect_encoding() — unified into alchemy_detect_encoding.
@@ -9611,62 +9608,6 @@ class _ThemedCombo(QComboBox):
         self.view().setItemDelegate(_ComboItemDelegate(self))
 
 
-class _DiagonalPreview(QFrame):
-    """Diagonal light/dark split preview for the auto-theme card."""
-    _LT_BG  = '#F0EFEB'; _DK_BG  = '#1C1C1C'
-    _LT_SRF = '#FFFFFF';  _DK_SRF = '#2C2C2C'
-    _LT_LN  = '#C8C5BE';  _DK_LN  = '#454545'
-    _ACCENT = '#CC785C'
-
-    def __init__(self):
-        super().__init__()
-        self.setFixedSize(118, 68)
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
-        self.setStyleSheet("border:none; background:transparent;")
-
-    def paintEvent(self, _):
-        p = QPainter(self); p.setRenderHint(QPainter.Antialiasing)
-        w, h = self.width(), self.height(); r = 10; mid = w // 2
-
-        # ── Top rounded-corner clipping (precise arcs via addRoundedRect) ──
-        clip = QPainterPath()
-        clip.addRoundedRect(QRectF(0, 0, w, h + r), r, r)  # Extend down by r to hide bottom rounding
-        p.setClipPath(clip)
-
-        # ── Light (left half) ─────────────────────
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(QColor(self._LT_BG)))
-        p.drawRect(QRect(0, 0, mid, h))
-
-        # ── Dark (right half) ─────────────────────
-        p.setBrush(QBrush(QColor(self._DK_BG)))
-        p.drawRect(QRect(mid, 0, mid, h))
-
-        # ── Vertical divider ──────────────────────
-        p.setPen(QPen(QColor(255, 255, 255, 60), 1))
-        p.drawLine(QPointF(mid, 0), QPointF(mid, h))
-
-        # ── Light-side mini UI ────────────────────
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(QColor(self._ACCENT)))
-        p.drawEllipse(QPointF(10, 13), 3, 3)
-        p.setBrush(QBrush(QColor(self._LT_LN)))
-        p.drawRoundedRect(QRect(17, 11, 28, 4), 2, 2)
-        p.drawRoundedRect(QRect(9, 23, 38, 3), 1, 1)
-        p.drawRoundedRect(QRect(9, 29, 28, 3), 1, 1)
-        p.setBrush(QBrush(QColor(self._ACCENT)))
-        p.drawRoundedRect(QRect(30, 38, 16, 7), 3, 3)
-
-        # ── Dark-side mini UI ─────────────────────
-        p.setBrush(QBrush(QColor(self._DK_LN)))
-        p.drawRoundedRect(QRect(mid+8, 11, 28, 4), 2, 2)
-        p.drawRoundedRect(QRect(mid+6, 23, 38, 3), 1, 1)
-        p.drawRoundedRect(QRect(mid+6, 29, 24, 3), 1, 1)
-        p.setBrush(QBrush(QColor(self._ACCENT)))
-        p.drawEllipse(QPointF(mid+8, 13), 3, 3)
-        p.drawRoundedRect(QRect(mid+28, 38, 16, 7), 3, 3)
-
-        p.end()
 
 
 class _ThemeCard(QFrame):
@@ -10909,279 +10850,6 @@ def _make_gear_icon(size: int = 32) -> QIcon:
 # ═══════════════════════════════════════════════
 # Help standalone window — sidebar layout
 # ═══════════════════════════════════════════════
-class HelpDialog(QDialog):
-    """Standalone help window opened from the main UI — sidebar navigation."""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        lang = _current_lang
-        self.setWindowTitle(_tr_args(self.tr('💡  Help — File Nexus Suite v%1'), APP_VERSION))
-        self.setMinimumSize(700, 560)
-        self.resize(760, 640)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
-        self.setStyleSheet(f"QDialog{{background:{BG};}}")
-        self._nav_btns = []
-        self._build()
-
-    def _build(self):
-        from PySide6.QtWidgets import QTextBrowser, QStackedWidget
-        from PySide6.QtGui import QColor
-
-        intro, sections = _build_help_html(_data_only=True)
-
-        def _mix(h1, h2, r=0.12):
-            c1=QColor(h1); c2=QColor(h2)
-            return f"#{int(c1.red()*(1-r)+c2.red()*r):02X}{int(c1.green()*(1-r)+c2.green()*r):02X}{int(c1.blue()*(1-r)+c2.blue()*r):02X}"
-
-        root = QHBoxLayout(self); root.setContentsMargins(0,0,0,0); root.setSpacing(0)
-
-        # ── Sidebar ──────────────────────────────────
-        sb = QFrame(); sb.setFixedWidth(168)
-        sb.setStyleSheet(f"QFrame{{background:{SRF2};border-right:1px solid {BORDER};}}")
-        sl = QVBoxLayout(sb); sl.setContentsMargins(10,20,10,16); sl.setSpacing(4)
-
-        sb_title = QLabel(self.tr('💡  Help'))
-        sb_title.setStyleSheet(f"font-size:13px;font-weight:700;color:{TEXT};padding-left:6px;padding-bottom:10px;")
-        sl.addWidget(sb_title)
-        div = QFrame(); div.setFrameShape(QFrame.HLine); div.setFixedHeight(1)
-        div.setStyleSheet(f"background:{BORDER};border:none;margin-bottom:6px;")
-        sl.addWidget(div)
-
-        # ── Content area ─────────────────────────────
-        right = QFrame(); right.setStyleSheet(f"QFrame{{background:{SURFACE};}}")
-        rl = QVBoxLayout(right); rl.setContentsMargins(20,20,20,16); rl.setSpacing(0)
-
-        stack = QStackedWidget(); stack.setStyleSheet("background:transparent;")
-
-        browser_style = (
-            f"QTextBrowser{{background:{SRF2};border:1px solid {BORDER};"
-            f"border-radius:10px;padding:6px;color:{TEXT};font-size:13px;}}"
-            f"QScrollBar:vertical{{background:{BG};width:8px;border-radius:4px;}}"
-            f"QScrollBar::handle:vertical{{background:{BORDER};border-radius:4px;min-height:24px;}}"
-            f"QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0px;}}"
-        )
-
-        body_style = (f"background:{BG};color:{TEXT};"
-                      f"font-family:'Pretendard','Segoe UI Variable','Segoe UI','Malgun Gothic',sans-serif;"
-                      f"font-size:13px;margin:0;padding:0;")
-
-        # Intro page
-        intro_html = (
-            f'<html><body style="{body_style}">'
-            f'<div style="background:{_mix(SURFACE,ACCENT,0.06)};border:1px solid {_mix(ACCENT,SURFACE,0.6)};'
-            f'border-radius:10px;padding:16px 18px;margin:0 0 12px;">'
-            f'<div style="font-size:15px;font-weight:700;color:{ACCENT};margin-bottom:7px;">'
-            f'File Nexus Suite <span style="font-size:11px;font-weight:400;color:{MUTED};">v{APP_VERSION}</span></div>'
-            f'<div style="font-size:13px;color:{TEXT};line-height:1.75;">{intro}</div>'
-            f'</div></body></html>'
-        )
-        b0 = QTextBrowser(); b0.setStyleSheet(browser_style); b0.setHtml(intro_html)
-        stack.addWidget(b0)
-
-        # Per-section pages — uses _render_section
-        from PySide6.QtGui import QColor as _QC  # for color mixing
-        for entry in sections:
-            b = QTextBrowser(); b.setStyleSheet(browser_style)
-            # Build single-section HTML
-            # Direct section render
-            # Direct section render
-            def _mx(h1,h2,r=0.12):
-                c1=_QC(h1);c2=_QC(h2)
-                return f"#{int(c1.red()*(1-r)+c2.red()*r):02X}{int(c1.green()*(1-r)+c2.green()*r):02X}{int(c1.blue()*(1-r)+c2.blue()*r):02X}"
-            tip_bg=_mx(SURFACE,ACCENT,0.07); tip_bdr=_mx(ACCENT,SURFACE,0.4)
-            warn_bg=_mx(SURFACE,"#D04030",0.08); warn_bdr="#D05040"
-            note_bg=_mx(SURFACE,"#5080D0",0.07); note_bdr=_mx("#5080D0",SURFACE,0.4)
-            feat_bg=_mx(SURFACE,ACCENT,0.05); feat_bdr=_mx(ACCENT,SURFACE,0.5)
-            _CIRCLED=['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩',
-                      '⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳']
-
-            icon,title,subtitle,desc,items = entry
-            is_sc = any(i[0]=='shortcut' for i in items)
-            step_n = 0
-            p = [f'<html><body style="{body_style}">']
-            p.append(f'<div style="background:{SURFACE};border:1px solid {BORDER};border-radius:12px;overflow:hidden;">')
-            p.append(f'<div style="padding:13px 18px 11px;border-bottom:1px solid {BORDER};">'
-                     f'<span style="font-size:18px;margin-right:10px;">{icon}</span>'
-                     f'<span style="font-size:14px;font-weight:700;color:{TEXT};">{title}')
-            if subtitle:
-                p.append(f'<span style="font-size:12px;font-weight:400;color:{MUTED};margin-left:8px;">{subtitle}</span>')
-            p.append('</span>')
-            if desc:
-                p.append(f'<div style="font-size:13px;color:{MUTED};margin-top:7px;line-height:1.65;">{desc}</div>')
-            p.append('</div><div style="padding:16px 12px 14px;">')
-            if is_sc:
-                for item in items:
-                    if item[0]=='shortcut':
-                        _,k,d=item
-                        key_parts = k.split('+')
-                        key_html = f'<span style="color:{MUTED};font-size:11px;margin:0 4px;font-weight:400;">+</span>'.join(
-                            f'<span style="display:inline-block;background:{SRF2};'
-                            f'border:1px solid {TEXT};border-bottom:2px solid {TEXT};'
-                            f'border-radius:4px;padding:3px 10px;font-size:12px;font-weight:700;'
-                            f'font-family:monospace;color:{TEXT};white-space:nowrap;">{kp.strip()}</span>'
-                            for kp in key_parts
-                        )
-                        p.append(
-                            f'<div style="padding:8px 14px;margin:0 0 5px;border-radius:8px;'
-                            f'background:{BG};border:1px solid {BORDER};">'
-                            f'<table style="border-spacing:0;border-collapse:collapse;">'
-                            f'<tr>'
-                            f'<td style="vertical-align:middle;padding-right:16px;white-space:nowrap;">{key_html}</td>'
-                            f'<td style="color:{MUTED};font-size:13px;vertical-align:middle;">{d}</td>'
-                            f'</tr></table></div>'
-                        )
-                    elif item[0]=='tip':
-                        tt=item[1]; hi=tt[:2].strip() and ord(tt[0])>127
-                        ic='' if hi else f'<span style="color:{ACCENT};font-weight:700;margin-right:5px;">💡</span>'
-                        p.append(f'<div style="border-left:3px solid {tip_bdr};background:{tip_bg};border-radius:0 7px 7px 0;padding:9px 14px;margin:10px 0 0;font-size:13px;color:{TEXT};line-height:1.7;">{ic}{tt}</div>')
-                p.append('')
-            else:
-                for item in items:
-                    kind=item[0]
-                    if kind=='step':
-                        step_n+=1; num=_CIRCLED[step_n-1] if step_n<=20 else f'{step_n}.'
-                        content=item[1]
-                        if ' — ' in content:
-                            cut=content.index(' — ')
-                            title_part=content[:cut]
-                            desc_part=content[cut+3:]
-                            inner=(
-                                f'<div style="font-size:13px;font-weight:700;color:{TEXT};">{title_part}</div>'
-                                f'<div style="font-size:13px;color:{TEXT};line-height:1.7;margin-top:3px;">{desc_part}</div>'
-                            )
-                        else:
-                            inner=f'<div style="font-size:13px;color:{TEXT};line-height:1.75;">{content}</div>'
-                        p.append(
-                            f'<div style="margin:0 0 10px 6px;">'
-                            f'<table style="border-spacing:0;border-collapse:collapse;">'
-                            f'<tr>'
-                            f'<td style="color:{ACCENT};font-weight:700;font-size:13px;'
-                            f'vertical-align:top;padding-right:7px;white-space:nowrap;">{num}</td>'
-                            f'<td>{inner}</td>'
-                            f'</tr></table></div>'
-                        )
-                    elif kind=='divider':
-                        p.append(f'<hr style="border:none;border-top:1px solid {BORDER};margin:5px 0 8px 0;">')
-                    elif kind=='info':
-                        p.append(f'<div style="border-left:3px solid {BORDER};background:{SRF2};border-radius:0 7px 7px 0;padding:8px 12px;margin:4px 0 7px 6px;font-size:13px;color:{MUTED};line-height:1.7;"><span style="font-weight:700;margin-right:5px;">ℹ</span>{item[1]}</div>')
-                    elif kind=='formats':
-                        fmts=item[1]
-                        from PySide6.QtGui import QColor as _FQC
-                        def _fmix(h1,h2,r,_C=_FQC):
-                            c1=_C(h1);c2=_C(h2)
-                            return f"#{int(c1.red()*(1-r)+c2.red()*r):02X}{int(c1.green()*(1-r)+c2.green()*r):02X}{int(c1.blue()*(1-r)+c2.blue()*r):02X}"
-                        pills=[]
-                        for label,ftype in fmts:
-                            if ftype=='native':
-                                pb=_fmix(ACCENT,SURFACE,0.78); pf=ACCENT; pd=_fmix(ACCENT,SURFACE,0.55)
-                            else:
-                                pb=_fmix('#808080',SURFACE,0.88); pf=MUTED; pd=_fmix('#808080',SURFACE,0.65)
-                            pills.append(f'<span style="display:inline-block;background:{pb};border:1px solid {pd};border-radius:4px;padding:2px 9px;font-size:12px;font-weight:700;font-family:monospace;color:{pf};">{label}</span>')
-                        p.append(f'<div style="margin:0 0 10px 6px;"><div style="font-size:12px;color:{MUTED};margin-bottom:9px;"><span style="color:{ACCENT};font-size:10px;">●</span> 기본 지원 &nbsp;&nbsp;<span style="color:{MUTED};font-size:10px;">●</span> 라이브러리 설치 필요 <span style="font-size:11px;">(python-docx · pdfplumber · openpyxl · python-hwpx)</span></div>{" ".join(pills)}</div>')
-                    elif kind=='sub':
-                        p.append(f'<div style="margin:-3px 0 8px 26px;color:{MUTED};font-size:13px;line-height:1.7;">{item[1]}</div>')
-                    elif kind=='note':
-                        p.append(f'<div style="border-left:3px solid {note_bdr};background:{note_bg};border-radius:0 7px 7px 0;padding:8px 12px;margin:0 0 8px 6px;font-size:13px;color:{TEXT};line-height:1.7;"><span style="color:#5080D0;font-weight:700;margin-right:5px;">ℹ️</span>{item[1]}</div>')
-                    elif kind=='tip':
-                        p.append(f'<div style="border-left:3px solid {tip_bdr};background:{tip_bg};border-radius:0 7px 7px 0;padding:8px 12px;margin:3px 0 7px 6px;font-size:13px;color:{TEXT};line-height:1.7;"><span style="color:{ACCENT};font-weight:700;margin-right:5px;">💡</span>{item[1]}</div>')
-                    elif kind=='warn':
-                        p.append(f'<div style="border-left:3px solid {warn_bdr};background:{warn_bg};border-radius:0 7px 7px 0;padding:8px 12px;margin:3px 0 7px 6px;font-size:13px;color:#9B2A10;line-height:1.7;"><span style="font-weight:700;margin-right:5px;">⚠️</span>{item[1]}</div>')
-                    elif kind=='feature':
-                        _,ft,fd=item
-                        p.append(f'<div style="background:{feat_bg};border:1px solid {feat_bdr};border-radius:8px;padding:10px 12px;margin:3px 0 8px 6px;">'
-                                  f'<div style="font-size:13px;font-weight:700;color:{ACCENT};margin-bottom:4px;">{ft}</div>'
-                                  f'<div style="font-size:13px;color:{TEXT};line-height:1.7;">{fd}</div></div>')
-                    elif kind=='example':
-                        _,before,after=item
-                        p.append(
-                            f'<div style="margin:3px 0 7px 6px;">'
-                            f'<table style="background:{SRF2};border:1px solid {BORDER};'
-                            f'border-radius:6px;border-spacing:0;border-collapse:collapse;">'
-                            f'<tr>'
-                            f'<td style="font-family:monospace;color:{MUTED};font-size:13px;'
-                            f'padding:5px 10px 5px 12px;white-space:nowrap;">{before}</td>'
-                            f'<td style="color:{MUTED};font-size:15px;padding:5px 10px;white-space:nowrap;">→</td>'
-                            f'<td style="font-family:monospace;color:{ACCENT};font-size:13px;'
-                            f'font-weight:700;padding:5px 12px 5px 10px;white-space:nowrap;">{after}</td>'
-                            f'</tr></table></div>'
-                        )
-            p.append('</div></div></body></html>')
-            b.setHtml(''.join(p))
-            stack.addWidget(b)
-
-        rl.addWidget(stack, stretch=1)
-
-        # Close button
-        btn_row = QHBoxLayout(); btn_row.addStretch()
-        btn_close = QPushButton(self.tr('Close')); btn_close.setFixedWidth(80)
-        btn_close.setStyleSheet(
-            f"QPushButton{{background:{SURFACE};border:1.5px solid {BORDER};color:{TEXT};"
-            f"border-radius:8px;padding:8px 0;font-size:13px;}}"
-            f"QPushButton:hover{{background:{SRF2};}}"
-        )
-        btn_close.clicked.connect(self.close)
-        btn_row.addWidget(btn_close)
-        rl.addSpacing(10); rl.addLayout(btn_row)
-
-        # Sidebar nav buttons
-        # Section emoji → SVG icon-key mapping
-        _section_icons = {
-            'Text Merger':      'document_line',
-            'Text Converter':   'folder_open_line',
-            'Tag Editor':       'tag_line',
-            'Batch Renamer':    'folder_line',
-            'Text Fixer':       'wrench_line',
-            'Bulk Fixer':       'broom_line',
-            '단축키 및 기타':    'keyboard_line',
-            'Shortcuts & More': 'keyboard_line',
-            'ショートカット等':   'keyboard_line',
-            '快捷键及其他':      'keyboard_line',
-            '快速鍵及其他':      'keyboard_line',
-            '생성 파일 안내':    'license_line',
-            'Generated Files':   'license_line',
-            '生成ファイル案内':  'license_line',
-            '生成文件说明':      'license_line',
-            '生成檔案說明':      'license_line',
-        }
-
-        def _nav(label, idx, icon_key=None):
-            btn = QPushButton(label); btn.setFixedHeight(36)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            if icon_key:
-                btn.setIcon(_svg_icon(icon_key, MUTED)); btn.setIconSize(QSize(16,16))
-            btn.clicked.connect(lambda _, i=idx: self._switch(i))
-            self._nav_btns.append(btn); sl.addWidget(btn)
-
-        _nav(self.tr('About'), 0, 'info_line')
-        for i, entry in enumerate(sections):
-            icon_key = _section_icons.get(entry[1], 'document_line')
-            _nav(entry[1], i+1, icon_key)
-
-        sl.addStretch()
-        root.addWidget(sb); root.addWidget(right)
-        self._stack = stack
-        self._switch(0)
-
-    def _switch(self, idx):
-        self._stack.setCurrentIndex(idx)
-        _icon_keys = ['info_line','document_line','folder_open_line','tag_line',
-                      'folder_line','wrench_line','broom_line','keyboard_line','license_line']
-        for i, btn in enumerate(self._nav_btns):
-            active = (i == idx)
-            btn.setStyleSheet(
-                f"QPushButton{{background:{_accent_alpha(0.12) if active else 'transparent'};"
-                f"border:none;border-radius:8px;text-align:left;padding:8px 12px;"
-                f"color:{ACCENT if active else MUTED};font-size:12px;"
-                f"font-weight:{'600' if active else '400'};}}"
-                f"QPushButton:hover{{background:{_accent_alpha(0.12) if active else SRF2};}}"
-            )
-            if i < len(_icon_keys):
-                btn.setIcon(_svg_icon(_icon_keys[i], ACCENT if active else MUTED))
-                btn.setIconSize(QSize(16,16))
-
-    def refresh(self):
-        pass  # Recreated each time it opens (exec() is modal)
-
-
 class SettingsDialog(QDialog):
     _CARD_CFG={
         'light': {'card_bg':'#F0EFEB','card_border':'#D8D5CE','sel_border':'#4A90D9','surface':'#FFFFFF','accent':'#CC785C','line1':'#C8C5BE','line2':'#E0DDD8','lbl_bg':'#FFFFFF','lbl_text':'#1A1A1A'},
@@ -11195,7 +10863,7 @@ class SettingsDialog(QDialog):
         'honey':   {'card_bg':'#FAF5DC','card_border':'#E8D880','sel_border':'#C8A030','surface':'#FFFFFF','accent':'#C8A030','line1':'#D8C060','line2':'#E8D880','lbl_bg':'#FDFAF0','lbl_text':'#2A2200'},
         'lavender': {'card_bg':'#EEE9FF','card_border':'#C8BAE8','sel_border':'#6D4FC2','surface':'#FFFFFF','accent':'#6D4FC2','line1':'#A892D8','line2':'#C8BAE8','lbl_bg':'#F7F5FF','lbl_text':'#1E1535'},
     }
-    _SECTIONS=[('appearance','🎨','테마'), ('language','🌐','언어 설정'), ('shortcuts','⌨','단축키'), ('license','📄','라이선스')]
+    _SECTIONS=[('appearance','🎨'), ('language','🌐'), ('shortcuts','⌨'), ('license','📄')]
 
 
     # Apply-immediately signals (window stays open)
@@ -11228,7 +10896,7 @@ class SettingsDialog(QDialog):
         self._sb_sep=sep
         _nav_labels={"appearance":self.tr('Theme'),"shortcuts":self.tr('Shortcuts'),"language":self.tr('General'),"license":self.tr('License')}
         _nav_icons={"appearance":"theme_line","language":"globe_line","shortcuts":"keyboard_line","license":"license_line"}
-        for sid,icon,label in self._SECTIONS:
+        for sid,icon in self._SECTIONS:
             btn=QPushButton(_nav_labels.get(sid,sid)); btn.setFixedHeight(38); btn.setCursor(Qt.CursorShape.PointingHandCursor)
             nav_icon_key = _nav_icons.get(sid)
             if nav_icon_key:
@@ -11247,7 +10915,7 @@ class SettingsDialog(QDialog):
         self._right=right
         rl=QVBoxLayout(right); rl.setContentsMargins(28,24,28,20); rl.setSpacing(0)
         self._stack=QStackedWidget(); self._stack.setStyleSheet("background:transparent;"); self._pidx={}
-        for sid,_,_ in self._SECTIONS:
+        for sid,_ in self._SECTIONS:
             page=getattr(self,f"_page_{sid}")(); idx=self._stack.addWidget(page); self._pidx[sid]=idx
         rl.addWidget(self._stack,stretch=1)
 
@@ -11354,7 +11022,7 @@ class SettingsDialog(QDialog):
         self._pidx = {}
 
         # 5. Create new pages (with current theme/language colors and text)
-        for sid, _, _ in self._SECTIONS:
+        for sid, _ in self._SECTIONS:
             page = getattr(self, f"_page_{sid}")()
             idx = self._stack.addWidget(page)
             self._pidx[sid] = idx
@@ -11525,7 +11193,7 @@ class SettingsDialog(QDialog):
         # Sidebar title
         self._dlg_title.setText(self.tr('Settings'))
         # Nav buttons — translation strings already include icons
-        for (sid, _, __), label in zip(self._SECTIONS,
+        for (sid, _), label in zip(self._SECTIONS,
                 [self.tr('Theme'), self.tr('General'), self.tr('Shortcuts'), self.tr('License')]):
             self._nav_btns[sid].setText(label)
         # Bottom buttons
@@ -11651,1109 +11319,11 @@ class SettingsDialog(QDialog):
             f"QScrollBar::handle:vertical{{background:{BORDER};border-radius:4px;min-height:24px;}}"
             f"QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0px;}}"
         )
-        browser.setHtml(_build_license_html())
+        browser.setHtml(LicenseDialog.build_html())
         self._license_browser = browser
         lay.addWidget(browser, stretch=1)
         return page
 
-
-def _get_help_data():
-    """Return (intro, sections) for the current language."""
-    lang = _current_lang
-    return _build_help_html(_data_only=True, _lang=lang)
-
-
-def _build_help_html(_data_only=False, _lang=None) -> str:
-    """Help HTML for the current language — commercial-manual quality."""
-    lang = _lang or _current_lang
-    bg = SURFACE; text = TEXT; muted = MUTED
-    accent = ACCENT; border = BORDER; srf2 = SRF2; bg2 = BG
-
-    from PySide6.QtGui import QColor
-    def _mix(h1, h2, r=0.12):
-        c1=QColor(h1); c2=QColor(h2)
-        return f"#{int(c1.red()*(1-r)+c2.red()*r):02X}{int(c1.green()*(1-r)+c2.green()*r):02X}{int(c1.blue()*(1-r)+c2.blue()*r):02X}"
-    tip_bg   = _mix(bg, accent, 0.07); tip_bdr = _mix(accent, bg, 0.4)
-    warn_bg  = _mix(bg, "#D04030", 0.08); warn_bdr = "#D05040"
-    note_bg  = _mix(bg, "#5080D0", 0.07); note_bdr = _mix("#5080D0", bg, 0.4)
-
-    # ─────────────────────────────────────────────────────────────
-    # Per-language content
-    # ─────────────────────────────────────────────────────────────
-    if lang == 'ko':
-      intro = ("File Nexus Suite는 텍스트·전자책·미디어 파일 작업에 특화된 통합 파일 도구입니다. 텍스트 병합, EPUB 변환, 파일명 태그 편집, 일괄 이름 변경, 줄바꿈 교정, 일괄 교정 — 여섯 가지 핵심 기능이 하나의 창 안에 있습니다.")
-      sections = [
-
-        ("📋", "Text Merger", "여러 파일을 하나의 텍스트 파일로 병합합니다",
-         "아래 형식의 파일을 원하는 순서로 이어붙여 하나의 텍스트 파일로 만듭니다. DOCX·PDF·XLSX는 해당 라이브러리가 설치된 경우에만 텍스트를 추출할 수 있습니다.",
-         [
-          ("formats",[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib'), ('HWPX', 'lib')]),
-          ("step","<b>파일 추가</b> — <code>[📄 파일 추가]</code> 버튼 또는 파일을 목록 위로 드래그 앤 드롭합니다. 지원하지 않는 형식은 자동으로 걸러집니다."),
-          ("step","<b>순서 조정</b> — 목록 항목을 드래그하거나 <code>[위로]</code> / <code>[아래로]</code> 버튼으로 병합 순서를 정합니다. 병합 결과물에 파일 순서가 그대로 반영됩니다."),
-          ("step","<b>인코딩 설정</b> — 각 파일 오른쪽 콤보박스에서 <b>읽기 인코딩</b>을 선택하고, 우측 '저장 설정' 패널에서 <b>저장 인코딩</b>을 선택합니다."),
-          ("step","<b>파일 구분선</b> (선택) — '파일 구분선 삽입' 체크박스를 켜면 각 파일 사이에 파일명을 포함한 구분선이 자동으로 삽입됩니다."),
-          ("step","<b>저장 경로 지정</b> (선택) — <code>[경로 지정]</code> 버튼으로 저장 위치를 미리 지정하면 <code>[▶ 병합 및 저장]</code> 클릭 시 자동 저장됩니다. 경로를 지정하지 않으면 실행 시 저장 대화상자가 나타납니다."),
-          ("step","<b><code>[▶ 병합 및 저장]</code></b> 클릭 — 완료 메시지에서 파일별 인코딩 요약을 확인할 수 있습니다."),
-          ("divider",),
-          ("tip","<b>인코딩 자동 감지</b> — chardet 라이브러리가 설치되어 있으면 파일 추가 시 인코딩을 자동 감지합니다. 신뢰도가 낮으면 콤보박스에서 직접 선택하세요."),
-          ("tip","<b>저장 인코딩 선택 기준</b> — UTF-8: 범용 권장 / UTF-8-BOM: Excel에서 한글이 깨지지 않음 / EUC-KR·CP949: 구형 한국어 프로그램 호환 / UTF-16: 특수 목적 / <b>Shift-JIS·GBK·Big5</b>: 일본어·중국어(간체·번체) 시스템 호환"),
-          ("tip","<b>파일 구분선 형식</b> — 구분선을 켜면 각 파일 앞에 <code>───── ▶ 파일이름.txt ──────</code> 형식의 줄이 삽입됩니다."),
-          ("info","파일 읽기 중 오류가 발생하면 해당 파일만 건너뛰고 나머지는 정상적으로 병합됩니다. 오류 내용은 완료 메시지에 표시됩니다."),
-          ("warn","<code>[실행 취소]</code> 버튼은 병합 결과 파일 자체를 삭제합니다. <b>원본 파일은 전혀 변경되지 않습니다.</b>"),
-         ]),
-
-        ("🔄", "Text Converter", "TXT ↔ EPUB 파일 형식을 변환합니다",
-         "소설·원고 작업에 특화된 형식 변환 도구입니다. TXT → EPUB 변환으로 전자책을 만들거나, EPUB → TXT 추출로 텍스트를 편집 가능한 형태로 꺼낼 수 있습니다. 여러 파일을 한 번에 일괄 변환할 수 있습니다.",
-         [
-          ("note","상단의 <code>[TXT → EPUB]</code> 또는 <code>[EPUB → TXT]</code> 탭을 먼저 선택하세요."),
-          ("step","<b>파일 추가</b> — <code>[📄 파일 추가]</code> 버튼 또는 드래그 앤 드롭으로 변환할 파일을 불러옵니다."),
-          ("step","<b>TXT → EPUB 설정</b> — 오른쪽 '책 정보' 패널에서 <b>책 제목·저자·언어</b>를 입력하고 <b>챕터 구분 방식</b>을 선택합니다."),
-          ("step","<b>EPUB → TXT 설정</b> — 오른쪽 '변환 옵션' 패널에서 챕터 구분선 삽입·챕터 제목 포함·연속 빈 줄 정리·저장 인코딩을 설정합니다."),
-          ("step","<b>출력 폴더 지정</b> (선택) — 기본 출력 폴더는 설정에서 지정한 폴더(기본: <code>Output/</code>)입니다. 저장 완료 후 출력 폴더가 자동으로 열립니다."),
-          ("step","<b><code>[▶ 변환 시작]</code></b> 클릭 — 파일이 여러 개면 진행 표시줄에서 각 파일의 변환 상태를 확인할 수 있습니다."),
-          ("divider",),
-          ("feature","TXT → EPUB 챕터 구분 방식","원고의 챕터 표기 방식에 맞는 옵션을 선택하세요. <b>구분선 기준</b> — <code>===</code>, <code>---</code>, <code>★★★</code> 등 반복 기호로 이루어진 줄을 챕터 경계로 인식합니다. <b>빈 줄 3개 이상 기준</b> — 연속 3줄 이상 빈 구간을 챕터 경계로 인식합니다. <b>전체를 한 챕터로</b> — 파일 전체를 하나의 챕터로 처리합니다."),
-          ("feature","EPUB → TXT 변환 옵션","<b>챕터 구분선 추가</b> — 챕터 경계에 구분선을 삽입합니다 (기본: 켜짐). <b>챕터 제목 포함</b> — EPUB에 저장된 챕터 제목을 구분선 아래에 표시합니다 (기본: 켜짐). <b>연속 빈 줄 정리</b> — 추출 과정에서 생기는 과도한 빈 줄을 정리합니다 (기본: 켜짐). <b>저장 인코딩</b> — 출력 TXT 파일의 인코딩을 선택합니다 (기본: UTF-8)."),
-          ("tip","출력 폴더를 지정하면 원본 폴더를 건드리지 않고 변환 결과만 한 곳에 모을 수 있어 편리합니다."),
-          ("tip","변환 중 창을 닫으면 진행이 중단될 수 있습니다. 변환이 완료될 때까지 기다려 주세요."),
-         ]),
-
-        ("🏷️", "Tag Editor", "파일명에서 태그를 추가하거나 제거합니다",
-         "파일명의 <code>[임시]</code>, <code>[최종]</code> 같은 대괄호 태그를 일괄 추가·제거하고, 불필요한 0 패딩도 한 번에 정리합니다.",
-         [
-          ("note","작업 종류에 따라 상단 탭에서 <b>[태그 제거]</b> / <b>[태그 추가]</b> / <b>[앞자리 0 제거]</b> 를 선택하세요."),
-          ("step","<b>파일 또는 폴더 추가</b> — <code>[📄 파일 추가]</code> / <code>[📂 폴더 추가]</code> 버튼 또는 드래그 앤 드롭으로 대상을 불러옵니다. 폴더를 추가하면 '하위 폴더 포함' 옵션에 따라 재귀적으로 파일을 읽어옵니다."),
-          ("step","<b>필터 설정</b> — 왼쪽 하단 '필터 설정' 패널에서 대상 확장자를 지정합니다 (쉼표로 구분). '모든 확장자 대상'을 켜면 확장자 무관하게 전체 파일을 처리합니다."),
-          ("step","<b>옵션 설정</b> — 오른쪽 패널에서 각 모드에 맞는 옵션을 설정합니다."),
-          ("step","<b>미리보기 확인</b> — <code>[미리보기]</code>를 클릭해 '원본 파일명 → 변경 후 파일명' 표를 확인합니다. <b>결과를 반드시 확인한 후 적용하세요.</b>"),
-          ("step","<b>적용</b> — 결과가 올바르면 <code>[적용]</code>을 클릭합니다."),
-          ("divider",),
-          ("feature","태그 제거","오른쪽 패널 태그 입력란에 특정 태그를 입력하면 그 태그만 제거합니다. <b>입력란을 비워두면 파일명의 모든 <code>[ ]</code> 형식 태그를 제거합니다.</b> 예) 입력란에 <code>최종</code> 입력 → <code>[최종]</code>만 제거, 나머지 태그는 그대로 유지"),
-          ("feature","태그 추가","오른쪽 패널에서 추가할 태그와 삽입 위치(파일명 <b>앞</b> / <b>뒤</b>)를 선택합니다. 동일한 태그가 이미 있으면 중복 추가되지 않습니다."),
-          ("feature","앞자리 0 제거","파일명 앞에 붙은 불필요한 0을 자동으로 제거합니다 (001 → 1, 007 → 7). 단, <code>2024-01-01</code>처럼 하이픈으로 연결된 <b>날짜 형식의 숫자는 건드리지 않고 그대로 보존됩니다.</b>"),
-          ("example","회의록 001.docx","회의록 1.docx"),
-          ("example","강의자료 007 최종본.pdf","강의자료 7 최종본.pdf"),
-          ("example","2024-01-01 일기.txt","2024-01-01 일기.txt  ← 보호, 변경 없음"),
-          ("warn","<b>파일명 변경 후 [실행 취소]로 한 번 복구할 수 있습니다.</b> 단, 새 작업을 실행하거나 창을 닫으면 복구 데이터가 사라집니다. <code>[미리보기]</code>로 결과를 반드시 확인한 후 <code>[적용]</code>하세요."),
-         ]),
-
-        ("📁", "Batch Renamer", "폴더 및 파일 이름을 일괄 변경합니다",
-         "하위 폴더 또는 파일의 이름을 패턴 기반으로 한 번에 바꿉니다. 번호를 자동으로 인식하는 '스마트 추출'과 번호를 직접 지정하는 '순차 번호' 두 방식을 지원합니다.",
-         [
-          ("note","상단 탭에서 <b>[폴더 이름 변경]</b> 또는 <b>[파일 이름 변경]</b> 을 먼저 선택하세요."),
-          ("step","<b>대상 폴더 지정</b> — <code>[📂 폴더 선택]</code> 또는 드래그 앤 드롭으로 <b>상위 폴더</b>를 지정합니다. 지정한 폴더 자체는 변경되지 않고, <b>그 안의 하위 항목만</b> 이름이 바뀝니다."),
-          ("step","<b>방식 선택</b> — 오른쪽 패널에서 '스마트 추출' 또는 '순차 번호'를 선택합니다."),
-          ("step","<b>미리보기 확인</b> — <code>[미리보기]</code>를 클릭해 변경 결과를 확인합니다. 이름이 충돌하는 경우 표에서 경고가 표시됩니다."),
-          ("step","<b>이름 변경 실행</b> — <code>[이름 변경 실행]</code>을 클릭합니다. 실행 직후 <code>[실행 취소]</code>로 한 번 복구할 수 있습니다."),
-          ("divider",),
-          ("feature","🔍 스마트 추출","기존 이름에서 숫자를 자동으로 추출해 재구성합니다. <b>공통 접두어 처리</b> — 자동 감지 / 직접 지정 / 제거 안 함 중 선택. <b>접두사·접미사</b> — 재구성된 이름 앞뒤에 추가할 텍스트를 입력합니다."),
-          ("feature","🔢 순차 번호","처음부터 끝까지 순서대로 번호를 부여합니다. <b>시작 번호</b> — 00 또는 01부터 선택. <b>자릿수</b> — 자동 또는 2·3·4자리 고정. <b>접두사·접미사</b> — 번호 앞뒤에 붙일 텍스트. <b>이름 보존</b> — '숫자만' 또는 '숫자 + 원래이름'. <b>번호 리셋</b> — '전체 연속' 또는 '그룹마다 리셋'."),
-          ("tip","파일 이름 변경에서 확장자는 항상 자동으로 유지됩니다."),
-          ("tip","폴더를 드래그하면 하위 폴더까지 재귀적으로 탐색하여 자동으로 그룹을 구성합니다."),
-          ("tip","이름 변경 실행 전 대상 폴더를 열어둔 탐색기 창은 자동으로 닫히며, 이름 변경 완료 후 자동으로 다시 열립니다."),
-          ("warn","<b>이름 변경은 즉시 적용됩니다.</b> 실행 직후 <code>[실행 취소]</code>로 복구할 수 있지만, 새 작업을 실행하거나 창을 닫으면 복구 데이터가 사라집니다."),
-          ("warn","지정한 상위 폴더 자체는 변경되지 않습니다. 하위 항목만 대상입니다."),
-         ]),
-
-        ("✦", "Text Fixer", "OCR·전자책 텍스트의 줄바꿈을 교정합니다",
-         "PDF나 EPUB에서 추출한 텍스트는 페이지 너비에서 줄이 강제로 잘리는 문제가 있습니다. Text Fixer는 이를 지능적으로 복원하고 단락 구조를 정리합니다.",
-         [
-          ("note","<b>텍스트 입력 방법</b> — 상단 드롭존에 .txt 파일을 드래그하거나, <code>[📂 파일 열기]</code>로 불러오거나, 왼쪽 '원본 텍스트' 창에 직접 붙여넣기 할 수 있습니다."),
-          ("step","<b>텍스트 입력</b> — 텍스트를 불러오거나 왼쪽 창에 붙여넣습니다."),
-          ("step","<b>옵션 선택</b> — 아래 네 가지 옵션을 필요에 따라 조합합니다. 처음에는 <b>① + ④</b> 조합으로 시작해 보세요."),
-          ("step","<b><code>[✦ 수정 실행]</code></b> 클릭 — 왼쪽(원본)과 오른쪽(결과) 창을 나란히 비교해 결과를 확인하세요."),
-          ("step","<b>저장</b> — 결과가 마음에 들면 <code>[저장 ▼]</code>을 클릭합니다. 마음에 들지 않으면 <code>[실행 취소]</code>로 원본을 복원한 뒤 옵션을 바꿔 다시 시도하세요."),
-          ("divider",),
-          ("feature","① 줄바꿈 병합 (빈 줄 기준)","빈 줄을 기준으로 단락을 나누고, 단락 안에서 강제로 잘린 줄을 하나로 이어붙입니다. <b>이어붙이지 않는 경우</b> — 마침표·느낌표·물음표·따옴표 등으로 끝나는 줄, 그리고 <code>───</code>·<code>===</code>·<code>★★★</code> 같은 구분선은 이어붙이지 않습니다. PDF·EPUB 텍스트 교정의 핵심 옵션입니다. 대부분의 경우 먼저 켜세요."),
-          ("feature","② 자동 단락 분리 (최대 N자)","① 옵션으로 병합 후 너무 길어진 줄을 문장 경계에서 N자 기준으로 나눕니다. 짧은 문장끼리는 N자 안에서 자동으로 묶입니다. 기본값 100자. 소설 원고처럼 문장이 길게 이어지는 경우 150~200자로 늘려 보세요."),
-          ("feature","③ 문장마다 빈 줄 삽입","마침표·따옴표로 끝나는 줄 뒤, 또는 대화문(<code>\"</code>) 앞에 빈 줄을 자동 삽입합니다. 대화가 많은 소설 원고에서 문단 가독성을 높일 때 사용합니다."),
-          ("feature","④ 과도한 빈 줄 축소 (최대 N줄)","연속으로 이어지는 빈 줄을 최대 N줄로 줄입니다. 기본값 1줄 권장. 여러 섹션으로 구성된 문서는 2줄로 설정하세요."),
-          ("divider",),
-          ("tip","<b>추천 조합</b> — PDF·EPUB 추출 텍스트 교정: <b>① + ④</b> / 대화 중심 소설 원고: <b>① + ③</b> / OCR 결과물·긴 단락 정리: <b>① + ② + ④</b>"),
-          ("tip","<b>저장 방식</b> — <b>원본 위치에 [Fixed] 태그로 저장</b>: 원본은 그대로 두고 교정본을 <code>[Fixed]파일명.txt</code>로 저장 / <b>다른 이름으로 저장</b>: 위치와 파일명 직접 지정 / <b>실행 취소</b>: 수정 전 원본 텍스트를 왼쪽 창에 복원 (수정 실행 후 1회 가능)"),
-          ("tip","🟡 <b>노란 줄</b> = 여러 줄이 병합된 부분 / 🟠 <b>주황 줄</b> = 빈 줄이 제거된 위치. 결과 창에서 변경 위치를 시각적으로 확인할 수 있습니다. 3,000줄 이상의 대용량 파일은 하이라이팅이 생략됩니다."),
-          ("tip","하단 통계 바에서 <b>병합 횟수·빈 줄 제거 수·원본 줄 수·최종 줄 수</b>를 확인할 수 있습니다."),
-          ("tip","<b>Ctrl+F</b>로 원본·수정본 텍스트에서 키워드를 검색할 수 있습니다. Enter로 다음, Shift+Enter로 이전 결과로 이동합니다."),
-          ("warn","저장은 항상 <b>UTF-8</b> 인코딩으로 이루어집니다. 원본 인코딩(EUC-KR 등)을 유지해야 하는 경우 별도로 인코딩을 변환하세요."),
-          ("divider",),
-          ("note","<b>부분 손상 파일 처리</b> — 일부 바이트가 손상된 파일도 열 수 있습니다. 깨진 문자는 <code>�</code> (U+FFFD) 로 표시되며, 상태 표시줄에 <b>⚠</b> 아이콘과 '부분 인코딩 실패' 경고가 표시됩니다."),
-          ("tip","Text Fixer는 <b>단일 파일 정밀 검토</b>에 최적화되어 있습니다. 손상된 파일을 열어 깨진 위치를 직접 확인하고, 필요하면 그 구간만 수동으로 편집하거나 원본을 다시 확보할지 판단할 수 있습니다."),
-          ("warn","수만 자 이상의 대량 손상이 있는 파일은 교정해도 품질 회복이 어렵습니다. 원본 출처에서 재다운로드를 먼저 고려하세요. Bulk Fixer에서는 이런 파일을 자동으로 스킵하여 원본을 보호합니다."),
-         ]),
-
-        ("✦", "Bulk Fixer", "여러 TXT 파일의 줄바꿈을 일괄 교정합니다",
-         "Text Fixer의 교정 기능을 여러 파일에 한꺼번에 적용합니다. OCR·전자책에서 추출한 TXT 파일 다수를 한 번에 정리할 때 사용합니다.",
-         [
-          ("step","<b>파일 추가</b> — <code>[📄 파일 추가]</code> 또는 <code>[📂 폴더 추가]</code>로 TXT 파일을 불러옵니다. 파일 목록에 폴더를 직접 드래그 앤 드롭해도 하위 <code>.txt</code> 파일이 재귀적으로 수집됩니다."),
-          ("step","<b>교정 옵션 선택</b> — 오른쪽 패널에서 병합 모드(자동/한국어/영어)와 네 가지 교정 옵션을 설정합니다. <b>프리셋</b> 콤보박스에서 '일반 문서' 또는 '책·소설'을 선택하면 옵션이 한 번에 설정됩니다."),
-          ("step","<b>저장 설정</b> — 출력 폴더를 지정하거나 비워두면 원본 파일과 같은 위치에 <code>[Fixed]파일명.txt</code>로 저장됩니다. <b>폴더 구조 유지</b> 체크박스를 켜면 출력 폴더 안에 원본의 하위 폴더 구조가 그대로 재현됩니다."),
-          ("step","<b><code>[▶ 일괄 교정 시작]</code></b> 클릭 — 진행률이 표시되며, 완료 후 성공·실패 파일 수를 알려줍니다."),
-          ("tip","파일 목록에서 항목을 클릭하면 오른쪽 미리보기 창에서 해당 파일의 교정 결과를 미리 확인할 수 있습니다."),
-          ("tip","<b>출력 폴더</b> 기본값은 <code>Output/</code> 폴더입니다. ⚙ 설정에서 전역으로 변경하거나 각 탭에서 개별 지정할 수 있습니다. 저장 완료 후 자동으로 열립니다."),
-          ("warn","TXT 파일만 지원합니다. DOCX·PDF 등 다른 형식은 먼저 Text Converter로 TXT로 변환한 뒤 사용하세요."),
-          ("divider",),
-          ("note","<b>인코딩 손상 파일 자동 분류</b> — Bulk Fixer는 부분 손상 파일을 감지하면 손상 정도에 따라 3단계로 나누어 처리합니다:<br>• <b>Tier 1</b> (1~500자 손상): 교정 후 리포트 파일 생성<br>• <b>Tier 2</b> (501~5,000자 손상): 교정 후 리포트 파일 생성 (검토 권장)<br>• <b>Tier 3</b> (5,001자 이상): <b>자동 스킵 (원본 보호)</b> + 리포트 파일만 생성"),
-          ("tip","리포트 파일은 <code>{원본파일명}.encoding_report.txt</code> 형태로 교정본 옆에 생성됩니다. 어느 줄·어느 컬럼이 손상됐는지 최대 5,000건까지 상세 기록됩니다."),
-          ("warn","Tier 3로 스킵된 파일은 <b>Text Fixer에서 개별 검토</b>하세요. 대량 손상은 잘못된 인코딩 감지이거나 원본 파일 자체의 문제일 가능성이 높아, 일괄 교정 대신 원본을 재확보하는 것이 낫습니다."),
-         ]),
-
-        ("⌨️", "단축키 및 기타", "",
-         "",
-         [
-          ("shortcut","Ctrl+1","Text Merger 탭으로 이동"),
-          ("shortcut","Ctrl+2","Text Converter 탭으로 이동"),
-          ("shortcut","Ctrl+3","Tag Editor 탭으로 이동"),
-          ("shortcut","Ctrl+4","Batch Renamer 탭으로 이동"),
-          ("shortcut","Ctrl+5","Text Fixer 탭으로 이동"),
-          ("shortcut","Ctrl+6","Bulk Fixer 탭으로 이동"),
-          ("shortcut","Ctrl+F","Text Fixer에서 텍스트 검색"),
-          ("shortcut","⚙ 버튼 (우상단)","설정 창 열기 — 테마·언어·단축키 변경 가능"),
-          ("tip","설정(테마·언어·단축키)은 앱 종료 시 자동 저장되며, 다음 실행 시 복원됩니다."),
-          ("tip","모든 탭에서 파일을 <b>드래그 앤 드롭</b>으로 바로 불러올 수 있습니다. 폴더를 드롭하면 해당 폴더의 지원 파일이 일괄 추가됩니다."),
-          ("tip","🔋 <b>절전 방지</b> — Text Merger·Text Converter·Text Fixer·Bulk Fixer에서 작업이 실행되는 동안 Windows 절전 모드 진입이 자동으로 차단됩니다. 작업 완료 또는 오류 발생 시 즉시 해제됩니다. 화면 잠금은 절전과 무관하므로 작업 중에도 정상 동작합니다."),
-         ]),
-
-
-        ("📁", "생성 파일 안내", "프로그램 사용 중 자동으로 생성되는 파일과 폴더",
-         "File Nexus Suite는 설정 저장, 기본 출력, 오류 기록을 위해 프로그램 실행 파일과 같은 폴더에 아래 항목을 자동으로 생성합니다.",
-         [
-          ("step","<b>FileNexusSuite.json</b> — 테마·언어·단축키·각 탭 설정이 저장되는 환경설정 파일입니다. 앱 종료 시 자동 저장되고, 다음 실행 시 복원됩니다."),
-          ("step","<b>Output/</b> — Text Converter, Bulk Fixer, Text Fixer의 기본 출력 폴더입니다. 첫 실행 시 자동 생성됩니다. ⚙ 설정에서 위치를 전역으로 변경할 수 있으며, 저장 완료 시 자동으로 열립니다."),
-          ("step","<b>logs/crash_*.log</b> — 예기치 않은 오류 발생 시 자동으로 생성되는 크래시 로그입니다. 최근 3개만 유지되며 오래된 파일은 자동 삭제됩니다."),
-          ("warn","<b>_internal/</b> — exe 빌드(폴더 형태) 시 자동 생성되는 Python 런타임 폴더입니다. <b>삭제하면 프로그램이 실행되지 않습니다.</b>"),
-          ("tip","생성된 파일과 폴더는 직접 삭제해도 무방합니다. 다음 실행 시 필요한 항목은 자동으로 다시 생성됩니다."),
-         ]),
-
-      ]
-
-    elif lang == 'en':
-      intro = 'File Nexus Suite is an integrated file utility for managing text, e-books, and media files. Text merging, EPUB conversion, file-name tag editing, batch renaming, line-break correction, and bulk fixing — six core features, all in one window.'
-      sections = [
-        ('📋','Text Merger','Merge multiple files into a single text file',
-         'Combine files of the formats below into one text file in any order. DOCX, PDF, and XLSX require the respective libraries to be installed.',
-         [
-          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib'), ('HWPX', 'lib')]),
-          ('step','<b>Add files</b> — Click <code>[📄 Add Files]</code> or drag and drop files onto the list. Unsupported formats are filtered out automatically.'),
-          ('step','<b>Set order</b> — Drag items in the list or use <code>[Up]</code> / <code>[Down]</code> to set the merge order.'),
-          ('step',"<b>Set encoding</b> — Select the <b>read encoding</b> for each file via the combo box, and choose the <b>save encoding</b> in the 'Save Settings' panel."),
-          ('step',"<b>File separator</b> (optional) — Enable 'Insert File Separator' to automatically insert a divider line with the filename between each file."),
-          ('step','<b>Set save path</b> (optional) — Click <code>[Set Path]</code> to pre-select a save location. If not set, a save dialog will appear when you run the merge.'),
-          ('step','<b><code>[▶ Merge & Save]</code></b> — Click to merge. The completion message shows a per-file encoding summary.'),
-          ('divider',),
-          ('tip','<b>Auto encoding detection</b> — If chardet is installed, encoding is detected automatically when files are added. If accuracy is low, select manually.'),
-          ('tip','<b>Save encoding guide</b> — UTF-8: general use / UTF-8-BOM: prevents garbled text in Excel / EUC-KR·CP949: legacy Korean apps / UTF-16: special use / <b>Shift-JIS·GBK·Big5</b>: Japanese / Chinese (Simplified·Traditional) legacy systems'),
-          ('tip','<b>Separator format</b> — When enabled, the following line is inserted before each file: <code>───── ▶ filename.txt ──────</code>'),
-          ('info','If a file fails to read, it is skipped and the rest are merged normally. Errors are shown in the completion message.'),
-          ('warn','<code>[Undo]</code> deletes the merged output file. <b>Original files are never modified.</b>'),
-         ]),
-
-        ('🔄','Text Converter','Convert between TXT and EPUB formats',
-         'Convert TXT files into EPUB e-books, or extract text from EPUB files. Multiple files are converted automatically in sequence.',
-         [
-          ('note','Select <b>[TXT → EPUB]</b> or <b>[EPUB → TXT]</b> at the top first.'),
-          ('step','<b>Add files</b> — Click <code>[📄 Add Files]</code> or drag and drop.'),
-          ('step',"<b>TXT → EPUB settings</b> — Enter <b>title, author, and language</b> in the 'Book Info' panel and choose a <b>chapter splitting method</b>."),
-          ('step',"<b>EPUB → TXT settings</b> — Configure chapter separator, title inclusion, blank line cleanup, and save encoding in the 'Conversion Options' panel."),
-          ('step','<b>Output folder</b> (optional) — The default output folder is set in ⚙ Settings (default: <code>Output/</code>). The folder opens automatically after saving.'),
-          ('step','<b><code>[▶ Start Conversion]</code></b> — The progress bar shows the status of each file.'),
-          ('divider',),
-          ('feature','TXT → EPUB Chapter Splitting','<b>Divider-based</b> — Lines made of repeating symbols like <code>===</code>, <code>---</code>, or <code>★★★</code> are treated as chapter boundaries.<br><br><b>3+ blank lines</b> — Sections separated by 3 or more consecutive blank lines are treated as chapters.<br><br><b>Single chapter</b> — The entire file is treated as one chapter.'),
-          ('feature','EPUB → TXT Conversion Options','<b>Add chapter separator</b> — Inserts a divider at each chapter boundary (default: on).<br><b>Include chapter titles</b> — Displays chapter titles from the EPUB below the divider (default: on).<br><b>Clean up blank lines</b> — Removes excessive blank lines generated during extraction (default: on).<br><b>Save encoding</b> — Choose the encoding for the output TXT file (default: UTF-8).'),
-          ('tip','Setting an output folder keeps results separate from your originals, making it easy to collect all converted files in one place.'),
-          ('tip','Do not close the window while conversion is in progress — it may interrupt the process.'),
-         ]),
-
-        ('🏷️','Tag Editor','Add or remove tags from file names in bulk',
-         'Batch-add or batch-remove bracket tags like <code>[Draft]</code> or <code>[Final]</code> from file names, and clean up leading zeros all at once.',
-         [
-          ('note','Choose <b>[Remove Tags]</b>, <b>[Add Tags]</b>, or <b>[Remove Leading Zeros]</b> from the top tab first.'),
-          ('step',"<b>Add files or folders</b> — Use <code>[📄 Add Files]</code> / <code>[📂 Add Folder]</code> or drag and drop. Adding a folder reads files recursively based on the 'Include subfolders' option."),
-          ('step',"<b>Filter settings</b> — Specify target extensions in the 'Filter' panel (comma-separated). Enable 'All extensions' to process all files regardless of type."),
-          ('step','<b>Configure options</b> — Set mode-specific options in the right panel.'),
-          ('step',"<b>Preview</b> — Click <code>[Preview]</code> to see the 'Before → After' table. <b>Always verify before applying.</b>"),
-          ('step','<b>Apply</b> — Click <code>[Apply]</code> if the results look correct.'),
-          ('divider',),
-          ('feature','Remove Tags','Enter a specific tag in the tag field to remove only that tag. <b>Leave the field empty to remove all <code>[ ]</code> bracket tags.</b><br><br>Example: entering <code>Final</code> removes only <code>[Final]</code>, leaving other tags intact.'),
-          ('feature','Add Tags','Choose the tag to add and its position (<b>front</b> or <b>back</b> of the filename) in the right panel. If the tag already exists, it will not be added again.'),
-          ('feature','Remove Leading Zeros','Automatically removes leading zeros from file names (001 → 1, 007 → 7). <b>Numbers connected by hyphens, such as dates, are automatically protected.</b>'),
-          ('example','Meeting notes 001.docx','Meeting notes 1.docx'),
-          ('example','Lecture 007 final.pdf','Lecture 7 final.pdf'),
-          ('example','2024-01-01 diary.txt','2024-01-01 diary.txt  ← protected, no change'),
-          ('warn','<b>File renaming can be undone once with [Undo] immediately after applying.</b> However, the undo data is lost if you run another task or close the window. Always verify with <code>[Preview]</code> before clicking <code>[Apply]</code>.'),
-         ]),
-
-        ('📁','Batch Renamer','Rename folders and files in bulk',
-         "Rename subfolders or files using pattern-based rules. Supports 'Smart Extract' (auto-detect) and 'Sequential Number' (manual) modes.",
-         [
-          ('note','Select <b>[Folder Rename]</b> or <b>[File Rename]</b> from the top tab first.'),
-          ('step','<b>Select target folder</b> — Use <code>[📂 Select Folder]</code> or drag and drop to specify the <b>parent folder</b>. The folder itself is not changed — only its <b>contents</b> are renamed.'),
-          ('step',"<b>Select method</b> — Choose 'Smart Extract' or 'Sequential Number' in the right panel."),
-          ('step','<b>Preview</b> — Click <code>[Preview]</code> to review changes. Conflicts are highlighted in the table.'),
-          ('step','<b>Rename</b> — Click <code>[Rename]</code>. You can undo once with <code>[Undo]</code> immediately after.'),
-          ('divider',),
-          ('feature','🔍 Smart Extract','Automatically extracts numbers from existing names and reconstructs them.<br><br><b>Common prefix handling</b> — Auto-detect / Manual entry / Keep as-is.<br><b>Prefix · Suffix</b> — Text to add before or after the reconstructed name.'),
-          ('feature','🔢 Sequential Number',"Assigns numbers in sequence from first to last. All options are set manually.<br><br><b>Start number</b> — Choose 00 or 01. <b>Digits</b> — Auto or fixed 2/3/4. <b>Prefix · Suffix</b> — Text around the number. <b>Name preservation</b> — 'Number only' or 'Number + original name'. <b>Number reset</b> — 'Continuous' or 'Reset per group'."),
-          ('tip','File extensions are always preserved automatically.'),
-          ('tip','Dragging a folder recursively scans subfolders and builds groups automatically.'),
-          ('tip','Explorer windows open to the target folder are automatically closed before renaming and reopened when done.'),
-          ('warn','<b>Renaming takes effect immediately.</b> You can undo once with <code>[Undo]</code>, but the data is lost when you run another task or close the window.'),
-          ('warn','The specified parent folder itself is not modified. Only its contents are renamed.'),
-         ]),
-
-        ('✦','Text Fixer','Repair line breaks in OCR and e-book text',
-         'Text extracted from PDFs or EPUBs often has forced line breaks at page width. Text Fixer intelligently restores paragraph structure.',
-         [
-          ('note',"<b>Input methods</b> — Drag a .txt file onto the drop zone, use <code>[📂 Open File]</code>, or paste text directly into the left 'Original Text' pane."),
-          ('step','<b>Load text</b> — Open a file or paste text into the left pane.'),
-          ('step','<b>Choose options</b> — Combine the four options as needed. Start with <b>① + ④</b> for most cases.'),
-          ('step','<b><code>[✦ Fix]</code></b> — Compare the left (original) and right (result) panes side by side.'),
-          ('step','<b>Save</b> — Click <code>[Save ▼]</code> if satisfied. If not, use <code>[Undo]</code> to restore the original and retry with different options.'),
-          ('divider',),
-          ('feature','① Merge Line Breaks (blank-line basis)','Splits text into paragraphs by blank lines, then merges forced line breaks within each paragraph. <b>Not merged</b> — Lines ending with period, exclamation, question mark, or quote; and divider lines like <code>───</code>, <code>===</code>, <code>★★★</code>. This is the core option for fixing PDF/EPUB text. Enable it first in most cases.'),
-          ('feature','② Auto Paragraph Split (max N chars)','After merging, splits overly long lines at sentence boundaries based on a character limit. Short sentences are grouped together within the limit. Default: 100 chars. Try 150-200 for long-sentence manuscripts.'),
-          ('feature','③ Insert Blank Line Between Sentences','Inserts a blank line after lines ending with period/quote, or before dialogue. Useful for improving readability in dialogue-heavy text.'),
-          ('feature','④ Reduce Excessive Blank Lines (max N lines)','Collapses consecutive blank lines to a maximum of N. Default 1 is recommended. Use 2 for multi-section documents.'),
-          ('divider',),
-          ('tip','<b>Recommended combinations</b> — PDF/EPUB text: <b>① + ④</b> / Dialogue-heavy text: <b>① + ③</b> / OCR output with long paragraphs: <b>① + ② + ④</b>'),
-          ('tip','<b>Save options</b> — <b>Save as [Fixed] beside original</b>: keeps original, saves corrected version as <code>[Fixed]filename.txt</code> / <b>Save As</b>: choose location and name / <b>Undo</b>: restores the pre-fix text in the left pane (available once after running Fix)'),
-          ('tip','🟡 <b>Yellow lines</b> = lines merged from multiple / 🟠 <b>Orange lines</b> = blank line removed. Highlighting is skipped for files over 3,000 lines.'),
-          ('tip','The status bar at the bottom shows <b>merge count, blank lines removed, original line count, and final line count</b>.'),
-          ('tip','Press <b>Ctrl+F</b> to search within the source and result text. Enter jumps to the next match, Shift+Enter to the previous.'),
-          ('warn','Files are always saved as <b>UTF-8</b>. Convert the encoding separately if you need to preserve the original (e.g. EUC-KR).'),
-          ('divider',),
-          ('note',"<b>Partially corrupted files</b> — Files with damaged bytes can still be opened. Corrupted characters are shown as <code>�</code> (U+FFFD), and the status bar shows a <b>⚠</b> icon with a 'Partial encoding failure' warning."),
-          ('tip','Text Fixer is optimized for <b>detailed inspection of a single file</b>. Open corrupted files to see exactly where the damage is, edit those spots manually, or decide whether to re-acquire the original.'),
-          ('warn','Files with tens of thousands of corrupted characters rarely recover well. Re-downloading from the source is usually better. Bulk Fixer automatically skips such files to protect the originals.'),
-         ]),
-
-        ('✦','Bulk Fixer','Batch-correct line breaks across multiple TXT files',
-         'Applies the Text Fixer correction engine to many files at once. Ideal for cleaning up batches of TXT files extracted from OCR or e-books.',
-         [
-          ('step','<b>Add files</b> — Use <code>[📄 Add files]</code> or <code>[📂 Add folder]</code> to load TXT files. You can also drag and drop folders directly onto the file list to recursively collect <code>.txt</code> files.'),
-          ('step','<b>Set options</b> — Choose the merge mode (Auto / Korean / English) and correction options in the right panel. Use the <b>Preset</b> dropdown to quickly apply "General document" or "Book / Novel" settings.'),
-          ('step','<b>Save settings</b> — Specify an output folder, or leave it empty to save as <code>[Fixed]filename.txt</code> beside each original file. Enable <b>Preserve folder structure</b> to recreate the original subfolder hierarchy inside the output folder.'),
-          ('step','<b>Click <code>[▶ Start batch fix]</code></b> — Progress is shown during processing; a summary of successes and failures is displayed on completion.'),
-          ('tip','Click any file in the list to preview the corrected result in the preview panel on the right.'),
-          ('tip','The default output folder is <code>Output/</code>. You can change it globally in ⚙ Settings or per-tab individually. The folder opens automatically after saving.'),
-          ('warn','Only TXT files are supported. Convert DOCX, PDF, etc. to TXT with Text Converter first.'),
-          ('divider',),
-          ('note','<b>Automatic corruption tiering</b> — Bulk Fixer classifies partially corrupted files into three tiers based on damage severity:<br>• <b>Tier 1</b> (1–500 damaged chars): Fixed + report generated<br>• <b>Tier 2</b> (501–5,000 damaged chars): Fixed + report generated (review recommended)<br>• <b>Tier 3</b> (5,001+ damaged chars): <b>Automatically skipped (original preserved)</b> + report only'),
-          ('tip','Reports are created next to the fixed output as <code>{original_filename}.encoding_report.txt</code>, detailing damaged line/column positions for up to 5,000 entries.'),
-          ('warn','Files skipped as Tier 3 should be <b>individually reviewed in Text Fixer</b>. Heavy corruption usually means wrong encoding detection or a corrupted source, so re-acquiring the original is often better than forcing correction.'),
-         ]),
-
-        ('⌨️','Shortcuts & Tips','',
-         'Use keyboard shortcuts to navigate quickly. All shortcuts can be customized in Settings.',
-         [
-          ('shortcut','Ctrl+1','Go to Text Merger'),
-          ('shortcut','Ctrl+2','Go to Text Converter'),
-          ('shortcut','Ctrl+3','Go to Tag Editor'),
-          ('shortcut','Ctrl+4','Go to Batch Renamer'),
-          ('shortcut','Ctrl+5','Go to Text Fixer'),
-          ('shortcut','Ctrl+6','Go to Bulk Fixer'),
-          ('shortcut','Ctrl+F','Search text in Text Fixer'),
-          ('shortcut','⚙ button (top right)','Open Settings — change theme, language, and shortcuts'),
-          ('tip','Settings (theme, language, shortcuts) are saved automatically on exit and restored on next launch.'),
-          ('tip','<b>Drag and drop</b> is supported in all tabs. Dropping a folder adds all supported files inside it at once.'),
-          ('tip','🔋 <b>Sleep Prevention</b> — While Text Merger, Text Converter, Text Fixer, or Bulk Fixer is running, Windows sleep mode is automatically blocked. It is released immediately when the task completes or an error occurs. Screen lock is unaffected.'),
-         ]),
-
-
-        ('📁','File creation notice','Files and folders created automatically during use',
-         'File Nexus Suite automatically creates the following items in the program folder for settings storage, default output, and error logging.',
-         [
-          ('step','<b>FileNexusSuite.json</b> — Stores your theme, language, shortcuts, and tab settings. Saved on exit, restored on next launch.'),
-          ('step','<b>Output/</b> — Default output folder for Text Converter, Bulk Fixer, and Text Fixer. Created automatically on first launch. Change the location globally in ⚙ Settings; the folder opens automatically after saving.'),
-          ('step','<b>logs/crash_*.log</b> — Crash logs generated when an unexpected error occurs. Only the 3 most recent logs are kept; older ones are deleted automatically.'),
-          ('warn','<b>_internal/</b> — Created automatically in folder-style exe builds. Contains the Python runtime. <b>Deleting it will prevent the program from running.</b>'),
-          ('tip','You can safely delete any of these files or folders. Required items will be recreated automatically on the next launch.'),
-         ]),
-
-      ]
-
-    elif lang == 'ja':
-      intro = 'File Nexus Suite はテキスト・電子書籍・メディアファイル作業に特化した統合ファイルツールです。テキスト結合、EPUB変換、ファイル名タグ編集、一括リネーム、改行校正、一括補正 — 6つの主要機能が1つのウィンドウにまとまっています。'
-      sections = [
-        ('📋','Text Merger','複数ファイルを1つのテキストファイルに結合します',
-         '以下の形式のファイルを任意の順序で結合して1つのテキストファイルを作成します。DOCX・PDF・XLSXは対応ライブラリがインストールされている場合のみ利用できます。',
-         [
-          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib'), ('HWPX', 'lib')]),
-          ('step','<b>ファイル追加</b> — <code>[📄 ファイル追加]</code>ボタンまたはドラッグ＆ドロップでリストに追加します。未対応の形式は自動的に除外されます。'),
-          ('step','<b>順序調整</b> — リスト内でドラッグするか<code>[上へ]</code>/<code>[下へ]</code>で結合順序を設定します。'),
-          ('step','<b>エンコード設定</b> — 各ファイルの<b>読み込みエンコード</b>をコンボボックスで選択し、右の「保存設定」パネルで<b>保存エンコード</b>を選択します。'),
-          ('step','<b>ファイル区切り線</b>（任意）— 「ファイル区切り線を挿入」をオンにすると、各ファイル間にファイル名入りの区切り線が自動挿入されます。'),
-          ('step','<b>保存先指定</b>（任意）— <code>[パス指定]</code>で保存先を設定すると実行時に自動保存されます。未設定の場合は保存ダイアログが表示されます。'),
-          ('step','<b><code>[▶ 結合・保存]</code></b> — クリックして結合を実行します。完了メッセージでファイルごとのエンコード概要を確認できます。'),
-          ('divider',),
-          ('tip','<b>エンコード自動検出</b> — chardetがインストールされていると、ファイル追加時にエンコードを自動検出します。精度が低い場合はコンボボックスで手動選択してください。'),
-          ('tip','<b>保存エンコード選択の目安</b> — UTF-8：汎用推奨 / UTF-8-BOM：Excelで文字化けしない / EUC-KR・CP949：韓国語レガシーアプリ向け / UTF-16：特殊用途 / <b>Shift-JIS・GBK・Big5</b>：日本語・中国語（簡体字・繁体字）レガシーシステム互換'),
-          ('tip','<b>区切り線の形式</b> — オンにすると各ファイルの前に <code>───── ▶ ファイル名.txt ──────</code> 形式の行が挿入されます。'),
-          ('info','ファイルの読み込みに失敗した場合、そのファイルのみスキップして残りは正常に結合されます。エラー内容は完了メッセージに表示されます。'),
-          ('warn','<code>[元に戻す]</code>ボタンは結合済み出力ファイルを削除します。<b>元のファイルは一切変更されません。</b>'),
-         ]),
-
-        ('🔄','Text Converter','TXT ↔ EPUB 形式を変換します',
-         'TXTファイルをEPUB電子書籍に変換したり、EPUBからテキストを抽出したりできます。複数ファイルを順番に自動一括変換します。',
-         [
-          ('note','上部の<b>[TXT → EPUB]</b>または<b>[EPUB → TXT]</b>タブを先に選択してください。'),
-          ('step','<b>ファイル追加</b> — <code>[📄 ファイル追加]</code>またはドラッグ＆ドロップで読み込みます。'),
-          ('step','<b>TXT → EPUB 設定</b> — 「書籍情報」パネルで<b>タイトル・著者・言語</b>を入力し、<b>章の分割方式</b>を選択します。'),
-          ('step','<b>EPUB → TXT 設定</b> — 「変換オプション」パネルで章区切り挿入・章タイトル含有・連続空行の整理・保存エンコードを設定します。'),
-          ('step','<b>出力フォルダ指定</b>（任意）— デフォルト出力フォルダは⚙設定で指定したフォルダ（初期値：<code>Output/</code>）です。保存完了後に出力フォルダが自動的に開きます。'),
-          ('step','<b><code>[▶ 変換開始]</code></b> — 複数ファイルの場合、プログレスバーで各ファイルの変換状況を確認できます。'),
-          ('divider',),
-          ('feature','TXT → EPUB 章の分割方式','<b>区切り線基準</b> — <code>===</code>、<code>---</code>、<code>★★★</code>などの反復記号で構成される行を章の境界として認識します。<br><br><b>空行3行以上基準</b> — 連続3行以上の空白区間を章の境界として認識します。<br><br><b>全体を1章として処理</b> — ファイル全体を1つの章として扱います。'),
-          ('feature','EPUB → TXT 変換オプション','<b>章区切り線を追加</b> — 章の境界に区切り線を挿入します（デフォルト：オン）。<br><b>章タイトルを含む</b> — EPUBに保存された章タイトルを区切り線の下に表示します（デフォルト：オン）。<br><b>連続空行の整理</b> — 抽出時に生じる過剰な空行を整理します（デフォルト：オン）。<br><b>保存エンコード</b> — 出力TXTファイルのエンコードを選択します（デフォルト：UTF-8）。'),
-          ('tip','出力フォルダを指定すると、元のフォルダを変更せずに変換結果だけ一か所にまとめられます。'),
-          ('tip','変換中はウィンドウを閉じないでください。変換が中断される場合があります。'),
-         ]),
-
-        ('🏷️','Tag Editor','ファイル名のタグを一括追加・削除します',
-         'ファイル名の<code>[一時]</code>・<code>[最終]</code>などの角括弧タグを一括処理し、先頭の不要な0も一度にまとめて整理できます。',
-         [
-          ('note','作業の種類に応じて上部タブから<b>[タグ削除]</b>/<b>[タグ追加]</b>/<b>[先頭0削除]</b>を選択してください。'),
-          ('step','<b>ファイル・フォルダ追加</b> — <code>[📄 ファイル追加]</code>/<code>[📂 フォルダ追加]</code>またはドラッグ＆ドロップで対象を読み込みます。フォルダを追加すると「サブフォルダを含む」オプションに従って再帰的にファイルを読み込みます。'),
-          ('step','<b>フィルター設定</b> — 左下の「フィルター設定」パネルで対象拡張子を指定します（カンマ区切り）。「すべての拡張子を対象」をオンにすると拡張子に関わらず全ファイルを処理します。'),
-          ('step','<b>オプション設定</b> — 右パネルで各モードのオプションを設定します。'),
-          ('step','<b>プレビュー確認</b> — <code>[プレビュー]</code>をクリックして「元のファイル名 → 変更後のファイル名」の表を確認します。<b>必ず確認してから適用してください。</b>'),
-          ('step','<b>適用</b> — 結果が正しければ<code>[適用]</code>をクリックします。'),
-          ('divider',),
-          ('feature','タグ削除','タグ入力欄に特定のタグを入力するとそのタグのみ削除します。<b>入力欄を空にすると、ファイル名のすべての<code>[ ]</code>形式タグを削除します。</b><br><br>例）<code>最終</code>と入力 → <code>[最終]</code>のみ削除、他のタグはそのまま'),
-          ('feature','タグ追加','右パネルで追加するタグと挿入位置（ファイル名の<b>前</b>/<b>後</b>）を選択します。同じタグが既に存在する場合は重複追加されません。'),
-          ('feature','先頭0削除','ファイル名先頭の不要な0を自動削除します（001 → 1、007 → 7）。<b>ハイフンでつながれた日付形式の数字は自動的に保護されます。</b>'),
-          ('example','会議録 001.docx','会議録 1.docx'),
-          ('example','講義資料 007 最終版.pdf','講義資料 7 最終版.pdf'),
-          ('example','2024-01-01 日記.txt','2024-01-01 日記.txt  ← 保護、変更なし'),
-          ('warn','<b>ファイル名変更後、[元に戻す]で一度だけ復元できます。</b>ただし、新しい作業を実行したりウィンドウを閉じると復元データが消えます。<code>[プレビュー]</code>で必ず確認してから<code>[適用]</code>してください。'),
-         ]),
-
-        ('📁','Batch Renamer','フォルダ・ファイルを一括リネームします',
-         'サブフォルダまたはファイルをパターンに基づいて一括でリネームします。番号を自動認識する「スマート抽出」と番号を直接指定する「連番」の2方式に対応しています。',
-         [
-          ('note','上部タブから<b>[フォルダ名変更]</b>または<b>[ファイル名変更]</b>を先に選択してください。'),
-          ('step','<b>対象フォルダ指定</b> — <code>[📂 フォルダ選択]</code>またはドラッグ＆ドロップで<b>上位フォルダ</b>を指定します。指定したフォルダ自体は変更されず、<b>その中の下位項目のみ</b>名前が変わります。'),
-          ('step','<b>方式選択</b> — 右パネルで「スマート抽出」または「連番」を選択します。'),
-          ('step','<b>プレビュー確認</b> — <code>[プレビュー]</code>をクリックして変更結果を確認します。名前が競合する場合は表で警告が表示されます。'),
-          ('step','<b>名前変更実行</b> — <code>[名前変更実行]</code>をクリックします。実行直後に<code>[元に戻す]</code>で一度だけ復元できます。'),
-          ('divider',),
-          ('feature','🔍 スマート抽出','既存の名前から番号を自動抽出して再構成します。<br><br><b>共通接頭辞の処理</b> — 自動検出 / 手動指定 / そのまま維持。<br><b>接頭辞・接尾辞</b> — 再構成された名前の前後に追加するテキストを入力します。'),
-          ('feature','🔢 連番','最初から最後まで順番に番号を付けます。すべてのオプションを手動で設定します。<br><br><b>開始番号</b> — 00または01から選択。<b>桁数</b> — 自動または2・3・4桁固定。<b>接頭辞・接尾辞</b> — 番号の前後に付けるテキスト。<b>名前の保持</b> — 「番号のみ」または「番号+元の名前」。<b>番号リセット</b> — 「全体連番」または「グループごとにリセット」。'),
-          ('tip','ファイル名変更では拡張子が常に自動保持されます。'),
-          ('tip','フォルダをドラッグすると、サブフォルダまで再帰的にスキャンしてグループを自動構成します。'),
-          ('tip','名前変更の実行前に対象フォルダを開いているエクスプローラーウィンドウは自動的に閉じられ、完了後に自動で再度開かれます。'),
-          ('warn','<b>名前変更は即時に適用されます。</b>実行直後は<code>[元に戻す]</code>で復元できますが、新しい作業を実行したりウィンドウを閉じると復元データが消えます。'),
-          ('warn','指定した上位フォルダ自体は変更されません。下位項目のみが対象です。'),
-         ]),
-
-        ('✦','Text Fixer','OCR・電子書籍テキストの改行を校正します',
-         'PDFやEPUBから抽出したテキストはページ幅で強制改行される問題があります。Text Fixerはこれを自動復元して段落構造を整理します。',
-         [
-          ('note','<b>テキスト入力方法</b> — .txtファイルをドロップゾーンにドラッグ、<code>[📂 ファイルを開く]</code>、または左の「元のテキスト」欄に直接貼り付け。'),
-          ('step','<b>テキスト入力</b> — ファイルを読み込むか、左のテキスト欄に貼り付けます。'),
-          ('step','<b>オプション選択</b> — 4つのオプションを必要に応じて組み合わせます。最初は<b>① + ④</b>の組み合わせから始めてみてください。'),
-          ('step','<b><code>[✦ 修正実行]</code></b> — 左（元のテキスト）と右（結果）を並べて比較しながら確認してください。'),
-          ('step','<b>保存</b> — 結果が良ければ<code>[保存 ▼]</code>をクリックします。気に入らない場合は<code>[元に戻す]</code>で復元してオプションを変えて再試行してください。'),
-          ('divider',),
-          ('feature','① 改行結合（空行基準）','空行で段落を区切り、段落内で強制的に折り返された行を1つにつなげます。<b>つなげない場合</b> — 句点・感嘆符・疑問符・引用符などで終わる行、および<code>───</code>・<code>===</code>・<code>★★★</code>のような区切り線はつなげません。PDF・EPUBテキスト校正の核心オプションです。ほとんどの場合、最初にオンにしてください。'),
-          ('feature','② 自動段落分割（最大N文字）','①で結合後に長くなりすぎた行を文章境界でN文字基準に分割します。短い文章同士はN文字以内で自動的にまとめられます。デフォルト100文字。長い文が続く場合は150〜200文字に増やしてみてください。'),
-          ('feature','③ 文ごとに空行を挿入','句点・引用符で終わる行の後、またはセリフの前に空行を自動挿入します。会話が多いテキストで段落の読みやすさを高めるときに使います。'),
-          ('feature','④ 過剰な空行を削減（最大N行）','連続する空行を最大N行に削減します。デフォルト1行推奨。複数セクションがある文書は2行に設定してください。'),
-          ('divider',),
-          ('tip','<b>推奨の組み合わせ</b> — PDF・EPUBテキスト校正：<b>① + ④</b> / 会話中心のテキスト：<b>① + ③</b> / OCR結果・長い段落の整理：<b>① + ② + ④</b>'),
-          ('tip','<b>保存方式</b> — <b>元の場所に[Fixed]タグ付きで保存</b>：元のファイルはそのまま、校正版を<code>[Fixed]ファイル名.txt</code>として保存 / <b>名前を付けて保存</b>：場所とファイル名を直接指定 / <b>元に戻す</b>：修正前の元のテキストを左ペインに復元（修正実行後1回のみ可能）'),
-          ('tip','🟡 <b>黄色の行</b> = 複数行が結合された部分 / 🟠 <b>オレンジの行</b> = 空行が削除された位置。3,000行以上の大容量ファイルはハイライトが省略されます。'),
-          ('tip','下部の統計バーで<b>結合回数・空行削除数・元の行数・最終行数</b>を確認できます。'),
-          ('tip','<b>Ctrl+F</b>で原文・修正文のテキスト検索ができます。Enterで次へ、Shift+Enterで前へ移動します。'),
-          ('warn','保存は常に<b>UTF-8</b>エンコードで行われます。元のエンコード（EUC-KRなど）を維持する必要がある場合は別途変換してください。'),
-          ('divider',),
-          ('note','<b>部分的に破損したファイルの処理</b> — 一部のバイトが破損したファイルも開けます。破損した文字は<code>�</code>（U+FFFD）で表示され、ステータスバーに<b>⚠</b>アイコンと「部分エンコーディング失敗」の警告が表示されます。'),
-          ('tip','Text Fixerは<b>単一ファイルの精密レビュー</b>に最適化されています。破損ファイルを開いて壊れた位置を直接確認し、その箇所を手動編集したり、原本の再取得を判断できます。'),
-          ('warn','数万文字以上の大量破損があるファイルは、補正しても品質回復が困難です。まず原本元からの再ダウンロードを検討してください。Bulk Fixerではこのようなファイルを自動スキップして原本を保護します。'),
-         ]),
-
-        ('✦','Bulk Fixer','複数のTXTファイルの改行を一括補正します',
-         'Text Fixerの補正エンジンを複数ファイルに一括適用します。OCRや電子書籍から抽出したTXTファイルをまとめて整理する際に使用します。',
-         [
-          ('step','<b>ファイル追加</b> — <code>[📄 ファイル追加]</code>または<code>[📂 フォルダ追加]</code>でTXTファイルを読み込みます。ファイル一覧にフォルダを直接ドラッグ＆ドロップしても、サブフォルダの<code>.txt</code>ファイルが再帰的に収集されます。'),
-          ('step','<b>オプション選択</b> — 右パネルで結合モード（自動/韓国語/英語）と4つの補正オプションを設定します。<b>プリセット</b>から「一般文書」または「書籍・小説」を選ぶとオプションが一括設定されます。'),
-          ('step','<b>保存設定</b> — 出力フォルダを指定するか、空欄のままにすると元ファイルと同じ場所に<code>[Fixed]ファイル名.txt</code>として保存されます。<b>フォルダ構造を維持</b>にチェックを入れると、出力フォルダ内に元のサブフォルダ構造が再現されます。'),
-          ('step','<b><code>[▶ 一括補正開始]</code>をクリック</b> — 処理中は進捗が表示され、完了後に成功・失敗ファイル数が通知されます。'),
-          ('tip','ファイル一覧の項目をクリックすると、右のプレビューパネルで補正結果を確認できます。'),
-          ('tip','デフォルトの出力フォルダは<code>Output/</code>です。⚙設定でグローバルに変更するか、各タブで個別に指定できます。保存完了後に自動で開きます。'),
-          ('warn','TXTファイルのみ対応です。DOCX・PDFなどは先にText ConverterでTXTに変換してください。'),
-          ('divider',),
-          ('note','<b>エンコーディング破損ファイルの自動分類</b> — Bulk Fixerは部分破損ファイルを検出すると、破損の程度に応じて3段階に分けて処理します：<br>• <b>Tier 1</b>（1〜500文字破損）：補正後にレポート生成<br>• <b>Tier 2</b>（501〜5,000文字破損）：補正後にレポート生成（レビュー推奨）<br>• <b>Tier 3</b>（5,001文字以上）：<b>自動スキップ（原本保護）</b> + レポートのみ生成'),
-          ('tip','レポートファイルは<code>{元ファイル名}.encoding_report.txt</code>の形で補正版の隣に生成されます。どの行・どの列が破損したかを最大5,000件まで詳細記録します。'),
-          ('warn','Tier 3でスキップされたファイルは<b>Text Fixerで個別にレビュー</b>してください。大量破損はエンコーディング誤検出か原本ファイル自体の問題である可能性が高く、一括補正よりも原本の再取得が良策です。'),
-         ]),
-
-        ('⌨️','ショートカット & Tips','',
-         'キーボードショートカットで素早く操作できます。設定画面でカスタマイズ可能です。',
-         [
-          ('shortcut','Ctrl+1','Text Mergerへ移動'),
-          ('shortcut','Ctrl+2','Text Converterへ移動'),
-          ('shortcut','Ctrl+3','Tag Editorへ移動'),
-          ('shortcut','Ctrl+4','Batch Renamerへ移動'),
-          ('shortcut','Ctrl+5','Text Fixerへ移動'),
-          ('shortcut','Ctrl+6','Bulk Fixerへ移動'),
-          ('shortcut','Ctrl+F','Text Fixerでテキスト検索'),
-          ('shortcut','⚙ ボタン（右上）','設定を開く — テーマ・言語・ショートカットを変更可能'),
-          ('tip','設定（テーマ・言語・ショートカット）は終了時に自動保存され、次回起動時に復元されます。'),
-          ('tip','すべてのタブで<b>ドラッグ＆ドロップ</b>でファイルを読み込めます。フォルダをドロップすると対応ファイルが一括追加されます。'),
-          ('tip','🔋 <b>スリープ防止</b> — Text Merger・Text Converter・Text Fixer・Bulk Fixerでタスク実行中はWindowsのスリープが自動でブロックされます。完了またはエラー発生時に即座に解除されます。画面ロックはスリープとは無関係で、処理中も通常どおり動作します。'),
-         ]),
-
-
-        ('📁','生成ファイル案内','プログラム使用中に自動生成されるファイルとフォルダ',
-         'File Nexus Suiteは設定保存、デフォルト出力、エラー記録のため、実行ファイルと同じフォルダに以下を自動生成します。',
-         [
-          ('step','<b>FileNexusSuite.json</b> — テーマ・言語・ショートカット・各タブ設定を保存する環境設定ファイルです。終了時に自動保存され、次回起動時に復元されます。'),
-          ('step','<b>Output/</b> — Text Converter、Bulk Fixer、Text Fixerのデフォルト出力フォルダです。初回起動時に自動生成されます。⚙設定で場所をグローバルに変更でき、保存完了時に自動で開きます。'),
-          ('step','<b>logs/crash_*.log</b> — 予期しないエラー発生時に自動生成されるクラッシュログです。最新3件のみ保持され、古いファイルは自動削除されます。'),
-          ('warn','<b>_internal/</b> — フォルダ形式のexeビルド時に自動生成されるPythonランタイムフォルダです。<b>削除するとプログラムが起動できなくなります。</b>'),
-          ('tip','これらのファイルやフォルダは直接削除しても問題ありません。次回起動時に必要なものは自動的に再生成されます。'),
-         ]),
-
-      ]
-
-    elif lang == 'zh_cn':
-      intro = 'File Nexus Suite 是专为文本、电子书及媒体文件作业设计的综合文件工具。文本合并、EPUB转换、文件名标签编辑、批量重命名、换行校正、批量校正 — 六大核心功能集于一个窗口之中。'
-      sections = [
-        ('📋','Text Merger','将多个文件合并为一个文本文件',
-         '将以下格式的文件按您选择的顺序合并为一个文本文件。DOCX、PDF、XLSX需安装对应库后才能提取文本。',
-         [
-          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib'), ('HWPX', 'lib')]),
-          ('step','<b>添加文件</b> — 点击<code>[📄 添加文件]</code>或将文件拖放到列表中。不支持的格式会自动过滤。'),
-          ('step','<b>调整顺序</b> — 在列表中拖动或使用<code>[上移]</code>/<code>[下移]</code>设置合并顺序。'),
-          ('step','<b>设置编码</b> — 从每个文件右侧的下拉框中选择<b>读取编码</b>，在右侧「保存设置」面板中选择<b>保存编码</b>。'),
-          ('step','<b>文件分隔线</b>（可选）— 勾选「插入文件分隔线」后，合并时会在每个文件之间自动插入含文件名的分隔线。'),
-          ('step','<b>指定保存路径</b>（可选）— 点击<code>[指定路径]</code>预先设置保存位置，执行时自动保存。未设置则在执行时弹出保存对话框。'),
-          ('step','<b><code>[▶ 合并保存]</code></b> — 点击执行合并。完成消息中可查看各文件的编码摘要。'),
-          ('divider',),
-          ('tip','<b>编码自动检测</b> — 安装chardet后，添加文件时将自动检测编码。准确度低时请从下拉框手动选择。'),
-          ('tip','<b>保存编码选择参考</b> — UTF-8：通用推荐 / UTF-8-BOM：Excel中不乱码 / EUC-KR·CP949：韩语旧版程序兼容 / UTF-16：特殊用途 / <b>Shift-JIS·GBK·Big5</b>：日文·中文（简体·繁体）旧版系统兼容'),
-          ('tip','<b>分隔线格式</b> — 启用后，每个文件前插入 <code>───── ▶ 文件名.txt ──────</code> 格式的行。'),
-          ('info','读取文件时若出现错误，仅跳过该文件，其余文件正常合并。错误内容显示在完成消息中。'),
-          ('warn','<code>[撤销]</code>按钮将删除合并的输出文件。<b>原始文件不会有任何修改。</b>'),
-         ]),
-
-        ('🔄','Text Converter','在TXT和EPUB格式之间转换',
-         '将TXT文件转换为EPUB电子书，或从EPUB中提取文本。添加多个文件后将按顺序自动批量转换。',
-         [
-          ('note','请先选择顶部的<b>[TXT → EPUB]</b>或<b>[EPUB → TXT]</b>选项卡。'),
-          ('step','<b>添加文件</b> — 点击<code>[📄 添加文件]</code>或拖放。'),
-          ('step','<b>TXT → EPUB 设置</b> — 在右侧「书籍信息」面板中输入<b>书名、作者、语言</b>，并选择<b>章节分割方式</b>。'),
-          ('step','<b>EPUB → TXT 设置</b> — 在右侧「转换选项」面板中设置章节分隔线插入、章节标题包含、连续空行整理及保存编码。'),
-          ('step','<b>输出文件夹</b>（可选）— 默认输出文件夹由⚙设置中的全局配置决定（默认：<code>Output/</code>）。保存完成后输出文件夹会自动打开。'),
-          ('step','<b><code>[▶ 开始转换]</code></b> — 多文件时进度条显示各文件的转换状态。'),
-          ('divider',),
-          ('feature','TXT → EPUB 章节分割方式','<b>分隔线基准</b> — 由<code>===</code>、<code>---</code>、<code>★★★</code>等重复符号构成的行被识别为章节边界。<br><br><b>连续3行以上空行</b> — 连续3行以上的空白段落被识别为章节边界。<br><br><b>全部作为一个章节</b> — 将整个文件作为一个章节处理。'),
-          ('feature','EPUB → TXT 转换选项','<b>添加章节分隔线</b> — 在章节边界插入分隔线（默认：开启）。<br><b>包含章节标题</b> — 在分隔线下方显示EPUB中保存的章节标题（默认：开启）。<br><b>整理连续空行</b> — 整理提取过程中产生的多余空行（默认：开启）。<br><b>保存编码</b> — 选择输出TXT文件的编码（默认：UTF-8）。'),
-          ('tip','指定输出文件夹后，可在不修改原文件的情况下将转换结果集中保存在一处。'),
-          ('tip','转换过程中请勿关闭窗口，否则可能中断转换。'),
-         ]),
-
-        ('🏷️','Tag Editor','批量添加或删除文件名中的标签',
-         '批量添加或删除文件名中的<code>[临时]</code>、<code>[最终]</code>等括号标签，同时一次性整理多余的前导0。',
-         [
-          ('note','请根据操作类型从顶部选项卡选择<b>[删除标签]</b>/<b>[添加标签]</b>/<b>[删除前导零]</b>。'),
-          ('step','<b>添加文件或文件夹</b> — 使用<code>[📄 添加文件]</code>/<code>[📂 添加文件夹]</code>或拖放添加目标。添加文件夹时，根据「包含子文件夹」选项递归读取文件。'),
-          ('step','<b>筛选器设置</b> — 在左下角「筛选器设置」面板中指定目标扩展名（逗号分隔）。勾选「所有扩展名」则不限类型处理所有文件。'),
-          ('step','<b>选项设置</b> — 在右侧面板中设置各模式的选项。'),
-          ('step','<b>预览确认</b> — 点击<code>[预览]</code>查看「原文件名 → 修改后文件名」的对照表。<b>请务必确认后再应用。</b>'),
-          ('step','<b>应用</b> — 结果正确后点击<code>[应用]</code>。'),
-          ('divider',),
-          ('feature','删除标签','在标签输入栏中输入特定标签，则仅删除该标签。<b>留空则删除文件名中所有<code>[ ]</code>格式的标签。</b><br><br>示例：输入<code>最终</code> → 仅删除<code>[最终]</code>，其余标签保留'),
-          ('feature','添加标签','在右侧面板中选择要添加的标签和插入位置（文件名<b>前</b>/<b>后</b>）。若已存在相同标签，则不会重复添加。'),
-          ('feature','删除前导零','自动删除文件名前端多余的0（001 → 1，007 → 7）。<b>由连字符连接的日期格式数字将自动受到保护。</b>'),
-          ('example','会议记录 001.docx','会议记录 1.docx'),
-          ('example','讲义资料 007 最终版.pdf','讲义资料 7 最终版.pdf'),
-          ('example','2024-01-01 日记.txt','2024-01-01 日记.txt  ← 受保护，无变化'),
-          ('warn','<b>文件名修改后可立即使用[撤销]恢复一次。</b>但执行新任务或关闭窗口后恢复数据将丢失。请务必先通过<code>[预览]</code>确认后再点击<code>[应用]</code>。'),
-         ]),
-
-        ('📁','Batch Renamer','批量重命名文件夹和文件',
-         '使用基于模式的规则批量重命名子文件夹或文件。支持自动识别编号的「智能提取」和手动指定编号的「顺序编号」两种方式。',
-         [
-          ('note','请先从顶部选项卡选择<b>[文件夹重命名]</b>或<b>[文件重命名]</b>。'),
-          ('step','<b>指定目标文件夹</b> — 使用<code>[📂 选择文件夹]</code>或拖放指定<b>上级文件夹</b>。指定的文件夹本身不会改变，只有<b>其内部的下级项目</b>才会被重命名。'),
-          ('step','<b>选择方式</b> — 在右侧面板选择「智能提取」或「顺序编号」。'),
-          ('step','<b>预览确认</b> — 点击<code>[预览]</code>查看修改结果。名称冲突时表格中会显示警告。'),
-          ('step','<b>执行重命名</b> — 点击<code>[执行重命名]</code>。执行后可立即使用<code>[撤销]</code>恢复一次。'),
-          ('divider',),
-          ('feature','🔍 智能提取','自动从现有名称中提取编号并重新构建。<br><br><b>公共前缀处理</b> — 自动检测 / 手动指定 / 保留不变。<br><b>前缀·后缀</b> — 输入在重构名称前后添加的文本。'),
-          ('feature','🔢 顺序编号','从头到尾按顺序分配编号。所有选项均手动指定。<br><br><b>起始编号</b> — 选择从00或01开始。<b>位数</b> — 自动或固定2/3/4位。<b>前缀·后缀</b> — 编号前后添加的文本。<b>名称保留</b> — 「仅编号」或「编号+原名称」。<b>编号重置</b> — 「全局连续」或「每组重置」。'),
-          ('tip','文件重命名时扩展名始终自动保留。'),
-          ('tip','拖放文件夹时会递归扫描子文件夹并自动构建分组。'),
-          ('tip','执行重命名前，打开目标文件夹的资源管理器窗口会自动关闭，完成后自动重新打开。'),
-          ('warn','<b>重命名会立即生效。</b>执行后可用<code>[撤销]</code>恢复，但执行新任务或关闭窗口后恢复数据将丢失。'),
-          ('warn','指定的上级文件夹本身不会被修改，仅对其下级项目进行操作。'),
-         ]),
-
-        ('✦','Text Fixer','修复OCR和电子书文本的换行问题',
-         '从PDF或EPUB提取的文本常因页面宽度出现强制换行。Text Fixer可智能还原段落结构。',
-         [
-          ('note','<b>文本输入方法</b> — 将.txt文件拖到放置区，使用<code>[📂 打开文件]</code>，或直接在左侧「原始文本」区域粘贴。'),
-          ('step','<b>输入文本</b> — 打开文件或将文本粘贴到左侧区域。'),
-          ('step','<b>选择选项</b> — 根据需要组合四个选项。大多数情况下先从<b>① + ④</b>开始尝试。'),
-          ('step','<b><code>[✦ 执行修复]</code></b> — 左侧（原始）与右侧（结果）并排比较，确认修复效果。'),
-          ('step','<b>保存</b> — 满意后点击<code>[保存 ▼]</code>。不满意则使用<code>[撤销]</code>还原，更换选项后重新尝试。'),
-          ('divider',),
-          ('feature','① 合并换行（以空行为基准）','以空行划分段落，然后合并段落内被强制折断的行。<b>不合并的情况</b> — 以句号、感叹号、问号、引号结尾的行，以及<code>───</code>、<code>===</code>、<code>★★★</code>等分隔线不参与合并。这是修复PDF/EPUB文本的核心选项，大多数情况下请先开启。'),
-          ('feature','② 自动段落分割（最多N字）','①合并后过长的行在句子边界按N字标准分割。较短的句子在N字范围内自动组合。默认100字。句子较长时可尝试调整为150~200字。'),
-          ('feature','③ 在句子之间插入空行','在以句号/引号结尾的行后，或对话前自动插入空行。适用于提高对话较多的文本的可读性。'),
-          ('feature','④ 减少过多空行（最多N行）','将连续空行压缩为最多N行。默认1行。多节结构的文档建议设为2行。'),
-          ('divider',),
-          ('tip','<b>推荐组合</b> — PDF/EPUB文本修复：<b>① + ④</b> / 对话为主的文本：<b>① + ③</b> / OCR结果·长段落整理：<b>① + ② + ④</b>'),
-          ('tip','<b>保存方式</b> — <b>在原位置以[Fixed]标签保存</b>：保留原文件，修复版另存为<code>[Fixed]文件名.txt</code> / <b>另存为</b>：手动指定位置和文件名 / <b>撤销</b>：将修复前的原始文本还原到左侧窗格（执行修复后可使用一次）'),
-          ('tip','🟡 <b>黄色行</b> = 多行合并为一行 / 🟠 <b>橙色行</b> = 空行被删除的位置。超过3,000行的大文件将跳过高亮显示。'),
-          ('tip','底部统计栏显示<b>合并次数、空行删除数、原始行数、最终行数</b>。'),
-          ('tip','按<b>Ctrl+F</b>可在原文和修改后的文本中搜索关键词。Enter跳到下一个，Shift+Enter跳到上一个。'),
-          ('warn','文件始终以<b>UTF-8</b>编码保存。如需保留原始编码（如EUC-KR），请另行转换。'),
-          ('divider',),
-          ('note','<b>部分损坏文件的处理</b> — 部分字节损坏的文件也可以打开。损坏的字符显示为<code>�</code>（U+FFFD），状态栏会显示<b>⚠</b>图标和"部分编码失败"警告。'),
-          ('tip','Text Fixer 针对<b>单个文件的精细审核</b>进行了优化。打开损坏文件可直接查看损坏位置，手动编辑该段，或判断是否需要重新获取原件。'),
-          ('warn','数万字符以上的大量损坏文件难以通过校正恢复质量。建议优先考虑从原来源重新下载。Bulk Fixer 会自动跳过此类文件以保护原件。'),
-         ]),
-
-        ('✦','Bulk Fixer','批量校正多个TXT文件的换行',
-         '将Text Fixer的校正引擎批量应用于多个文件。适用于一次性整理从OCR或电子书中提取的大量TXT文件。',
-         [
-          ('step','<b>添加文件</b> — 使用<code>[📄 添加文件]</code>或<code>[📂 添加文件夹]</code>加载TXT文件。也可以将文件夹直接拖放到文件列表中，自动递归收集<code>.txt</code>文件。'),
-          ('step','<b>设置选项</b> — 在右侧面板中选择合并模式（自动/韩语/英语）和四个校正选项。使用<b>预设</b>下拉框选择"一般文档"或"书籍·小说"可一键配置选项。'),
-          ('step','<b>保存设置</b> — 指定输出文件夹，或留空则以<code>[Fixed]文件名.txt</code>保存在原文件旁边。勾选<b>保留文件夹结构</b>可在输出文件夹中重现原始子文件夹层级。'),
-          ('step','<b>点击<code>[▶ 开始批量校正]</code></b> — 处理期间显示进度，完成后通知成功和失败文件数。'),
-          ('tip','点击文件列表中的项目，可在右侧预览面板中预览校正结果。'),
-          ('tip','默认输出文件夹为<code>Output/</code>。可在⚙设置中全局更改，也可在各标签页单独指定。保存完成后自动打开。'),
-          ('warn','仅支持TXT文件。请先用Text Converter将DOCX、PDF等格式转换为TXT后再使用。'),
-          ('divider',),
-          ('note','<b>编码损坏文件自动分级</b> — Bulk Fixer 检测到部分损坏文件后，根据损坏程度分为三级处理：<br>• <b>Tier 1</b>（1~500字符损坏）：校正后生成报告<br>• <b>Tier 2</b>（501~5,000字符损坏）：校正后生成报告（建议审核）<br>• <b>Tier 3</b>（5,001字符以上）：<b>自动跳过（保护原文件）</b> + 仅生成报告'),
-          ('tip','报告文件以<code>{原文件名}.encoding_report.txt</code>的形式生成在校正版旁边，详细记录哪些行、哪些列出现损坏，最多记录 5,000 条。'),
-          ('warn','被 Tier 3 跳过的文件应<b>在 Text Fixer 中单独审核</b>。大量损坏通常意味着编码检测错误或原文件本身存在问题，与其强制批量校正，不如重新获取原件。'),
-         ]),
-
-        ('⌨️','快捷键 & 使用技巧','',
-         '使用键盘快捷键快速操作，可在设置中自定义。',
-         [
-          ('shortcut','Ctrl+1','转到 Text Merger'),
-          ('shortcut','Ctrl+2','转到 Text Converter'),
-          ('shortcut','Ctrl+3','转到 Tag Editor'),
-          ('shortcut','Ctrl+4','转到 Batch Renamer'),
-          ('shortcut','Ctrl+5','转到 Text Fixer'),
-          ('shortcut','Ctrl+6','转到 Bulk Fixer'),
-          ('shortcut','Ctrl+F','在 Text Fixer 中搜索文本'),
-          ('shortcut','⚙ 按钮（右上角）','打开设置 — 可更改主题、语言和快捷键'),
-          ('tip','设置（主题、语言、快捷键）在退出时自动保存，下次启动时恢复。'),
-          ('tip','所有选项卡均支持<b>拖放</b>加载文件。拖入文件夹时，将批量添加其中的支持文件。'),
-          ('tip','🔋 <b>防止休眠</b> — Text Merger、Text Converter、Text Fixer 或 Bulk Fixer 执行任务期间，Windows 休眠模式将被自动阻止。任务完成或发生错误时立即解除。屏幕锁定与休眠无关，处理过程中仍可正常使用。'),
-         ]),
-
-
-        ('📁','生成文件说明','程序使用过程中自动创建的文件和文件夹',
-         'File Nexus Suite会在程序所在文件夹中自动创建以下内容，用于保存设置、默认输出和错误记录。',
-         [
-          ('step','<b>FileNexusSuite.json</b> — 保存主题、语言、快捷键及各标签页设置的配置文件。退出时自动保存，下次启动时恢复。'),
-          ('step','<b>Output/</b> — Text Converter、Bulk Fixer和Text Fixer的默认输出文件夹。首次启动时自动创建。可在⚙设置中全局更改位置，保存完成时自动打开。'),
-          ('step','<b>logs/crash_*.log</b> — 发生意外错误时自动生成的崩溃日志。仅保留最近3个，旧文件自动删除。'),
-          ('warn','<b>_internal/</b> — 文件夹形式exe构建时自动生成的Python运行时文件夹。<b>删除后程序将无法运行。</b>'),
-          ('tip','可以直接删除这些文件和文件夹。下次启动时，所需内容将自动重新创建。'),
-         ]),
-
-      ]
-
-    else:  # zh_tw
-      intro = 'File Nexus Suite 是專為文字、電子書及媒體檔案作業設計的綜合檔案工具。文字合併、EPUB轉換、檔名標籤編輯、批次重新命名、換行校正、批次校正 — 六大核心功能集於一個視窗之中。'
-      sections = [
-        ('📋','Text Merger','將多個檔案合併為一個文字檔案',
-         '將以下格式的檔案依您選擇的順序合併為一個文字檔案。DOCX、PDF、XLSX需安裝對應函式庫後才能擷取文字。',
-         [
-          ('formats',[('TXT', 'native'), ('MD', 'native'), ('CSV', 'native'), ('LOG', 'native'), ('JSON', 'native'), ('XML', 'native'), ('HTML', 'native'), ('PY', 'native'), ('DOCX', 'lib'), ('PDF', 'lib'), ('XLSX', 'lib'), ('HWPX', 'lib')]),
-          ('step','<b>新增檔案</b> — 點擊<code>[📄 新增檔案]</code>或將檔案拖曳放置到清單中。不支援的格式會自動過濾。'),
-          ('step','<b>調整順序</b> — 在清單中拖曳或使用<code>[上移]</code>/<code>[下移]</code>設定合併順序。'),
-          ('step','<b>設定編碼</b> — 從每個檔案右側的下拉選單選擇<b>讀取編碼</b>，在右側「儲存設定」面板選擇<b>儲存編碼</b>。'),
-          ('step','<b>檔案分隔線</b>（選填）— 勾選「插入檔案分隔線」後，合併時會在每個檔案之間自動插入含檔名的分隔線。'),
-          ('step','<b>指定儲存路徑</b>（選填）— 點擊<code>[指定路徑]</code>預先設定儲存位置，執行時自動儲存。未設定則在執行時顯示儲存對話框。'),
-          ('step','<b><code>[▶ 合併儲存]</code></b> — 點擊執行合併。完成訊息中可查看各檔案的編碼摘要。'),
-          ('divider',),
-          ('tip','<b>編碼自動偵測</b> — 安裝chardet後，新增檔案時將自動偵測編碼。準確度低時請從下拉選單手動選擇。'),
-          ('tip','<b>儲存編碼選擇參考</b> — UTF-8：通用推薦 / UTF-8-BOM：Excel中不亂碼 / EUC-KR·CP949：韓語舊版程式相容 / UTF-16：特殊用途 / <b>Shift-JIS·GBK·Big5</b>：日文·中文（簡體·繁體）舊版系統相容'),
-          ('tip','<b>分隔線格式</b> — 啟用後，每個檔案前插入 <code>───── ▶ 檔案名稱.txt ──────</code> 格式的行。'),
-          ('info','讀取檔案時若發生錯誤，僅跳過該檔案，其餘檔案正常合併。錯誤內容顯示在完成訊息中。'),
-          ('warn','<code>[復原]</code>按鈕將刪除合併的輸出檔案。<b>原始檔案不會有任何修改。</b>'),
-         ]),
-
-        ('🔄','Text Converter','在TXT和EPUB格式之間轉換',
-         '將TXT檔案轉換為EPUB電子書，或從EPUB中擷取文字。新增多個檔案後將依序自動批次轉換。',
-         [
-          ('note','請先選擇頂部的<b>[TXT → EPUB]</b>或<b>[EPUB → TXT]</b>分頁。'),
-          ('step','<b>新增檔案</b> — 點擊<code>[📄 新增檔案]</code>或拖放。'),
-          ('step','<b>TXT → EPUB 設定</b> — 在右側「書籍資訊」面板中輸入<b>書名、作者、語言</b>，並選擇<b>章節分割方式</b>。'),
-          ('step','<b>EPUB → TXT 設定</b> — 在右側「轉換選項」面板中設定章節分隔線插入、章節標題含入、連續空行整理及儲存編碼。'),
-          ('step','<b>輸出資料夾</b>（選填）— 預設輸出資料夾由⚙設定中的全域設定決定（預設：<code>Output/</code>）。儲存完成後輸出資料夾會自動開啟。'),
-          ('step','<b><code>[▶ 開始轉換]</code></b> — 多檔案時進度列顯示各檔案的轉換狀態。'),
-          ('divider',),
-          ('feature','TXT → EPUB 章節分割方式','<b>分隔線基準</b> — 由<code>===</code>、<code>---</code>、<code>★★★</code>等重複符號構成的行被識別為章節邊界。<br><br><b>連續3行以上空行</b> — 連續3行以上的空白段落被識別為章節邊界。<br><br><b>全部作為一個章節</b> — 將整個檔案作為一個章節處理。'),
-          ('feature','EPUB → TXT 轉換選項','<b>新增章節分隔線</b> — 在章節邊界插入分隔線（預設：開啟）。<br><b>包含章節標題</b> — 在分隔線下方顯示EPUB中儲存的章節標題（預設：開啟）。<br><b>整理連續空行</b> — 整理擷取過程中產生的多餘空行（預設：開啟）。<br><b>儲存編碼</b> — 選擇輸出TXT檔案的編碼（預設：UTF-8）。'),
-          ('tip','指定輸出資料夾後，可在不修改原檔案的情況下將轉換結果集中儲存在一處。'),
-          ('tip','轉換過程中請勿關閉視窗，否則可能中斷轉換。'),
-         ]),
-
-        ('🏷️','Tag Editor','批次新增或移除檔名中的標籤',
-         '批次新增或移除檔名中的<code>[暫存]</code>、<code>[最終]</code>等括號標籤，同時一次性整理多餘的前導0。',
-         [
-          ('note','請根據操作類型從頂部分頁選擇<b>[移除標籤]</b>/<b>[新增標籤]</b>/<b>[移除前導零]</b>。'),
-          ('step','<b>新增檔案或資料夾</b> — 使用<code>[📄 新增檔案]</code>/<code>[📂 新增資料夾]</code>或拖放新增目標。新增資料夾時，依「包含子資料夾」選項遞迴讀取檔案。'),
-          ('step','<b>篩選器設定</b> — 在左下角「篩選器設定」面板中指定目標副檔名（逗號分隔）。勾選「所有副檔名」則不限類型處理所有檔案。'),
-          ('step','<b>選項設定</b> — 在右側面板中設定各模式的選項。'),
-          ('step','<b>預覽確認</b> — 點擊<code>[預覽]</code>查看「原檔名 → 修改後檔名」的對照表。<b>請務必確認後再套用。</b>'),
-          ('step','<b>套用</b> — 結果正確後點擊<code>[套用]</code>。'),
-          ('divider',),
-          ('feature','移除標籤','在標籤輸入欄中輸入特定標籤，則僅移除該標籤。<b>留空則移除檔名中所有<code>[ ]</code>格式的標籤。</b><br><br>範例：輸入<code>最終</code> → 僅移除<code>[最終]</code>，其他標籤保留'),
-          ('feature','新增標籤','在右側面板中選擇要新增的標籤和插入位置（檔名<b>前</b>/<b>後</b>）。若已存在相同標籤，則不會重複新增。'),
-          ('feature','移除前導零','自動移除檔名前端多餘的0（001 → 1、007 → 7）。<b>由連字號連接的日期格式數字將自動受到保護。</b>'),
-          ('example','會議記錄 001.docx','會議記錄 1.docx'),
-          ('example','講義資料 007 最終版.pdf','講義資料 7 最終版.pdf'),
-          ('example','2024-01-01 日記.txt','2024-01-01 日記.txt  ← 受保護，無變化'),
-          ('warn','<b>檔名修改後可立即使用[復原]還原一次。</b>但執行新任務或關閉視窗後還原資料將消失。請務必先透過<code>[預覽]</code>確認後再點擊<code>[套用]</code>。'),
-         ]),
-
-        ('📁','Batch Renamer','批次重新命名資料夾和檔案',
-         '使用以模式為基礎的規則批次重新命名子資料夾或檔案。支援自動識別編號的「智慧提取」和手動指定編號的「順序編號」兩種方式。',
-         [
-          ('note','請先從頂部分頁選擇<b>[資料夾重新命名]</b>或<b>[檔案重新命名]</b>。'),
-          ('step','<b>指定目標資料夾</b> — 使用<code>[📂 選擇資料夾]</code>或拖放指定<b>上層資料夾</b>。指定的資料夾本身不會改變，只有<b>其內部的下層項目</b>才會被重新命名。'),
-          ('step','<b>選擇方式</b> — 在右側面板選擇「智慧提取」或「順序編號」。'),
-          ('step','<b>預覽確認</b> — 點擊<code>[預覽]</code>查看修改結果。名稱衝突時表格中會顯示警告。'),
-          ('step','<b>執行重新命名</b> — 點擊<code>[執行重新命名]</code>。執行後可立即使用<code>[復原]</code>還原一次。'),
-          ('divider',),
-          ('feature','🔍 智慧提取','自動從現有名稱中提取編號並重新建構。<br><br><b>共用前綴處理</b> — 自動偵測 / 手動指定 / 保留不變。<br><b>前綴·後綴</b> — 輸入在重構名稱前後新增的文字。'),
-          ('feature','🔢 順序編號','從頭到尾按順序分配編號。所有選項均手動指定。<br><br><b>起始編號</b> — 選擇從00或01開始。<b>位數</b> — 自動或固定2/3/4位。<b>前綴·後綴</b> — 編號前後新增的文字。<b>名稱保留</b> — 「僅編號」或「編號+原名稱」。<b>編號重置</b> — 「全域連續」或「每組重置」。'),
-          ('tip','檔案重新命名時副檔名始終自動保留。'),
-          ('tip','拖放資料夾時會遞迴掃描子資料夾並自動建構分組。'),
-          ('tip','執行重新命名前，開啟目標資料夾的檔案總管視窗會自動關閉，完成後自動重新開啟。'),
-          ('warn','<b>重新命名會立即生效。</b>執行後可用<code>[復原]</code>還原，但執行新任務或關閉視窗後還原資料將消失。'),
-          ('warn','指定的上層資料夾本身不會被修改，僅對其下層項目進行操作。'),
-         ]),
-
-        ('✦','Text Fixer','修復OCR和電子書文字的換行問題',
-         '從PDF或EPUB擷取的文字常因頁面寬度出現強制換行。Text Fixer可智慧還原段落結構。',
-         [
-          ('note','<b>文字輸入方式</b> — 將.txt檔案拖曳至放置區，使用<code>[📂 開啟檔案]</code>，或直接在左側「原始文字」區域貼上。'),
-          ('step','<b>輸入文字</b> — 開啟檔案或將文字貼到左側區域。'),
-          ('step','<b>選擇選項</b> — 根據需要組合四個選項。大多數情況下先從<b>① + ④</b>開始嘗試。'),
-          ('step','<b><code>[✦ 執行修復]</code></b> — 左側（原始）與右側（結果）並排比較，確認修復效果。'),
-          ('step','<b>儲存</b> — 滿意後點擊<code>[儲存 ▼]</code>。不滿意則使用<code>[復原]</code>還原，更換選項後重新嘗試。'),
-          ('divider',),
-          ('feature','① 合併換行（以空行為基準）','以空行劃分段落，然後合併段落內被強制折斷的行。<b>不合併的情況</b> — 以句號、驚嘆號、問號、引號結尾的行，以及<code>───</code>、<code>===</code>、<code>★★★</code>等分隔線不參與合併。這是修復PDF/EPUB文字的核心選項，大多數情況下請先開啟。'),
-          ('feature','② 自動段落分割（最多N字）','①合併後過長的行在句子邊界按N字標準分割。較短的句子在N字範圍內自動組合。預設100字。句子較長時可嘗試調整為150~200字。'),
-          ('feature','③ 在句子之間插入空行','在以句號/引號結尾的行後，或對話前自動插入空行。適用於提高對話較多的文字的可讀性。'),
-          ('feature','④ 減少過多空行（最多N行）','將連續空行壓縮為最多N行。預設1行。多節結構的文件建議設為2行。'),
-          ('divider',),
-          ('tip','<b>推薦組合</b> — PDF/EPUB文字修復：<b>① + ④</b> / 對話為主的文字：<b>① + ③</b> / OCR結果·長段落整理：<b>① + ② + ④</b>'),
-          ('tip','<b>儲存方式</b> — <b>在原位置以[Fixed]標籤儲存</b>：保留原檔案，修復版另存為<code>[Fixed]檔名.txt</code> / <b>另存新檔</b>：手動指定位置和檔名 / <b>復原</b>：將修復前的原始文字還原到左側窗格（執行修復後可使用一次）'),
-          ('tip','🟡 <b>黃色行</b> = 多行合併為一行 / 🟠 <b>橙色行</b> = 空行被刪除的位置。超過3,000行的大型檔案將跳過高亮顯示。'),
-          ('tip','底部統計列顯示<b>合併次數、空行刪除數、原始行數、最終行數</b>。'),
-          ('tip','按<b>Ctrl+F</b>可在原文和修改後的文字中搜尋關鍵字。Enter跳到下一個，Shift+Enter跳到上一個。'),
-          ('warn','檔案始終以<b>UTF-8</b>編碼儲存。如需保留原始編碼（如EUC-KR），請另行轉換。'),
-          ('divider',),
-          ('note','<b>部分損毀檔案的處理</b> — 部分位元組損毀的檔案也可以開啟。損毀的字元顯示為<code>�</code>（U+FFFD），狀態列會顯示<b>⚠</b>圖示和「部分編碼失敗」警告。'),
-          ('tip','Text Fixer 針對<b>單一檔案的精細審核</b>進行了最佳化。開啟損毀檔案可直接檢視損毀位置，手動編輯該段，或判斷是否需要重新取得原始檔案。'),
-          ('warn','數萬字元以上的大量損毀檔案難以透過校正恢復品質。建議優先考慮從原來源重新下載。Bulk Fixer 會自動略過此類檔案以保護原始檔案。'),
-         ]),
-
-        ('✦','Bulk Fixer','批量校正多個TXT檔案的換行',
-         '將Text Fixer的校正引擎批量應用於多個檔案。適用於一次性整理從OCR或電子書中提取的大量TXT檔案。',
-         [
-          ('step','<b>新增檔案</b> — 使用<code>[📄 新增檔案]</code>或<code>[📂 新增資料夾]</code>載入TXT檔案。也可以將資料夾直接拖放到檔案清單中，自動遞迴收集<code>.txt</code>檔案。'),
-          ('step','<b>設定選項</b> — 在右側面板中選擇合併模式（自動/韓語/英語）和四個校正選項。使用<b>預設</b>下拉選單選擇「一般文件」或「書籍·小說」可一鍵配置選項。'),
-          ('step','<b>儲存設定</b> — 指定輸出資料夾，或留空則以<code>[Fixed]檔名.txt</code>儲存在原檔案旁邊。勾選<b>保留資料夾結構</b>可在輸出資料夾中重現原始子資料夾層級。'),
-          ('step','<b>點擊<code>[▶ 開始批量校正]</code></b> — 處理期間顯示進度，完成後通知成功和失敗檔案數。'),
-          ('tip','點擊檔案清單中的項目，可在右側預覽面板中預覽校正結果。'),
-          ('tip','預設輸出資料夾為<code>Output/</code>。可在⚙設定中全域更改，也可在各分頁單獨指定。儲存完成後自動開啟。'),
-          ('warn','僅支援TXT檔案。請先用Text Converter將DOCX、PDF等格式轉換為TXT後再使用。'),
-          ('divider',),
-          ('note','<b>編碼損毀檔案自動分級</b> — Bulk Fixer 偵測到部分損毀檔案後，依據損毀程度分為三級處理：<br>• <b>Tier 1</b>（1~500字元損毀）：校正後產生報告<br>• <b>Tier 2</b>（501~5,000字元損毀）：校正後產生報告（建議審核）<br>• <b>Tier 3</b>（5,001字元以上）：<b>自動略過（保護原始檔案）</b> + 僅產生報告'),
-          ('tip','報告檔案以<code>{原檔名}.encoding_report.txt</code>的形式產生在校正版旁邊，詳細記錄哪些行、哪些欄出現損毀，最多記錄 5,000 筆。'),
-          ('warn','被 Tier 3 略過的檔案應<b>在 Text Fixer 中個別審核</b>。大量損毀通常意味著編碼偵測錯誤或原始檔案本身有問題，與其強制批量校正，不如重新取得原始檔案。'),
-         ]),
-
-        ('⌨️','快捷鍵 & 使用技巧','',
-         '使用鍵盤快捷鍵快速操作，可在設定中自訂。',
-         [
-          ('shortcut','Ctrl+1','前往 Text Merger'),
-          ('shortcut','Ctrl+2','前往 Text Converter'),
-          ('shortcut','Ctrl+3','前往 Tag Editor'),
-          ('shortcut','Ctrl+4','前往 Batch Renamer'),
-          ('shortcut','Ctrl+5','前往 Text Fixer'),
-          ('shortcut','Ctrl+6','前往 Bulk Fixer'),
-          ('shortcut','Ctrl+F','在 Text Fixer 中搜尋文字'),
-          ('shortcut','⚙ 按鈕（右上角）','開啟設定 — 可更改主題、語言和快捷鍵'),
-          ('tip','設定（主題、語言、快捷鍵）在關閉時自動儲存，下次啟動時還原。'),
-          ('tip','所有分頁均支援<b>拖放</b>載入檔案。拖入資料夾時，將批次新增其中的支援檔案。'),
-          ('tip','🔋 <b>防止休眠</b> — Text Merger、Text Converter、Text Fixer 或 Bulk Fixer 執行任務期間，Windows 休眠模式將被自動封鎖。任務完成或發生錯誤時立即解除。螢幕鎖定與休眠無關，處理過程中仍可正常使用。'),
-         ]),
-
-
-        ('📁','生成檔案說明','程式使用過程中自動建立的檔案和資料夾',
-         'File Nexus Suite會在程式所在資料夾中自動建立以下內容，用於儲存設定、預設輸出和錯誤記錄。',
-         [
-          ('step','<b>FileNexusSuite.json</b> — 儲存主題、語言、快捷鍵及各分頁設定的設定檔。結束時自動儲存，下次啟動時還原。'),
-          ('step','<b>Output/</b> — Text Converter、Bulk Fixer和Text Fixer的預設輸出資料夾。首次啟動時自動建立。可在⚙設定中全域更改位置，儲存完成時自動開啟。'),
-          ('step','<b>logs/crash_*.log</b> — 發生意外錯誤時自動生成的當機日誌。僅保留最近3個，舊檔案自動刪除。'),
-          ('warn','<b>_internal/</b> — 資料夾形式exe建置時自動生成的Python執行環境資料夾。<b>刪除後程式將無法執行。</b>'),
-          ('tip','可以直接刪除這些檔案和資料夾。下次啟動時，所需內容將自動重新建立。'),
-         ]),
-
-      ]
-
-    # ─────────────────────────────────────────────────────────────
-    # Data-only return (for HelpDialog sidebar)
-    # ─────────────────────────────────────────────────────────────
-    if _data_only:
-        return intro, sections
-
-    # ─────────────────────────────────────────────────────────────
-    # Single-section HTML render helper
-    # ─────────────────────────────────────────────────────────────
-    def _render_section(entry):
-        icon, title, subtitle, desc, items = entry
-        is_sc = any(i[0] == 'shortcut' for i in items)
-        step_n = 0
-        feat_bg  = _mix(bg, accent, 0.05)
-        feat_bdr = _mix(accent, bg, 0.5)
-        _CIRCLED = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩',
-                    '⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳']
-        p = []
-        p.append(f'''<div style="background:{bg};border:1px solid {border};border-radius:12px;margin:0 0 14px;overflow:hidden;">''')
-        p.append(
-            f'''<div style="padding:13px 18px 11px;border-bottom:1px solid {border};">'''
-            f'''<span style="font-size:18px;margin-right:10px;">{icon}</span>'''
-            f'''<span style="font-size:14px;font-weight:700;color:{text};">{title}'''
-        )
-        if subtitle:
-            p.append(f'''  <span style="font-size:11px;font-weight:400;color:{muted};margin-left:8px;">{subtitle}</span>''')
-        p.append('</span>')   # close title span
-        if desc:
-            p.append(f'''<div style="font-size:12px;color:{muted};margin-top:4px;line-height:1.6;">{desc}</div>''')
-        p.append('</div>')   # close header div
-        p.append('''<div style="padding:14px 18px 14px;">''')
-        if is_sc:
-            for item in items:
-                if item[0] == 'shortcut':
-                    _, k, d = item
-                    key_parts = k.split('+')
-                    key_html = f'<span style="color:{muted};font-size:10px;margin:0 3px;font-weight:400;">+</span>'.join(
-                        f'<span style="display:inline-block;background:{srf2};'
-                        f'border:1px solid {text};border-bottom:2px solid {text};'
-                        f'border-radius:4px;padding:2px 9px;font-size:11px;font-weight:700;'
-                        f'font-family:monospace;color:{text};white-space:nowrap;">{kp.strip()}</span>'
-                        for kp in key_parts
-                    )
-                    p.append(
-                        f'''<div style="padding:7px 12px;margin:0 0 5px;border-radius:8px;'''
-                        f'''background:{bg2};border:1px solid {border};">'''
-                        f'''{key_html}'''
-                        f'''<span style="color:{muted};font-size:12px;margin-left:14px;">{d}</span></div>'''
-                    )
-                elif item[0] == 'tip':
-                    tip_text = item[1]
-                    has_icon = tip_text[:2].strip() and ord(tip_text[0]) > 127
-                    icon_html = '' if has_icon else f'<span style="color:{accent};font-weight:700;margin-right:5px;">💡</span>'
-                    p.append(
-                        f'''<div style="border-left:3px solid {tip_bdr};background:{tip_bg};'''
-                        f'''border-radius:0 7px 7px 0;padding:8px 14px;margin:10px 0 0;'''
-                        f'''font-size:12px;color:{text};line-height:1.7;">{icon_html}{tip_text}</div>'''
-                    )
-        else:
-            for item in items:
-                kind = item[0]
-                if kind == 'step':
-                    step_n += 1
-                    num = _CIRCLED[step_n-1] if step_n <= 20 else f'{step_n}.'
-                    p.append(
-                        f'''<div style="margin:0 0 8px 18px;font-size:13px;'''
-                        f'''color:{text};line-height:1.75;">'''
-                        f'''<span style="color:{accent};font-weight:700;'''
-                        f'''margin-right:5px;">{num}</span>{item[1]}</div>'''
-                    )
-                elif kind == 'sub':
-                    p.append(f'''<div style="margin:-4px 0 8px 52px;color:{muted};font-size:13px;line-height:1.7;">{item[1]}</div>''')
-                elif kind == 'note':
-                    p.append(
-                        f'''<div style="border-left:3px solid {note_bdr};background:{note_bg};'''
-                        f'''border-radius:0 7px 7px 0;padding:8px 14px;margin:0 0 10px 18px;'''
-                        f'''font-size:12px;color:{text};line-height:1.7;">'''
-                        f'''<span style="color:#5080D0;font-weight:700;margin-right:5px;">ℹ️</span>{item[1]}</div>'''
-                    )
-                elif kind == 'tip':
-                    p.append(
-                        f'''<div style="border-left:3px solid {tip_bdr};background:{tip_bg};'''
-                        f'''border-radius:0 7px 7px 0;padding:8px 14px;margin:4px 0 8px 18px;'''
-                        f'''font-size:12px;color:{text};line-height:1.7;">'''
-                        f'''<span style="color:{accent};font-weight:700;margin-right:5px;">💡</span>{item[1]}</div>'''
-                    )
-                elif kind == 'warn':
-                    p.append(
-                        f'''<div style="border-left:3px solid {warn_bdr};background:{warn_bg};'''
-                        f'''border-radius:0 7px 7px 0;padding:8px 14px;margin:4px 0 8px 18px;'''
-                        f'''font-size:12px;color:#9B2A10;line-height:1.7;">'''
-                        f'''<span style="font-weight:700;margin-right:5px;">⚠️</span>{item[1]}</div>'''
-                    )
-                elif kind == 'feature':
-                    _, ftitle, fdesc = item
-                    p.append(
-                        f'''<div style="background:{feat_bg};border:1px solid {feat_bdr};'''
-                        f'''border-radius:8px;padding:10px 14px;margin:4px 0 10px 18px;">'''
-                        f'''<div style="font-size:13px;font-weight:700;color:{accent};margin-bottom:5px;">{ftitle}</div>'''
-                        f'''<div style="font-size:13px;color:{text};line-height:1.7;">{fdesc}</div>'''
-                        f'''</div>'''
-                    )
-                elif kind == 'divider':
-                    # Visual divider between the step group and tip / warn blocks
-                    p.append(
-                        f'''<hr style="border:none;border-top:1px solid {border};margin:6px 0 10px 18px;">'''
-                    )
-                elif kind == 'info':
-                    # Neutral-gray info box — lower intensity than note (blue) / tip (accent) / warn (red)
-                    p.append(
-                        f'''<div style="border-left:3px solid {border};background:{srf2};'''
-                        f'''border-radius:0 7px 7px 0;padding:8px 14px;margin:4px 0 8px 18px;'''
-                        f'''font-size:12px;color:{muted};line-height:1.7;">'''
-                        f'''<span style="font-weight:700;margin-right:5px;">ℹ</span>{item[1]}</div>'''
-                    )
-                elif kind == 'formats':
-                    # Pill row visualizing supported file formats
-                    # item = ('formats', [(label, ftype), ...])
-                    # ftype: 'native' = native support, 'lib' = requires installing a library
-                    fmts = item[1]
-                    pills = []
-                    for label, ftype in fmts:
-                        if ftype == 'native':
-                            pill_bg  = _mix(accent, bg, 0.78)
-                            pill_fg  = accent
-                            pill_bdr = _mix(accent, bg, 0.55)
-                        else:
-                            pill_bg  = _mix('#808080', bg, 0.88)
-                            pill_fg  = muted
-                            pill_bdr = _mix('#808080', bg, 0.65)
-                        pills.append(
-                            f'<span style="display:inline-block;background:{pill_bg};'
-                            f'border:1px solid {pill_bdr};border-radius:4px;'
-                            f'padding:2px 8px;font-size:11px;font-weight:700;'
-                            f'font-family:monospace;color:{pill_fg};margin:2px 4px 2px 0;">'
-                            f'{label}</span>'
-                        )
-                    legend_dot_on  = f'<span style="color:{accent};font-size:9px;">●</span>'
-                    legend_dot_off = f'<span style="color:{muted};font-size:9px;">●</span>'
-                    p.append(
-                        f'<div style="margin:0 0 12px 18px;">'
-                        f'<div style="font-size:11px;color:{muted};margin-bottom:6px;">'
-                        f'{legend_dot_on} 기본 지원 &nbsp;&nbsp;'
-                        f'{legend_dot_off} 라이브러리 설치 필요 '
-                        f'<span style="font-size:10px;">(python-docx · pdfplumber · openpyxl)</span></div>'
-                        f'{"".join(pills)}'
-                        f'</div>'
-                    )
-                elif kind == 'example':
-                    _, before, after = item
-                    p.append(
-                        f'<div style="margin:3px 0 8px 18px;">'
-                        f'<table style="background:{srf2};border:1px solid {border};'
-                        f'border-radius:6px;border-spacing:0;border-collapse:collapse;">'
-                        f'<tr>'
-                        f'<td style="font-family:monospace;color:{muted};font-size:13px;'
-                        f'padding:5px 10px 5px 12px;white-space:nowrap;">{before}</td>'
-                        f'<td style="color:{muted};font-size:15px;padding:5px 10px;white-space:nowrap;">→</td>'
-                        f'<td style="font-family:monospace;color:{accent};font-size:13px;'
-                        f'font-weight:700;padding:5px 12px 5px 10px;white-space:nowrap;">{after}</td>'
-                        f'</tr></table></div>'
-                    )
-        p.append('</div></div>')
-        return ''.join(p)
-
-    # ─────────────────────────────────────────────────────────────
-    # HTML render (full page — legacy compatibility)
-    # ─────────────────────────────────────────────────────────────
-
-    parts = [
-        f'''<html><body style="background:{bg2};color:{text};'''
-        f'''font-family:'Pretendard','Segoe UI Variable','Segoe UI','Malgun Gothic','Yu Gothic UI','Microsoft YaHei UI',sans-serif;'''
-        f'''font-size:13px;margin:0;padding:0;">'''
-    ]
-
-    # App intro banner
-    parts.append(
-        f'''<div style="background:{_mix(bg,accent,0.06)};border:1px solid {_mix(accent,bg,0.6)};'''
-        f'''border-radius:10px;padding:14px 18px;margin:0 0 16px;">'''
-        f'''<div style="margin-bottom:6px;">'''
-        f'''<span style="font-size:14px;font-weight:700;color:{accent};">File Nexus Suite</span>'''
-        f'''<span style="font-size:10px;font-weight:700;color:{bg};background:{accent};'''
-        f'''border-radius:4px;padding:1px 7px;margin-left:8px;letter-spacing:0.3px;">v{APP_VERSION}</span>'''
-        f'''</div>'''
-        f'''<div style="font-size:12px;color:{muted};line-height:1.7;">{intro}</div>'''
-        f'''</div>'''
-    )
-
-    for entry in sections:
-        parts.append(_render_section(entry))
-
-    parts.append('''</body></html>''')
-    return ''.join(parts)
-
-
-
-def _build_license_html() -> str:
-    """Open-source license-notice HTML."""
-    bg      = SURFACE
-    text    = TEXT
-    muted   = MUTED
-    accent  = ACCENT
-    border  = BORDER
-    srf2    = SRF2
-
-    entries = [
-        {
-            "category": "🐍 Runtime",
-            "items": [
-                {
-                    "name": "Python",
-                    "version": "3.x",
-                    "license": "Python Software Foundation License v2 (PSF-2.0)",
-                    "copyright": "Copyright © 2001–present Python Software Foundation",
-                    "url": "https://www.python.org",
-                    "note": "Python programming language runtime. PSF License requires this copyright notice to be retained in distributions.",
-                },
-            ],
-        },
-        {
-            "category": "🖥️ GUI Framework",
-            "items": [
-                {
-                    "name": "PySide6",
-                    "version": "6.x",
-                    "license": "GNU Lesser General Public License v3 (LGPL-3.0)",
-                    "copyright": "Copyright © The Qt Company Ltd.",
-                    "url": "https://doc.qt.io/qtforpython-6/",
-                    "note": "Official Python bindings for Qt 6, developed by The Qt Company. Licensed under LGPL v3.\n\nFile Nexus Suite is built with PyInstaller. Users may replace this LGPL library by rebuilding from source — see the GitHub repository for build instructions.",
-                },
-            ],
-        },
-        {
-            "category": "📚 Libraries",
-            "items": [
-                {
-                    "name": "chardet",
-                    "version": "—",
-                    "license": "GNU Lesser General Public License v2.1 (LGPL-2.1)",
-                    "copyright": "Copyright © 2001–present Mark Pilgrim and chardet contributors",
-                    "url": "https://github.com/chardet/chardet",
-                    "note": "Character encoding detection for text file import. Optional — loaded at runtime only if installed.\n\nFile Nexus Suite is built with PyInstaller. Users may replace this LGPL library by rebuilding from source — see the GitHub repository for build instructions.",
-                },
-                {
-                    "name": "python-docx",
-                    "version": "—",
-                    "license": "MIT License",
-                    "copyright": "Copyright © 2013 Steve Canny",
-                    "url": "https://github.com/python-openxml/python-docx",
-                    "note": "DOCX file reading for Text Merger. Optional — loaded at runtime only if installed.",
-                },
-                {
-                    "name": "pdfplumber",
-                    "version": "—",
-                    "license": "MIT License",
-                    "copyright": "Copyright © 2019 Jeremy Singer-Vine",
-                    "url": "https://github.com/jsvine/pdfplumber",
-                    "note": "PDF text extraction for Text Merger. Optional — loaded at runtime only if installed.",
-                },
-                {
-                    "name": "openpyxl",
-                    "version": "—",
-                    "license": "MIT License",
-                    "copyright": "Copyright © 2010 openpyxl contributors",
-                    "url": "https://openpyxl.readthedocs.io",
-                    "note": "XLSX file reading for Text Merger. Optional — loaded at runtime only if installed.",
-                },
-                {
-                    "name": "python-hwpx",
-                    "version": "—",
-                    "license": "MIT License",
-                    "copyright": "Copyright © Kyuhyun Koh (고규현)",
-                    "url": "https://github.com/airmang/python-hwpx",
-                    "note": "HWPX (KS X 6101 OWPML) text extraction for Text Merger. Pure-Python, no Hancom Office required. Optional — loaded at runtime only if installed.",
-                },
-            ],
-        },
-        {
-            "category": "🎨 Icons",
-            "items": [
-                {
-                    "name": "File Nexus Suite Icon Set",
-                    "version": "—",
-                    "license": "Free to use — No attribution required",
-                    "copyright": "Created by Microsoft Copilot",
-                    "url": "",
-                    "note": "SVG vector icon set (line / filled styles) used for tabs, buttons, header, and settings navigation.\nNo external icon libraries were used. No additional copyright notice required.\n\nLine(라인) 스타일: 탭 아이콘, 헤더 버튼, 설정 네비게이션용\nFilled(채움) 스타일: 액션 버튼, 상태 버튼용\n\nIncluded icons: document, folder, folder_open, tag, refresh, wrench, magnifier,\nsave, trash, broom, question, info, list, clipboard, arrow_up, arrow_down, check",
-                },
-            ],
-        },
-        {
-            "category": "📄 Application",
-            "items": [
-                {
-                    "name": "File Nexus Suite",
-                    "version": "—",
-                    "license": "MIT License",
-                    "copyright": "Copyright © 2026 Hanrim",
-                    "url": "",
-                    "note": "본 소프트웨어는 MIT 라이선스로 배포됩니다.\n저작권 고지를 유지하는 조건으로 사용·수정·재배포·판매가 모두 자유롭게 허용됩니다.\n\n개인 작업 도구로 시작했지만, 같은 작업을 하는 다른 분들에게도\n도움이 되기를 바라며 MIT 라이선스로 공개합니다.\n\n전체 소스 코드는 GitHub 저장소에서 공개됩니다:\nhttps://github.com/MerciHanrim/FileNexusSuite\n\n본 프로젝트는 AI 페어 프로그래밍(Claude)으로 개발되었습니다.\n기획·UX 설계·품질 관리는 Hanrim이 담당하고, 코드 작성은 AI와 협업하여 진행했습니다.\n\nThis software is distributed under the MIT License.\nFree to use, modify, redistribute, and sell, provided that the copyright notice is retained.\n\nOriginally built as a personal tool, now released under MIT\nin the hope it may help others with similar workflows.\n\nFull source code is publicly available at:\nhttps://github.com/MerciHanrim/FileNexusSuite\n\nThis project was developed using AI pair programming (Claude).\nPlanning, UX design, and quality management were done by Hanrim,\nwith code written in collaboration with AI.",
-                },
-            ],
-        },
-    ]
-
-    parts = [f'<html><body style="background:{bg};color:{text};'
-             f'font-family:\'Pretendard\',\'Segoe UI Variable\',\'Segoe UI\',\'Malgun Gothic\',\'Yu Gothic UI\',\'Microsoft YaHei UI\',sans-serif;'
-             f'font-size:13px;margin:16px 20px 24px;">']
-
-    # Localized summary banner
-    summary = QCoreApplication.translate('FileNexusSuite', 'Licensed under the MIT License · Free to use, modify, distribute, and sell · Copyright notice must be retained.')
-    parts.append(
-        f'<div style="background:{srf2};border:1px solid {accent}33;border-radius:9px;'
-        f'padding:11px 16px;margin-bottom:18px;font-size:13px;color:{text};">'
-        f'<span style="color:{accent};font-weight:700;margin-right:6px;">📋</span>'
-        f'{summary}</div>'
-    )
-
-    for section in entries:
-        parts.append(
-            f'<div style="font-size:14px;font-weight:700;color:{accent};'
-            f'border-bottom:2px solid {accent};padding-bottom:5px;margin:0 0 12px;">'
-            f'{section["category"]}</div>'
-        )
-        for item in section["items"]:
-            url_part = (
-                f'<a href="{item["url"]}" style="color:{accent};font-size:11px;'
-                f'text-decoration:none;">{item["url"]}</a>'
-                if item["url"] else ""
-            )
-            parts.append(f'''
-<div style="background:{srf2};border:1px solid {border};border-radius:9px;
-            padding:13px 16px;margin-bottom:10px;">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:4px;">
-    <span style="font-size:14px;font-weight:700;color:{text};">{item["name"]}</span>
-    <span style="font-size:11px;color:{muted};background:{bg};border:1px solid {border};
-                 border-radius:5px;padding:2px 9px;">{item["license"]}</span>
-  </div>
-  <div style="font-size:11px;color:{muted};margin:4px 0 2px;">{item["copyright"]}</div>
-  {f'<div style="margin:3px 0;">{url_part}</div>' if url_part else ''}
-  <div style="font-size:12px;color:{text};margin-top:7px;line-height:1.6;
-              border-top:1px solid {border};padding-top:7px;">{item["note"]}</div>
-</div>
-''')
-        parts.append('<div style="height:8px;"></div>')
-
-    parts.append('</body></html>')
-    return ''.join(parts)
 
 
 # ═══════════════════════════════════════════════
@@ -12956,7 +11526,7 @@ class AppSuite(QMainWindow):
         hdr.addWidget(self._hdr_title); hdr.addSpacing(10); hdr.addWidget(self._hdr_sep); hdr.addSpacing(10); hdr.addWidget(self._hdr_sub); hdr.addSpacing(8); hdr.addWidget(self._hdr_ver_inline); hdr.addStretch()
         self._btn_help=_HelpButton(); self._btn_help.setFixedSize(38,38)
         self._btn_help.setIcon(_svg_icon('question_line', TEXT)); self._btn_help.setIconSize(QSize(26,26))
-        self._btn_help.setObjectName("btn_help"); self._btn_help.setToolTip("도움말")
+        self._btn_help.setObjectName("btn_help"); self._btn_help.setToolTip(self.tr('Help'))
         self._btn_help.clicked.connect(self._open_help); hdr.addWidget(self._btn_help)
         hdr.addSpacing(6)
         self._btn_settings=_GearButton(); self._btn_settings.setFixedSize(38,38)
@@ -13016,7 +11586,7 @@ class AppSuite(QMainWindow):
         self._dbg_expanded = False
         self.dbg.setVisible(False)
         self._dbg_clear_btn.setVisible(False)
-        self._log("✅ File Nexus Suite 시작 — 탭을 선택하여 원하는 기능을 사용하세요")
+        self._log(self.tr("✅ File Nexus Suite started — select a tab to begin"))
         # Bottom copyright footer (always pinned)
         self._footer_copyright=QLabel("Copyright © 2026 Hanrim")
         self._footer_copyright.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -13060,6 +11630,7 @@ class AppSuite(QMainWindow):
             _current_lang = lang
             _CFG.update('language', lang)
             _load_translator(lang)   # Phase 3b: reload .qm before retranslate_ui()
+            _load_help_translator(lang)   # Phase 4: reload help_*.qm in sync
             _glog(f"🌐 Language changed: {lang}")
             self.retranslate_ui()
         def _on_output_dir(odir):
@@ -13100,6 +11671,11 @@ class AppSuite(QMainWindow):
                 self._dbg_toggle.setText(f"{_tr}  {arrow}")
             if hasattr(self, '_dbg_clear_btn'):
                 self._dbg_clear_btn.setText(self.tr('Clear'))
+            # Header buttons — tooltips need refresh on language change
+            if hasattr(self, '_btn_help'):
+                self._btn_help.setToolTip(self.tr('Help'))
+            if hasattr(self, '_btn_settings'):
+                self._btn_settings.setToolTip(self.tr('Settings'))
         except Exception as e:
             _glog(f"⚠ retranslate_ui (header) error: {e}")
         # Per-panel retranslate — each call wrapped independently so one
@@ -13251,6 +11827,7 @@ if __name__ == "__main__":
     except Exception:
         pass
     _load_translator(_current_lang)   # Phase 3b: install Qt translator before any UI is built
+    _load_help_translator(_current_lang)   # Phase 4: install help translator alongside
     app.setStyle(_FastToolTipStyle())
     _app_font = QFont("Segoe UI Variable", 10)
     if not _app_font.exactMatch():
