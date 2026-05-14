@@ -1,0 +1,16 @@
+feat(text-merger): add MD output format; extract fns_icon.py (v1.1.2)
+
+Text Merger output format
+- Add Output Format TXT/MD radio buttons to save settings area
+- MD selected: default filename merged.md, save filter Markdown Files,
+  separator format switches to ## filename header + --- Markdown form
+- Separator checkbox off: no-separator merge regardless of format
+- Output format selection saved and restored with other settings
+- Add Output Format: translation entry for all 5 languages (ko/en/ja/zh_cn/zh_tw)
+- Recompile fns_*.qm
+
+Internal
+- Extract _APP_ICON_B64 (1,090 lines) from main module to fns_icon.py
+  (pure data file, no PySide6 dependency; no user-visible change)
+
+APP_VERSION: 1.1.1 → 1.1.2

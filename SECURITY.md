@@ -8,8 +8,8 @@ Security updates are provided for the following versions:
 
 | Version | Supported |
 | ------- | :-------: |
-| 1.1.1   | Yes |
-| < 1.1.1 | No |
+| 1.1.2   | Yes |
+| < 1.1.2 | No |
 
 ## 취약점 제보 · Reporting a Vulnerability
 

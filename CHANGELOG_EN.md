@@ -11,6 +11,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.1.2] — 2026-05-14
+
+Text Merger gains an MD output format option. The previously fixed `.txt` output now offers a `.txt` / `.md` radio button selection; when MD is selected, file separators automatically switch to `## filename` header + `---` Markdown form. Internally, the app icon base64 data (`_APP_ICON_B64`, 1,090 lines) is extracted to `fns_icon.py`, reducing the main module's line count.
+
+### Added
+- **Text Merger — MD output format** — A `Output Format: TXT / MD` radio button group is added to the save settings area. When MD is selected, the default filename becomes `merged.md`, the save filter switches to `Markdown Files (*.md)`, and the file separator format changes to `## filename\n\ncontent\n\n---`. Disabling the separator checkbox preserves the existing no-separator merge behavior regardless of format. The output format selection is saved and restored with other settings. Translations for `Output Format:` added for all 5 languages.
+
+### Internal
+- **`fns_icon.py` extracted** — App icon base64 data (`_APP_ICON_B64`, 1,090 lines) extracted from the main module into `fns_icon.py`. Pure data file with no PySide6 dependency. Main module references it via `from fns_icon import _APP_ICON_B64`. No user-visible change.
+
+---
+
 ## [1.1.1] — 2026-05-13
 
 v1.1.1 follows v1.1.0's *modularization and design polishing* by bringing the help module into the Qt Linguist runtime fold and cleaning up the i18n defects still lingering in the main module. The release bundles two threads (help module's five-language Python branch removal with instance-method reorganization, and main module's six Korean-hardcode sites wrapped in `self.tr()`/`QT_TR_NOOP`/`QCoreApplication.translate`). The release is a pair programming collaborative work of Hanrim (@MerciHanrim) and Claude Opus 4.7, retaining the operational pattern accumulated since v1.0.5 — the help module migration started from Hanrim's direction of *bringing the help system into the same Qt Linguist workflow as the main UI* and landed as instance-method reorganization, while the main-module i18n cleanup followed a natural rhythm starting from a single help-button tooltip discovery and expanding into an AST-based audit of the entire main module.
