@@ -35,7 +35,10 @@ def step(n, total, msg):
 
 
 def extract_icon(script_path):
-    with open(script_path, encoding="utf-8") as f:
+    # _APP_ICON_B64 is in fns_icon.py since v1.1.2; fall back to main script
+    icon_module = Path(script_path).parent / "fns_icon.py"
+    src_path = icon_module if icon_module.exists() else Path(script_path)
+    with open(src_path, encoding="utf-8") as f:
         src = f.read()
     m = re.search(r'_APP_ICON_B64 = \(\n((?:    "[^"]*"\n)+)\)', src)
     if not m:
