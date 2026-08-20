@@ -6,7 +6,7 @@
 # No external icon libraries used. No additional attribution required.
 
 """
-File Nexus Suite v1.1.1  —  Integrated File Management Tool
+File Nexus Suite v1.1.3  —  Integrated File Management Tool
 Tab 1: Text Merger     (Merge text/Word/PDF/Excel files)
 Tab 2: Text Converter  (EPUB ↔ TXT conversion)
 Tab 3: Tag Editor      (Bulk edit filename [tags])
@@ -107,7 +107,7 @@ from fns_icon import _APP_ICON_B64
 # ═══════════════════════════════════════════════
 # App Version
 # ═══════════════════════════════════════════════
-APP_VERSION = "1.1.2"
+APP_VERSION = "1.1.3"
 
 # ═══════════════════════════════════════════════
 # Sleep Prevention Utility (Windows only, no-op on other OSes)
@@ -1687,7 +1687,9 @@ def epub_to_text(path, opts):
             attrs=it.group(1)
             id_m=re.search(r'\bid\s*=\s*["\'](.*?)["\']',attrs)
             hr_m=re.search(r'href\s*=\s*["\'](.*?)["\']',attrs)
-            if id_m and hr_m: mf[id_m.group(1)]=base+hr_m.group(1).split("#")[0]
+            mt_m=re.search(r'media-type\s*=\s*["\'](.*?)["\']',attrs)
+            if id_m and hr_m:
+                mf[id_m.group(1)]=(base+hr_m.group(1).split("#")[0], mt_m.group(1).lower() if mt_m else "")
         spine=[]
         sm=re.search(r"<spine[^>]*>(.*?)</spine>",opf,re.S)
         if sm:
@@ -1699,8 +1701,13 @@ def epub_to_text(path, opts):
             out.append("")
         names=zf.namelist()
         for iid in spine:
-            href=mf.get(iid)
-            if not href: continue
+            entry=mf.get(iid)
+            if not entry: continue
+            href,mtype=entry
+            if mtype and mtype not in ("application/xhtml+xml","text/html","text/x-oeb1-document"):
+                continue
+            if not mtype and not re.search(r"\.(x?html?)$",href,re.I):
+                continue
             matched=next((n for n in names if n.lower()==href.lower() or n==href),None)
             if not matched: continue
             html=zf.read(matched).decode("utf-8","replace")
@@ -1735,7 +1742,7 @@ def txt_to_epub(path, out_path, meta):
     if not chapters: raise ValueError("No chapters found")
     uid=str(uuid.uuid4()); bt=_ex(meta.get("title","Untitled")); ba=_ex(meta.get("author","Unknown"))
     lang=meta.get("lang","ko")
-    with zipfile.ZipFile(out_path,"w",zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(out_path,"w",zipfile.ZIP_DEFLATED,compresslevel=9) as zf:
         zf.writestr(zipfile.ZipInfo("mimetype"),"application/epub+zip",compress_type=zipfile.ZIP_STORED)
         zf.writestr("META-INF/container.xml",
             '<?xml version="1.0" encoding="UTF-8"?><container version="1.0" '

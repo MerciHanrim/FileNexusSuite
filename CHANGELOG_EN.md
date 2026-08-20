@@ -11,6 +11,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.1.3] — 2026-08-20
+
+Started from a user report that EPUB→TXT conversion output was more than twice the size of the source EPUB. Investigation split into two threads — one a real defect: malformed, spec-violating EPUBs with non-HTML resources referenced directly in the spine had that binary data force-decoded as text. The other turned out, after investigation, not to be a bug at all: a format-inherent characteristic (EPUB is stored as a compressed zip, TXT is uncompressed — a well-formed EPUB is expected to look larger once converted). Only the former needed fixing; the TXT→EPUB zip compression level was also bumped to maximum along the way.
+
+### Fixed
+- **`epub_to_text()` — guard against binary mis-decoding from unvalidated spine media-type** — Manifest `<item>` parsing now also captures the `media-type` attribute, and spine traversal skips any item whose media-type isn't `application/xhtml+xml` / `text/html` / `text/x-oeb1-document` (i.e., non-HTML resources such as images incorrectly referenced directly in a malformed EPUB's spine). Items without a media-type attribute fall back to extension matching (`.html`/`.xhtml`). Previously such items had their binary content force-decoded via `decode("utf-8","replace")`, turning invalid bytes into U+FFFD replacement characters (3 bytes in UTF-8) and needlessly inflating the output text size.
+
+### Changed
+- **`txt_to_epub()` — explicit zip compression level** — `zipfile.ZipFile` now passes `compresslevel=9` instead of relying on zlib's default (~level 6), for maximum compression. Measured savings are marginal (~0.75%) but the change is cost-free.
+
+---
+
 ## [1.1.2] — 2026-05-14
 
 Text Merger gains an MD output format option. The previously fixed `.txt` output now offers a `.txt` / `.md` radio button selection; when MD is selected, file separators automatically switch to `## filename` header + `---` Markdown form. Internally, the app icon base64 data (`_APP_ICON_B64`, 1,090 lines) is extracted to `fns_icon.py`, reducing the main module's line count.

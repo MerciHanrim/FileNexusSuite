@@ -8,7 +8,7 @@
 
 <br>
 
-![version](https://img.shields.io/badge/version-1.1.2-7B6FA3?style=flat-square)
+![version](https://img.shields.io/badge/version-1.1.3-7B6FA3?style=flat-square)
 ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/PySide6-Qt_6-41CD52?style=flat-square&logo=qt&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Windows_10_%7C_11-0078D4?style=flat-square&logo=windows&logoColor=white)
