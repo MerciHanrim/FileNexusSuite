@@ -1,166 +1,166 @@
-# FileNexusSuite — 테스트 관리 정책 (Test Management Policy)
+# FileNexusSuite — Test Management Policy
 
-[English](./TEST_MANAGEMENT_POLICY_EN.md) | **한국어**
+**English** | [한국어](./TEST_MANAGEMENT_POLICY_KO.md)
 
-**제정일**: 2026-04-22 (v1.0.7 사전 작업 세션 3)
-**상태**: Active — 본 프로젝트 전체에 영구 적용
-
----
-
-## 1. 정책 수립 배경
-
-v1.0.7 세션 2·3 과정에서 번역키 고아 17건(그중 15건 실제 데드 확정)이 누적되어 있음이 발견됨.
-
-**구조적 원인**: invariant 테스트 시리즈(`test_all_langs_have_vXXX_keys`)가 "버전 스냅샷 방식"으로 운영되어 키 추가는 반영하되 키 제거 관례가 미정착. 2건만 invariant로 강제 보호되었고, 나머지 13건은 invariant 미등록이라 자동 테스트로는 영원히 감지되지 않는 고아 상태였음.
-
-본 정책은 동일 문제 재발 방지를 목표로 하며, 세션 3 실행 결과로 다음이 정립됨:
-- invariant 구조 전면 재구성 (버전 스냅샷 → 탭 기반 기능 영역 10개)
-- 데드 판정 기준에 "invariant 등록 여부 선제 확인" 추가 (§4.2)
-- "역사는 Git 이력과 CHANGELOG가 담당하고, 테스트는 현재 살아있는 명세로 유지된다"는 관통 축 명문화
-
-**v1.1.0 모듈화 트랙 갱신 (2026-05-09)**: 모듈화 트랙은 탭 기반 기능 영역 invariant를 보완하는 모듈 단위 테스트 클래스(`TestFnsTheme` (`fns_theme.py` 추출 시 추가), `TestFnsTranslations` (Qt Linguist i18n 마이그레이션 시 추가))를 도입. 두 축은 독립적임 — 모듈 클래스는 분리된 모듈의 표면과 패키지 구조를 검증하고, 탭 기반 대분류는 데이터의 물리적 위치와 무관하게 다국어 번역 invariant를 검증함. 모듈 분리로 기존 source-grep 테스트의 전제(파싱 대상 정의가 더 이상 메인 모듈에 없음)가 깨지면, 해당 테스트는 새 모듈 source-grep으로 재작성하거나, 동등한 런타임 커버리지가 다른 곳에 이미 존재하면 외과적으로 제거함.
+**Established**: 2026-04-22 (during v1.0.7 pre-release work, Session 3)
+**Status**: Active — permanently applied across the entire project
 
 ---
 
-## 2. 테스트의 두 층위
+## 1. Background
 
-### 2.1 자동 테스트 (`test_file_nexus.py`)
+During v1.0.7 Sessions 2 and 3, an accumulation of 17 orphaned translation keys was discovered (15 of which were ultimately confirmed dead).
 
-**역할**: 반복적·구조적 결함 방어
+**Structural cause**: The invariant test series (`test_all_langs_have_vXXX_keys`) had been operated on a "version snapshot" basis — key additions were captured but no convention existed for key removal. Only 2 keys were enforced as invariants; the remaining 13 were unregistered, leaving them in a state where automated tests could never detect them as orphaned.
 
-- 함수 입출력의 정합성
-- 시그널 대칭성 (connect ↔ disconnect 쌍)
-- 번역키 완전성 (5언어 키 수 일치, 대분류별 필수 키 존재)
-- retranslate 체인 무결성 (미정의 속성 참조 회귀 방지)
-- 설정 영속화 (JSON 저장·로드 왕복)
+This policy aims to prevent recurrence of the same problem. As a result of executing Session 3, the following were established:
+- Full restructuring of the invariant architecture (version snapshot → 10 tab-based functional areas)
+- Addition of "preemptive verification of invariant registration" to the dead-code criteria (§4.2)
+- Codification of the through-line: *"History is the responsibility of Git logs and the CHANGELOG; tests are maintained as the specification of what is currently alive."*
 
-특징: 기계적으로 반복 실행 가능, CI/로컬 모두에서 동일 결과 기대.
-
-### 2.2 수동 QA (실기 시나리오)
-
-**역할**: 판단·시각·흐름 결함 방어
-
-- 레이아웃, 색상, 대비, 타이밍
-- 사용자 흐름의 자연스러움
-- "이게 진짜 원하는 동작인가?"의 최종 판정
-- 예외 상황에서의 체감 응답 (예: 대용량 파일 드래그 시 프리징 없음)
-
-특징: 사람의 판단이 필수, 재현 가능한 시나리오 문서화가 관건.
-
-### 2.3 두 층의 관계
-
-- **대체 관계 ❌** / **보완 관계 ✅**
-- 자동화 확장이 수동 QA 축소를 의미하지 않음
-- 수동 QA에서 반복 감지되는 결함은 자동 테스트로 승격 검토
-- 자동 테스트로 잡히지 않는 시각·흐름 결함은 수동 QA 시나리오로 명문화
+**v1.1.0 modularization track update (2026-05-09)**: The modularization track introduced module-level test classes (`TestFnsTheme` (with the `fns_theme.py` extraction), `TestFnsTranslations` (with the i18n migration to Qt Linguist)) as a complement to the tab-based functional invariants. The two axes are independent — module classes verify the extracted-module surface and package shape, while tab-based macro-categories verify cross-language translation invariants regardless of where the data physically lives. When module extraction breaks the premise of an existing source-grep test (the parsed definition no longer lives in the main module), the test is either rewritten as source-grep against the new module or excised entirely if equivalent runtime coverage already exists elsewhere.
 
 ---
 
-## 3. 5대 원칙
+## 2. The Two Layers of Testing
 
-1. **자동 테스트는 반복적·구조적 결함을 잡는다**
-2. **수동 QA는 판단·시각·흐름 결함을 잡는다**
-3. **두 층은 대체 관계가 아니라 보완 관계이며, 자동화 확장이 수동 QA 축소를 의미하지 않는다**
-4. **신규 기능 추가 시 자동/수동 커버리지를 각각 명시한다**
-5. **기능 제거 시 자동 테스트·수동 시나리오 모두에서 갱신한다**
+### 2.1 Automated Tests (`test_file_nexus.py`)
 
----
+**Role**: Defense against repetitive, structural defects
 
-## 4. invariant 테스트 설계 원칙
+- Consistency of function inputs and outputs
+- Signal symmetry (connect ↔ disconnect pairs)
+- Translation key completeness (key-count parity across 5 languages, presence of required keys per major category)
+- `retranslate` chain integrity (regression prevention against undefined attribute references)
+- Configuration persistence (JSON save/load round-trip)
 
-### 4.1 탭 기반 기능 영역 구조
+Characteristics: Mechanically repeatable; identical results expected on both CI and local environments.
 
-번역키 invariant는 **대분류 10개** 기준으로 조직된다 (§5 참조). 각 대분류마다 하나의 테스트 메서드가 대응되며, 해당 영역의 핵심 대표 키를 검증한다.
+### 2.2 Manual QA (Hands-on Scenarios)
 
-전수 키 검증이 아니라 "이 기능 영역이 살아있음을 보장하는 최소 증거"로서의 대표 키 집합이다. 새 키 추가 시 해당 대분류 테스트에 필요에 따라 대표 키로 편입하고, 기능 제거 시 해당 대분류 테스트에서 즉시 삭제한다.
+**Role**: Defense against judgment, visual, and flow defects
 
-### 4.2 데드 판정 기준 (v1.0.7 세션 3 강화)
+- Layout, color, contrast, timing
+- Naturalness of user flow
+- Final adjudication of "is this what the user actually wants?"
+- Perceived responsiveness in exceptional cases (e.g. no freezing when dragging a large file)
 
-번역키 또는 코드 요소를 데드로 판정하기 전에 다음 5개 기준을 모두 확인한다:
+Characteristics: Human judgment is essential; the central challenge is documenting reproducible scenarios.
 
-1. **정적 참조 0건** — `grep`으로 파일 전체에서 호출 부재 확인
-2. **동적 디스패치 배제** — `getattr` / f-string 연결로 동적 생성되는 키 아님
-3. **문서에 의도적 보류 기록 없음** — 소스 내 주석 또는 설계 문서에 "향후 사용"·"임시 보류" 등 기록 부재
-4. **실행 가능성 증거 부재** — 데드 코드 경로에 도달할 수 있는 실행 시나리오 없음
-5. **테스트 파일의 invariant 불변식 등록 여부** — 등록된 경우 소스 제거 시 테스트도 함께 갱신 (누락 시 FAIL 발생)
+### 2.3 The Relationship Between the Two Layers
 
-기준 5번은 v1.0.7 세션 2의 `tf_dlg_overwrite` 원상복귀 사례에서 도출되었다. 소스에서만 제거하고 invariant를 방치하면 자동 테스트가 제거를 차단하므로, 기준 5번 선제 확인으로 불완전 정리 방지가 가능하다.
-
-### 4.3 관통 축
-
-> **역사는 Git 이력과 CHANGELOG가 담당하고, 테스트는 현재 살아있는 명세로 유지된다.**
-
-테스트 파일은 "어제의 스냅샷"이 아니라 "오늘의 명세"다. 과거 버전에서 추가된 키라는 사실은 Git blame과 CHANGELOG로 충분히 추적되므로, 테스트 메서드 이름에 버전 번호를 넣는 관례는 폐기된다.
-
-### 4.4 금지 사항
-
-- ❌ **버전 스냅샷 방식 신규 도입 금지** — `test_all_langs_have_vXXX_keys` 같은 패턴은 재발 방지 대상
-- ❌ **테스트에 역사적 artifact 누적 금지** — 과거 버전 마커를 테스트 코드에 남기지 않음
-- ❌ **제거된 기능의 invariant 잔존 금지** — 기능 제거 시 invariant도 동시에 갱신
-- ❌ **모듈 분리로 본질이 깨진 source-grep 테스트 잔존 금지** — 정의가 `fns_<module>.py`로 옮겨지면, 메인 모듈 소스를 검색하던 source-grep 테스트는 새 모듈 source-grep으로 재작성하거나 제거 (v1.1.0 모듈화 트랙)
-- ❌ **동등한 런타임 커버리지가 있을 때 source-grep 테스트 잔존 금지** — invariant가 module-load 테스트, 신규 `TestFns*` 클래스, 또는 다국어 대칭성 검증으로 이미 보장되면 source-grep 테스트는 제거
-
-### 4.5 권장 사항
-
-- ✅ 기능 영역별 invariant 테스트 유지 (대분류 10개 기준)
-- ✅ 신규 키 추가 시 해당 대분류 테스트의 대표 키 집합 갱신 검토
-- ✅ 기능 제거 시 동일 대분류 테스트에서 즉시 삭제
-- ✅ 대분류 간 경계 애매 키는 "처음 나타나는 UI 탭" 우선 소속, 공통 사용은 `common`, 잔여는 `misc` (최소화 목표)
-- ✅ **모듈 트랙 회귀 검증을 위한 `TestFns<Module>` 클래스 패턴** — 모듈 분리 시 다음을 검증하는 전용 클래스 추가: (a) 모듈 표면 (공개 dict, 함수, 상수), (b) 패키지 구조 (분리에 sub-package가 포함되는 경우 — 하위 파일 존재, 각 파일이 예상 변수 expose), (c) 새 모듈에 대한 source-grep invariant (import 문, 결합 패턴), (d) 메인 모듈 통합 (import 블록 존재, 옛 정의 없음)
-- ✅ **동일 invariant를 양쪽 모두로 표현할 수 있을 때 source-grep보다 module-load 테스트 우선** — formatting 변경에 안정적
-- ✅ **source-only invariant는 데이터가 언어별 파일로 옮겨져 PR review 시 `git diff`로 잡히게 되면 폐기 가능** (예: 런타임에서 조용히 덮어쓰이는 Python dict literal 중복 키)
+- **Substitutive ❌** / **Complementary ✅**
+- Expanding automation does not imply reducing manual QA
+- Defects repeatedly detected in manual QA are reviewed for promotion to automated tests
+- Visual and flow defects unreachable by automation are codified as manual QA scenarios
 
 ---
 
-## 5. 대분류 10개 (2026-04-22 확정)
+## 3. The Five Principles
 
-| # | 대분류 | 대응 UI 영역 | 접두사 예시 | 테스트 메서드 |
+1. **Automated tests catch repetitive, structural defects.**
+2. **Manual QA catches judgment, visual, and flow defects.**
+3. **The two layers are complementary, not substitutive; expanding automation does not mean shrinking manual QA.**
+4. **When adding a new feature, both automated and manual coverage are explicitly specified.**
+5. **When removing a feature, both automated tests and manual scenarios are updated.**
+
+---
+
+## 4. Invariant Test Design Principles
+
+### 4.1 Tab-Based Functional Area Structure
+
+Translation key invariants are organized around **10 major categories** (see §5). Each category is paired with a single test method that verifies the core representative keys for that area.
+
+This is not exhaustive key validation but rather a "minimum-evidence" set proving that the functional area is alive. When new keys are added, they are incorporated into the relevant category test as representative keys when warranted; when features are removed, the corresponding entries are immediately deleted from the same category test.
+
+### 4.2 Dead-Code Criteria (Strengthened in v1.0.7 Session 3)
+
+Before declaring a translation key or code element dead, all five of the following criteria must be confirmed:
+
+1. **Zero static references** — `grep` confirms no calls anywhere in the file
+2. **Dynamic dispatch ruled out** — the key is not generated dynamically via `getattr` or f-string concatenation
+3. **No intentional reservation in documentation** — no comments in source or design documents marking the element as "reserved for future use" or "temporarily held"
+4. **No evidence of executable reachability** — no execution scenario can reach the dead-code path
+5. **Invariant registration status in the test file** — if registered, removing the source must be accompanied by updating the test (otherwise FAIL is triggered)
+
+Criterion 5 was derived from the `tf_dlg_overwrite` rollback case in v1.0.7 Session 2. If the source is removed but the invariant is left untouched, the automated test will block the removal; preemptive verification of criterion 5 prevents incomplete cleanups.
+
+### 4.3 Through-Line
+
+> **History is the responsibility of Git logs and the CHANGELOG; tests are maintained as the specification of what is currently alive.**
+
+A test file is not "yesterday's snapshot" but "today's specification." The fact that a key was added in a past version is sufficiently traced via `git blame` and the CHANGELOG, so the convention of embedding version numbers in test method names is hereby retired.
+
+### 4.4 Prohibitions
+
+- ❌ **No new adoption of version-snapshot patterns** — patterns such as `test_all_langs_have_vXXX_keys` are subject to recurrence prevention
+- ❌ **No accumulation of historical artifacts in tests** — past version markers are not left in test code
+- ❌ **No invariants persisting for removed features** — when a feature is removed, its invariants are simultaneously updated
+- ❌ **No retention of source-grep tests broken by module extraction** — when a definition migrates to `fns_<module>.py`, source-grep tests that parsed the main module's source are either rewritten against the new module or removed (v1.1.0 modularization track)
+- ❌ **No retention of source-grep tests when equivalent runtime coverage exists** — if the invariant is also enforced by a module-load test, a new `TestFns*` class, or cross-language symmetry, the source-grep version is removed
+
+### 4.5 Recommendations
+
+- ✅ Maintain invariant tests per functional area (the 10-category basis)
+- ✅ When adding a new key, review whether to update the representative-key set of the corresponding category test
+- ✅ When removing a feature, immediately delete the entry from the same category test
+- ✅ For keys with ambiguous category boundaries: assign to the **first UI tab in which the key appears** preferentially; if used commonly across tabs, place under `common`; remaining edge cases under `misc` (target: minimization)
+- ✅ **`TestFns<Module>` class pattern for module-track regressions** — when a module is extracted, add a dedicated test class covering: (a) module surface (public dicts, functions, constants), (b) package shape if the extraction includes a sub-package (sub-files present, each file exposes its expected variable), (c) source-grep invariants on the new module (import statements, composition patterns), (d) main-module integration (import block present, old definitions absent)
+- ✅ **Prefer module-load tests over source-grep tests** when both express the same invariant — module-load is more stable across formatting changes
+- ✅ **Source-only invariants may be retired** when data moves to per-language files where the same property is caught at PR-review time via `git diff` (e.g., duplicate keys in a Python dict literal that the runtime silently overwrites)
+
+---
+
+## 5. The 10 Major Categories (Confirmed 2026-04-22)
+
+| # | Category | Corresponding UI Area | Prefix Examples | Test Method |
 |---|---|---|---|---|
-| 1 | `common` | 전 탭 공통 다이얼로그·버튼 | `dlg_*`, `btn_*` (일부) | `test_all_langs_have_common_dialog_keys` |
-| 2 | `text_merger` | Text Merger 탭 | `merge_*`, `sm_*` | `test_all_langs_have_text_merger_keys` |
-| 3 | `text_converter` | Text Converter 탭 | `conv_*`, `tc_*` | `test_all_langs_have_text_converter_keys` |
-| 4 | `tag_editor` | Tag Editor 탭 | `tag_*` | `test_all_langs_have_tag_editor_keys` |
-| 5 | `batch_renamer` | Batch Renamer 탭 | `batch_*` + `rename_*` (통합) | `test_all_langs_have_batch_renamer_keys` |
-| 6 | `text_fixer` | Text Fixer 탭 | `tf_*` | `test_all_langs_have_text_fixer_keys` |
-| 7 | `bulk_fixer` | Bulk Fixer 탭 | `bulk_*` | `test_all_langs_have_bulk_fixer_keys` |
-| 8 | `settings` | 설정 다이얼로그 | `settings_*`, `license_*` | `test_all_langs_have_settings_keys` |
-| 9 | `shortcut` | 단축키 시스템 | `sc_*` | `test_all_langs_have_shortcut_keys` |
-| 10 | `misc` | 위 어디에도 속하지 않는 잔여 | — | `test_all_langs_have_misc_keys` |
+| 1 | `common` | Cross-tab common dialogs and buttons | `dlg_*`, `btn_*` (selected) | `test_all_langs_have_common_dialog_keys` |
+| 2 | `text_merger` | Text Merger tab | `merge_*`, `sm_*` | `test_all_langs_have_text_merger_keys` |
+| 3 | `text_converter` | Text Converter tab | `conv_*`, `tc_*` | `test_all_langs_have_text_converter_keys` |
+| 4 | `tag_editor` | Tag Editor tab | `tag_*` | `test_all_langs_have_tag_editor_keys` |
+| 5 | `batch_renamer` | Batch Renamer tab | `batch_*` + `rename_*` (unified) | `test_all_langs_have_batch_renamer_keys` |
+| 6 | `text_fixer` | Text Fixer tab | `tf_*` | `test_all_langs_have_text_fixer_keys` |
+| 7 | `bulk_fixer` | Bulk Fixer tab | `bulk_*` | `test_all_langs_have_bulk_fixer_keys` |
+| 8 | `settings` | Settings dialog | `settings_*`, `license_*` | `test_all_langs_have_settings_keys` |
+| 9 | `shortcut` | Shortcut system | `sc_*` | `test_all_langs_have_shortcut_keys` |
+| 10 | `misc` | Anything not belonging to the above | — | `test_all_langs_have_misc_keys` |
 
-### 5.1 대분류별 경계 애매 케이스 처리 원칙
+### 5.1 Handling Boundary-Ambiguous Cases
 
-1. 해당 키가 **처음 나타나는 UI 탭**을 우선 소속으로 지정
-2. 여러 탭에서 **공통 사용되는 키**는 `common` 대분류
-3. 특정 기능군 전용 키는 해당 기능 영역
-4. 어느 영역에도 속하기 애매한 경우 `misc` — 단 최소화 목표
+1. Assign to the **UI tab where the key first appears** preferentially
+2. Keys **used in common across multiple tabs** belong under the `common` category
+3. Keys exclusive to a particular feature group belong to that functional area
+4. Keys that fit nowhere are assigned to `misc` — with minimization as the goal
 
-### 5.2 `batch_renamer` 대분류의 두 접두사 통합 근거
+### 5.2 Rationale for Unifying the Two Prefixes Under `batch_renamer`
 
-원본 `folder_renamer.py` v2.1.0(통합 전 단독 프로그램) 조사 결과:
-- **`batch_*`** ← 원본 클래스명 `BatchRenamer`에서 유래 → 탭 UI·옵션
-- **`rename_*`** ← 원본 메서드명 `_do_rename` / `_confirm_rename`에서 유래 → 이름 변경 동작의 상태·피드백
+Investigation of the original `folder_renamer.py` v2.1.0 (the standalone program prior to integration) revealed:
+- **`batch_*`** ← derived from the original class name `BatchRenamer` → applied to the tab UI and options
+- **`rename_*`** ← derived from the original method names `_do_rename` / `_confirm_rename` → applied to status and feedback for the rename action
 
-두 접두사 구분은 리팩토링 잔재가 아니라 합리적 설계 결정이므로, 단일 대분류 하위로 통합 운영한다.
-
----
-
-## 6. 향후 확장 후보 (v1.0.8+)
-
-본 정책 수립 시점에는 범위 밖이지만 향후 도입을 검토할 영역:
-
-- **GUI 테스트 자동화** (pytest-qt 기반) — 시그널/위젯 상호작용 검증
-- **AST 기반 시그널 대칭성 검증** — 현재 수동 grep 방식을 대체
-- **Visual regression testing** — 레이아웃/색상 자동 감지로 수동 QA 일부 대체
-- **테스트 품질 전수 감사** — false positive/negative, 중복 테스트 정리
-
-이들 도입 시에도 §3 5대 원칙과 §4 관통 축은 유지된다.
+The distinction between these two prefixes is not a refactoring residue but a sound design decision; therefore, they are operated under a single unified category.
 
 ---
 
-## 7. 변경 이력
+## 6. Future Expansion Candidates (v1.0.8+)
 
-| 버전 | 날짜 | 변경 |
+Out of scope at the time this policy was established, but areas to be considered for future adoption:
+
+- **GUI test automation** (pytest-qt based) — verification of signal/widget interactions
+- **AST-based signal symmetry verification** — to replace the current manual `grep` approach
+- **Visual regression testing** — to automatically detect layout and color changes, partially replacing manual QA
+- **Comprehensive test-quality audit** — eliminating false positives/negatives and redundant tests
+
+Even when these are adopted, the Five Principles in §3 and the through-line in §4 remain unchanged.
+
+---
+
+## 7. Change Log
+
+| Version | Date | Change |
 |---|---|---|
-| v1 | 2026-04-22 | 초안 제정 — v1.0.7 세션 3. 번역키 고아 15건 정리 및 invariant 재구성 결과로 정책 명문화. |
-| v2 | 2026-05-09 | v1.1.0 모듈화 트랙 — 모듈 단위 테스트 클래스 패턴 추가 (`TestFnsTheme` (`fns_theme.py` 추출 시 추가), `TestFnsTranslations` (Qt Linguist i18n 마이그레이션 시 추가)). 모듈 분리로 본질이 깨진 source-grep 테스트는 동등한 커버리지가 다른 곳에 이미 존재하면 외과적 제거 대상 (§4.4 / §4.5 확장). 추후 v3로 갱신 예정 — `TestFnsUtils` (`fns_utils.py` 추출 backfill) 신규 + 향후 패키지 트랙 컨벤션 추가. |
-| v3 | 2026-08-20 | 뒤늦은 정정 — v2에서 "추후 v3로 갱신 예정"으로 남겨뒀던 두 항목 중 `TestFnsUtils`(`fns_utils.py` 추출 backfill)는 실제로는 2026-05-10 커밋(`d692b62`)에서 이미 완료되어 있었음을 사후 확인. 함께 예고됐던 "향후 패키지 트랙 컨벤션"은 별도 결정이 보류된 채 남아있어 이번 갱신 범위에는 포함하지 않음. |
+| v1 | 2026-04-22 | Initial draft — v1.0.7 Session 3. Codified as the result of cleaning up 15 orphaned translation keys and restructuring invariants. |
+| v2 | 2026-05-09 | v1.1.0 modularization track — added module-level test class pattern (`TestFnsTheme` (with the `fns_theme.py` extraction), `TestFnsTranslations` (with the i18n migration to Qt Linguist)). Source-grep tests broken by module extraction are subject to surgical excision when equivalent coverage exists elsewhere (§4.4 / §4.5 expanded). To be revised to v3 in a subsequent update with `TestFnsUtils` (`fns_utils.py` extraction backfill) and any future package-track conventions. |
+| v3 | 2026-08-20 | Belated correction — of the two items v2 flagged as "to be revised to v3," `TestFnsUtils` (`fns_utils.py` extraction backfill) was confirmed, after the fact, to have already landed in commit `d692b62` on 2026-05-10. The other flagged item, "future package-track conventions," remains an open, deferred decision and is out of scope for this update. |
